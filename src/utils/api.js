@@ -34,8 +34,9 @@ export async function getFieldSuggestion(field, sop, formData, farmProfile) {
   if (suggestionCache.has(cacheKey)) return suggestionCache.get(cacheKey);
 
   const systemPrompt = `You are an expert FSMA Produce Safety Rule compliance assistant. Generate a specific, compliant value for a single SOP form field.
-
-Farm Context: ${farmProfile ? `Farm: ${farmProfile.farm_name || "Unknown"}, Operation: ${farmProfile.operation_type || "Unknown"}, Crops: ${farmProfile.crops || "Unknown"}` : "No farm profile available — use general best practices."}
+ 
+Farm Context:
+${farmProfile ? Object.entries(farmProfile).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("\n") : "No farm profile available — use general best practices."}
 
 SOP: ${sop.title} (${sop.ref})
 Field: ${field.label}
@@ -44,7 +45,7 @@ Placeholder/Example: ${field.ph || "None"}
 ${field.required ? "This field is REQUIRED." : ""}
 
 Current form values for context:
-${Object.entries(formData).filter(([,v]) => v).map(([k,v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n") || "No fields filled yet."}
+${Object.entries(formData).filter(([, v]) => v).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n") || "No fields filled yet."}
 
 INSTRUCTIONS:
 - Provide ONLY the field value — no explanation, no preamble, no quotes.

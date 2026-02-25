@@ -1,5 +1,10 @@
 import { buildSopStandardContext } from "./sop-standards.js";
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
+const DIRECT_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
+const API_ENDPOINTS = [
+  "/api/claude",
+  import.meta.env.VITE_ANTHROPIC_API_URL || DIRECT_ANTHROPIC_URL,
+];
 const MODEL = import.meta.env.VITE_ANTHROPIC_MODEL || "claude-sonnet-4-0";
 const MODEL_FALLBACKS = [
   MODEL,
@@ -21,36 +26,46 @@ function shouldRetryWithAnotherModel(status, data) {
 }
 
 async function sendClaudeRequest(payload) {
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error("Missing Anthropic API key. Set VITE_ANTHROPIC_API_KEY and restart the app.");
+  }
+
   const modelCandidates = [...new Set(MODEL_FALLBACKS.filter(Boolean))];
   let lastErr = new Error("Anthropic request failed");
 
+  const endpoints = [...new Set(API_ENDPOINTS.filter(Boolean))];
+
   for (const model of modelCandidates) {
-    const res = await fetch("/api/claude", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        temperature: 0.2,
-        ...payload,
-        model,
-      }),
-    });
+    for (const endpoint of endpoints) {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          temperature: 0.2,
+          ...payload,
+          model,
+        }),
+      });
 
-    let data;
-    try {
-      data = await res.json();
-    } catch {
-      throw new Error(`Anthropic response was not valid JSON (HTTP ${res.status})`);
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        // If proxy route returns HTML/404 in deployed builds, try next endpoint.
+        lastErr = new Error(`AI endpoint failed (${endpoint}, HTTP ${res.status})`);
+        continue;
+      }
+
+      if (res.ok && !data?.error) return data;
+
+      lastErr = new Error(getErrorMessage(data, res.status));
+      if (!shouldRetryWithAnotherModel(res.status, data)) break;
     }
-
-    if (res.ok && !data?.error) return data;
-
-    lastErr = new Error(getErrorMessage(data, res.status));
-    if (!shouldRetryWithAnotherModel(res.status, data)) break;
   }
 
   throw lastErr;

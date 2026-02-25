@@ -1,6 +1,8 @@
 import { buildSopStandardContext } from "./sop-standards.js";
 
-const MODEL = "claude-haiku-4-5-20251001";
+const BLOCKED_MODELS = new Set(["claude-3-7-sonnet-latest"]);
+const ENV_MODEL = (import.meta.env.VITE_ANTHROPIC_MODEL || "").trim();
+const MODEL = !ENV_MODEL || BLOCKED_MODELS.has(ENV_MODEL) ? "claude-3-5-sonnet-latest" : ENV_MODEL;
 
 function formatMessages(messages) {
   // Anthropic requires the first message to be from "user"
@@ -34,7 +36,7 @@ export async function callClaude(messages, systemPrompt) {
   return data.content?.[0]?.text || "";
 }
 
-export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDone = () => {}, onError = async () => {}) {
+export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDone = () => { }, onError = async () => { }) {
   const formatted = formatMessages(messages);
   let res;
   try {

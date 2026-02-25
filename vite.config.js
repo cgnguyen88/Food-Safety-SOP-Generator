@@ -17,9 +17,9 @@ export default defineConfig(({ mode }) => {
             'anthropic-dangerous-direct-browser-access': 'true',
             ...(env.ANTHROPIC_API_KEY
               ? {
-                  'x-api-key': env.ANTHROPIC_API_KEY,
-                  'anthropic-version': '2023-06-01',
-                }
+                'x-api-key': env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+              }
               : {}),
           },
         },

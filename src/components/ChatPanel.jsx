@@ -84,9 +84,15 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
         { role: "assistant", content: cleanResponse + (formUpdate ? `\n\n${c.updatedFields}` : ""), streaming: false },
       ]);
     } catch (e) {
+      const errorMessage = String(e?.message || "Unknown error");
+      const isLegacyModelError = errorMessage.includes("claude-3-7-sonnet-latest");
+      const guidance = isLegacyModelError
+        ? "A legacy model is still being used by deployed assets. Redeploy latest code and clear browser cache, then verify VITE_ANTHROPIC_MODEL is not set to claude-3-7-sonnet-latest."
+        : "Check your API key and model settings (VITE_ANTHROPIC_MODEL / VITE_ANTHROPIC_MODEL_CANDIDATES).";
+
       setMessages(prev => [
         ...prev.slice(0, -1),
-        { role: "assistant", content: `Connection error: ${e.message}\n\nPlease check your API key configuration.`, streaming: false },
+        { role: "assistant", content: `Connection error: ${errorMessage}\n\n${guidance}`, streaming: false },
       ]);
     }
     setLoading(false);
@@ -94,8 +100,8 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
 
   const quickActions = [
     { label: c.quickDescribe, text: c.quickDescribeText },
-    { label: c.quickReview,   text: c.quickReviewText },
-    { label: c.quickExplain,  text: c.quickExplainText },
+    { label: c.quickReview, text: c.quickReviewText },
+    { label: c.quickExplain, text: c.quickExplainText },
     { label: c.quickExamples, text: c.quickExamplesText },
   ];
 

@@ -1,10 +1,11 @@
 import { buildSopStandardContext } from "./sop-standards.js";
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 const DIRECT_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const API_ENDPOINTS = [
   "/api/claude",
   import.meta.env.VITE_ANTHROPIC_API_URL || DIRECT_ANTHROPIC_URL,
 ];
+const API_KEY_STORAGE_KEY = "anthropic_api_key";
+const ENV_ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 const MODEL = import.meta.env.VITE_ANTHROPIC_MODEL || "claude-sonnet-4-0";
 const MODEL_FALLBACKS = [
   MODEL,
@@ -25,9 +26,47 @@ function shouldRetryWithAnotherModel(status, data) {
   return status === 404 || code.includes("model") || message.includes("model");
 }
 
+function getStoredApiKey() {
+  if (typeof window === "undefined") return "";
+  try {
+    return localStorage.getItem(API_KEY_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function saveApiKey(key) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(API_KEY_STORAGE_KEY, key);
+  } catch {
+    // Ignore storage failures and continue with in-memory usage only.
+  }
+}
+
+function resolveApiKey() {
+  const envKey = ENV_ANTHROPIC_API_KEY.trim();
+  if (envKey) return envKey;
+
+  const storedKey = getStoredApiKey().trim();
+  if (storedKey) return storedKey;
+
+  if (typeof window !== "undefined") {
+    const entered = window.prompt("Enter your Anthropic API key (starts with sk-ant-):");
+    const cleaned = (entered || "").trim();
+    if (cleaned) {
+      saveApiKey(cleaned);
+      return cleaned;
+    }
+  }
+
+  return "";
+}
+
 async function sendClaudeRequest(payload) {
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error("Missing Anthropic API key. Set VITE_ANTHROPIC_API_KEY and restart the app.");
+  const apiKey = resolveApiKey();
+  if (!apiKey) {
+    throw new Error("Missing Anthropic API key. Add VITE_ANTHROPIC_API_KEY or enter/store key in-app.");
   }
 
   const modelCandidates = [...new Set(MODEL_FALLBACKS.filter(Boolean))];
@@ -41,7 +80,7 @@ async function sendClaudeRequest(payload) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_API_KEY,
+          "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
           "anthropic-dangerous-direct-browser-access": "true",
         },

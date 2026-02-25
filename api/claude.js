@@ -9,10 +9,13 @@ export default async function handler(req, res) {
     return;
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY;
   if (!apiKey) {
     res.status(500).json({
-      error: { message: "Server missing ANTHROPIC_API_KEY environment variable." },
+      error: {
+        message:
+          "Server missing Anthropic key. Set ANTHROPIC_API_KEY (preferred) or VITE_ANTHROPIC_API_KEY in Vercel Environment Variables and redeploy.",
+      },
     });
     return;
   }

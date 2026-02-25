@@ -3,6 +3,7 @@ import ChatPanel from "./ChatPanel.jsx";
 import FormPanel from "./FormPanel.jsx";
 import ExportModal from "./ExportModal.jsx";
 import ReviewPanel from "./ReviewPanel.jsx";
+import SOPRecordModal from "./SOPRecordModal.jsx";
 
 function buildProfilePrefill(sop, farmProfile) {
   if (!farmProfile) return {};
@@ -39,6 +40,7 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
   const [missingFields, setMissingFields] = useState([]);
   const [showExport, setShowExport] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [showRecords, setShowRecords] = useState(false);
 
   // Clear review state when SOP changes
   useEffect(() => {
@@ -129,6 +131,9 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
             </div>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
+            <button onClick={() => setShowRecords(true)} style={{ padding: "12px 24px", background: "linear-gradient(135deg,var(--u-sky),var(--u-navy-l))", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 6px 14px rgba(0,69,128,0.3)" }}>
+              Records Generator
+            </button>
             <button onClick={handleReview} style={{ padding: "12px 24px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(253,189,16,0.3)" }}>Review</button>
             <button onClick={() => setShowExport(true)} style={{ padding: "12px 24px", background: "var(--u-navy)", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,45,84,0.3)" }}>Export</button>
           </div>
@@ -161,6 +166,7 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
       </div>
 
       {showExport && <ExportModal sop={sop} formData={formData} farmProfile={farmProfile} onClose={() => setShowExport(false)} />}
+      {showRecords && <SOPRecordModal sop={sop} formData={formData} farmProfile={farmProfile} onClose={() => setShowRecords(false)} />}
     </div>
   );
 }

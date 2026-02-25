@@ -118,3 +118,47 @@ INSTRUCTIONS:
     return null;
   }
 }
+
+export async function getRecordItemSuggestion(item, sop, formData, farmProfile, recordMeta = {}) {
+  const cacheKey = `record-${sop.id}-${item.id}-${JSON.stringify({ formData, farmProfile, recordMeta })}`;
+  if (suggestionCache.has(cacheKey)) return suggestionCache.get(cacheKey);
+
+  const sopContext = buildSopStandardContext(sop);
+  const systemPrompt = `You are an expert produce safety compliance assistant. Draft concise documentation text for a checklist record item.
+${sopContext}
+
+Farm Context:
+${farmProfile ? Object.entries(farmProfile).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("\n") : "No farm profile available."}
+
+Record Context:
+- Activity Date: ${recordMeta.activityDate || "N/A"}
+- Performed By: ${recordMeta.performedBy || "N/A"}
+- Verified By: ${recordMeta.verifiedBy || "N/A"}
+- Record Notes: ${recordMeta.notes || "N/A"}
+
+Checklist Item:
+- Section: ${item.sectionTitle}
+- Item: ${item.label}
+- Expected: ${item.expected}
+
+Current SOP Form Values:
+${Object.entries(formData).filter(([, v]) => v).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n") || "No fields filled yet."}
+
+INSTRUCTIONS:
+- Return ONLY the suggested evidence note text. No title, no markdown, no quotes.
+- Keep it practical, audit-ready, and specific to this item.
+- Include who/what/where (and when if relevant) in 1-3 short sentences.
+- Do not invent lab values, legal thresholds, or unverifiable facts.`;
+
+  const messages = [{ role: "user", content: `Draft documentation notes for this checklist item: "${item.label}"` }];
+
+  try {
+    const data = await sendClaudeRequest({ max_tokens: 180, system: systemPrompt, messages });
+    const suggestion = data.content?.map((b) => b.text || "").join("").trim() || "";
+    suggestionCache.set(cacheKey, suggestion);
+    return suggestion;
+  } catch (e) {
+    console.error("Record item AI suggestion failed:", e);
+    return null;
+  }
+}

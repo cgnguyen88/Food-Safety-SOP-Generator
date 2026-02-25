@@ -1,10 +1,8 @@
 import { buildSopStandardContext } from "./sop-standards.js";
 const DIRECT_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const API_ENDPOINTS = [
-  "/api/claude",
-  import.meta.env.VITE_ANTHROPIC_API_URL || DIRECT_ANTHROPIC_URL,
-];
-const API_KEY_STORAGE_KEY = "anthropic_api_key";
+const PROXY_ENDPOINT = "/api/claude";
+const DIRECT_ENDPOINT = import.meta.env.VITE_ANTHROPIC_API_URL || DIRECT_ANTHROPIC_URL;
+const ALLOW_CLIENT_KEY_FALLBACK = import.meta.env.VITE_ALLOW_CLIENT_KEY_FALLBACK === "true";
 const ENV_ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
 const MODEL = import.meta.env.VITE_ANTHROPIC_MODEL || "claude-sonnet-4-0";
 const MODEL_FALLBACKS = [
@@ -26,63 +24,36 @@ function shouldRetryWithAnotherModel(status, data) {
   return status === 404 || code.includes("model") || message.includes("model");
 }
 
-function getStoredApiKey() {
-  if (typeof window === "undefined") return "";
-  try {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-
-function saveApiKey(key) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(API_KEY_STORAGE_KEY, key);
-  } catch {
-    // Ignore storage failures and continue with in-memory usage only.
-  }
-}
-
 function resolveApiKey() {
   const envKey = ENV_ANTHROPIC_API_KEY.trim();
   if (envKey) return envKey;
-
-  const storedKey = getStoredApiKey().trim();
-  if (storedKey) return storedKey;
-
-  if (typeof window !== "undefined") {
-    const entered = window.prompt("Enter your Anthropic API key (starts with sk-ant-):");
-    const cleaned = (entered || "").trim();
-    if (cleaned) {
-      saveApiKey(cleaned);
-      return cleaned;
-    }
-  }
-
   return "";
 }
 
 async function sendClaudeRequest(payload) {
-  const apiKey = resolveApiKey();
-  if (!apiKey) {
-    throw new Error("Missing Anthropic API key. Add VITE_ANTHROPIC_API_KEY or enter/store key in-app.");
-  }
-
   const modelCandidates = [...new Set(MODEL_FALLBACKS.filter(Boolean))];
   let lastErr = new Error("Anthropic request failed");
-
-  const endpoints = [...new Set(API_ENDPOINTS.filter(Boolean))];
+  let apiKey = "";
+  const endpoints = ALLOW_CLIENT_KEY_FALLBACK
+    ? [PROXY_ENDPOINT, DIRECT_ENDPOINT]
+    : [PROXY_ENDPOINT];
 
   for (const model of modelCandidates) {
     for (const endpoint of endpoints) {
+      const isProxyEndpoint = endpoint === "/api/claude";
+      if (!isProxyEndpoint && !apiKey) {
+        apiKey = resolveApiKey();
+        if (!apiKey) {
+          throw new Error("AI service unavailable. Configure backend ANTHROPIC_API_KEY.");
+        }
+      }
       const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true",
+          ...(apiKey ? { "x-api-key": apiKey } : {}),
+          ...(!isProxyEndpoint ? { "anthropic-version": "2023-06-01" } : {}),
+          ...(!isProxyEndpoint ? { "anthropic-dangerous-direct-browser-access": "true" } : {}),
         },
         body: JSON.stringify({
           temperature: 0.2,
@@ -103,6 +74,9 @@ async function sendClaudeRequest(payload) {
       if (res.ok && !data?.error) return data;
 
       lastErr = new Error(getErrorMessage(data, res.status));
+      if (!apiKey && !isProxyEndpoint && (res.status === 401 || res.status === 403)) {
+        lastErr = new Error("AI service unavailable. Configure backend ANTHROPIC_API_KEY.");
+      }
       if (!shouldRetryWithAnotherModel(res.status, data)) break;
     }
   }

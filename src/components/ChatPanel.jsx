@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { callClaude, parseFormUpdates, stripFormUpdate } from "../utils/api.js";
+import { buildSopStandardContext } from "../utils/sop-standards.js";
 
 export default function ChatPanel({ sop, formData, onFormUpdate, farmProfile }) {
   const [messages, setMessages] = useState([
@@ -14,8 +15,10 @@ export default function ChatPanel({ sop, formData, onFormUpdate, farmProfile }) 
   const buildSystemPrompt = () => {
     const filledFields = Object.entries(formData).filter(([, v]) => v).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n");
     const allFields = sop.sections.flatMap(s => s.fields).map(f => `${f.id} (${f.label}${f.required ? " — REQUIRED" : ""})`).join(", ");
+    const sopContext = buildSopStandardContext(sop);
     return `You are an expert FSMA Produce Safety Rule (PSR) food safety compliance assistant helping a farm operator complete their "${sop.title}" SOP.
 Reference: ${sop.ref}
+${sopContext}
 
 ${farmProfile ? `FARM PROFILE:\nFarm: ${farmProfile.farm_name || ""}\nOwner: ${farmProfile.owner_name || ""}\nAddress: ${farmProfile.address || ""}\nOperation: ${farmProfile.operation_type || ""}\nCrops: ${farmProfile.crops || ""}\nFSMA Status: ${farmProfile.fsma_status || ""}` : "No farm profile saved yet."}
 
@@ -38,7 +41,8 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
 4. For checkbox-multiple fields, provide values as arrays: ["Option 1", "Option 2"]
 5. When reviewing the form, check all required fields and flag specific compliance gaps.
 6. Reference FDA FSMA PSR, Cornell PSA, UC Davis Post-PSA, and UMD Extension guidance where relevant.
-7. Keep responses concise — 2-4 paragraphs max unless explaining regulations in detail.`;
+7. If uncertain about a regulatory detail, say "Verify against current regulator guidance" instead of inventing specifics.
+8. Keep responses concise — 2-4 paragraphs max unless explaining regulations in detail.`;
   };
 
   const sendMessage = async (text) => {

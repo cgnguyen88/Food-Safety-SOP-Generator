@@ -1,17 +1,26 @@
 import { useState } from "react";
-import { generateShareLink, downloadAsDocx } from "../utils/export.js";
+import { generateShareLink, downloadAsDocx, printAsPdf } from "../utils/export.js";
 
 export default function ExportModal({ sop, formData, farmProfile, onClose }) {
   const [copied, setCopied] = useState(false);
+  const [printError, setPrintError] = useState("");
   const shareLink = generateShareLink(sop.id, formData);
 
-  const handlePrint = () => { window.print(); };
+  const handlePrint = () => {
+    try {
+      setPrintError("");
+      printAsPdf(sop, formData, farmProfile);
+      onClose();
+    } catch (e) {
+      setPrintError(e.message || "Unable to open print window.");
+    }
+  };
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareLink).then(() => { setCopied(true); setTimeout(()=>setCopied(false),2000); });
   };
 
   return (
-    <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}>
+    <div className="no-print" style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}>
       <div style={{ background:"var(--cream)",borderRadius:16,width:"min(480px,95vw)",boxShadow:"var(--shadow-lg)" }}>
         <div style={{ padding:"28px 32px 20px",borderBottom:"1px solid var(--bdr2)",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <h2 style={{ fontFamily:"Lora,serif",fontSize:20,color:"var(--g900)" }}>Export & Share</h2>
@@ -31,6 +40,11 @@ export default function ExportModal({ sop, formData, farmProfile, onClose }) {
               </div>
             </button>
           ))}
+          {printError && (
+            <div style={{ fontSize:12, color:"var(--red)", paddingTop:4 }}>
+              {printError}
+            </div>
+          )}
         </div>
         <div style={{ padding:"12px 32px 24px" }}>
           <button onClick={onClose} style={{ width:"100%",padding:"10px",border:"1.5px solid var(--bdr)",borderRadius:8,background:"none",cursor:"pointer",fontSize:13,fontWeight:500,color:"var(--txt2)" }}>Close</button>

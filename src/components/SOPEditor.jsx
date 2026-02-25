@@ -4,30 +4,38 @@ import FormPanel from "./FormPanel.jsx";
 import ExportModal from "./ExportModal.jsx";
 import ReviewPanel from "./ReviewPanel.jsx";
 
-export default function SOPEditor({ sop, farmProfile, onBack }) {
-  const [formData, setFormData] = useState(() => {
-    const init = {};
-    if (farmProfile) {
-      // Direct mappings
-      if (farmProfile.farm_name) init.farm_name = farmProfile.farm_name;
-      if (farmProfile.owner_name) init.prepared_by = farmProfile.owner_name;
-      if (farmProfile.food_safety_manager) init.food_safety_manager = farmProfile.food_safety_manager;
-      if (farmProfile.owner_name) init.owner_name = farmProfile.owner_name;
-      if (farmProfile.phone) init.phone = farmProfile.phone;
-      if (farmProfile.email) init.email = farmProfile.email;
-      if (farmProfile.address) init.address = farmProfile.address;
+function buildProfilePrefill(sop, farmProfile) {
+  if (!farmProfile) return {};
 
-      // Smart mappings for common field IDs across SOPs
-      sop.sections.forEach(s => {
-        s.fields.forEach(f => {
-          if (!init[f.id] && farmProfile[f.id]) {
-            init[f.id] = farmProfile[f.id];
-          }
-        });
-      });
-    }
-    return init;
+  const prefill = {};
+
+  // Explicit cross-field mappings used by many SOP templates
+  if (farmProfile.farm_name) prefill.farm_name = farmProfile.farm_name;
+  if (farmProfile.owner_name) prefill.prepared_by = farmProfile.owner_name;
+  if (farmProfile.food_safety_manager) prefill.food_safety_manager = farmProfile.food_safety_manager;
+  if (farmProfile.farm_director) prefill.reviewed_by = farmProfile.farm_director;
+  if (farmProfile.owner_name) prefill.owner_name = farmProfile.owner_name;
+  if (farmProfile.phone) prefill.phone = farmProfile.phone;
+  if (farmProfile.email) prefill.email = farmProfile.email;
+  if (farmProfile.address) prefill.address = farmProfile.address;
+
+  // Direct ID mapping when profile keys match SOP field IDs
+  sop.sections.forEach((section) => {
+    section.fields.forEach((field) => {
+      if (!prefill[field.id] && farmProfile[field.id]) {
+        prefill[field.id] = farmProfile[field.id];
+      }
+    });
   });
+
+  return prefill;
+}
+
+export default function SOPEditor({ sop, farmProfile, onBack }) {
+  const [formData, setFormData] = useState(() => ({
+    ...buildProfilePrefill(sop, farmProfile),
+    ...(sop.prefillData || {}),
+  }));
   const [missingFields, setMissingFields] = useState([]);
   const [showExport, setShowExport] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -37,6 +45,24 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
     setMissingFields([]);
     setShowReview(false);
   }, [sop.id]);
+
+  // Rehydrate when profile or selected SOP changes, without overwriting user's manual edits.
+  useEffect(() => {
+    const profilePrefill = buildProfilePrefill(sop, farmProfile);
+    const sharedPrefill = sop.prefillData || {};
+    setFormData((prev) => {
+      const next = { ...prev };
+      const merged = { ...profilePrefill, ...sharedPrefill };
+      Object.entries(merged).forEach(([key, value]) => {
+        const current = next[key];
+        const hasCurrent = Array.isArray(current) ? current.length > 0 : !!current;
+        if (!hasCurrent) {
+          next[key] = value;
+        }
+      });
+      return next;
+    });
+  }, [sop, farmProfile]);
 
   const handleChange = (id, val) => {
     setFormData(p => ({ ...p, [id]: val }));

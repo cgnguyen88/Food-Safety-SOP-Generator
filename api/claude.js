@@ -1,3 +1,16 @@
+async function readJsonBody(req) {
+  if (req.body && typeof req.body === "object") return req.body;
+  if (typeof req.body === "string" && req.body.trim()) return JSON.parse(req.body);
+
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(Buffer.from(chunk));
+  }
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) return {};
+  return JSON.parse(raw);
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.status(200).end();
@@ -21,15 +34,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const body = await readJsonBody(req);
+    if (!body?.messages || !Array.isArray(body.messages)) {
+      res.status(400).json({
+        error: { message: "Invalid request body: missing messages array." },
+      });
+      return;
+    }
+
     const upstream = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Accept: "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify(body || {}),
+      body: JSON.stringify(body),
     });
 
     const text = await upstream.text();

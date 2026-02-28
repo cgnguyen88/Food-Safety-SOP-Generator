@@ -4,6 +4,7 @@ import { SOP_DATA } from "./data/sop-data.js";
 import { DEFAULT_COST_SETTINGS } from "./data/cost-defaults.js";
 import { loadFromStorage, saveToStorage } from "./utils/storage.js";
 import { decodeShareLink } from "./utils/export.js";
+import { LanguageProvider } from "./i18n/LanguageContext.jsx";
 import AuthScreen from "./components/AuthScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
@@ -91,15 +92,15 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <>
+      <LanguageProvider>
         <style>{GLOBAL_CSS}</style>
         <AuthScreen onLogin={handleLogin} />
-      </>
+      </LanguageProvider>
     );
   }
 
   return (
-    <>
+    <LanguageProvider>
       <style>{GLOBAL_CSS}</style>
       <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}`}</style>
       <div style={{ height:"100vh",display:"flex",overflow:"hidden" }}>
@@ -140,6 +141,6 @@ export default function App() {
         </div>
       </div>
       {showProfile && <FarmProfileModal profile={farmProfile} onSave={saveFarmProfile} onClose={() => setShowProfile(false)} />}
-    </>
+    </LanguageProvider>
   );
 }

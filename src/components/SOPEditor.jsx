@@ -4,6 +4,9 @@ import FormPanel from "./FormPanel.jsx";
 import ExportModal from "./ExportModal.jsx";
 import ReviewPanel from "./ReviewPanel.jsx";
 import SOPRecordModal from "./SOPRecordModal.jsx";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
+import { getLocalizedSop } from "../i18n/sop-translations.js";
 
 function buildProfilePrefill(sop, farmProfile) {
   if (!farmProfile) return {};
@@ -33,6 +36,10 @@ function buildProfilePrefill(sop, farmProfile) {
 }
 
 export default function SOPEditor({ sop, farmProfile, onBack }) {
+  const { lang } = useLanguage();
+  const e = T[lang].editor;
+  const localizedSop = getLocalizedSop(sop, lang);
+
   const [formData, setFormData] = useState(() => ({
     ...buildProfilePrefill(sop, farmProfile),
     ...(sop.prefillData || {}),
@@ -110,11 +117,11 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
         borderRadius: 0
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <button onClick={onBack} style={{ padding: "10px 18px", border: "1.5px solid var(--u-navy)", borderRadius: 12, background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--u-navy)" }}>← Back</button>
+          <button onClick={onBack} style={{ padding: "10px 18px", border: "1.5px solid var(--u-navy)", borderRadius: 12, background: "transparent", cursor: "pointer", fontSize: 14, fontWeight: 600, color: "var(--u-navy)" }}>{e.back}</button>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <span style={{ fontSize: 32 }}>{sop.icon}</span>
             <div>
-              <h2 style={{ fontSize: 22, color: "var(--u-navy)", fontFamily: "Lora,serif" }}>{sop.title}</h2>
+              <h2 style={{ fontSize: 22, color: "var(--u-navy)", fontFamily: "Lora,serif" }}>{localizedSop.title}</h2>
               <div style={{ fontSize: 12, color: "var(--txt3)", fontWeight: 500, letterSpacing: 0.5 }}>{sop.code} {sop.standard}</div>
             </div>
           </div>
@@ -122,7 +129,7 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <div style={{ textAlign: "right" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--txt3)", marginBottom: 4, letterSpacing: 1 }}>COMPLETION</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--txt3)", marginBottom: 4, letterSpacing: 1 }}>{e.completion}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 120, height: 8, background: "var(--cream2)", borderRadius: 4, overflow: "hidden" }}>
                 <div style={{ width: `${completion}%`, height: "100%", background: "var(--u-navy)", transition: "width .4s ease" }} />
@@ -132,10 +139,10 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             <button onClick={() => setShowRecords(true)} style={{ padding: "12px 24px", background: "linear-gradient(135deg,var(--u-sky),var(--u-navy-l))", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 6px 14px rgba(0,69,128,0.3)" }}>
-              Records Generator
+              {e.recordsGenerator}
             </button>
-            <button onClick={handleReview} style={{ padding: "12px 24px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(253,189,16,0.3)" }}>Review</button>
-            <button onClick={() => setShowExport(true)} style={{ padding: "12px 24px", background: "var(--u-navy)", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,45,84,0.3)" }}>Export</button>
+            <button onClick={handleReview} style={{ padding: "12px 24px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(253,189,16,0.3)" }}>{e.review}</button>
+            <button onClick={() => setShowExport(true)} style={{ padding: "12px 24px", background: "var(--u-navy)", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,45,84,0.3)" }}>{e.export}</button>
           </div>
         </div>
       </div>

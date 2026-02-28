@@ -1,7 +1,14 @@
 import { useState } from "react";
 import { getFieldSuggestion } from "../utils/api.js";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
+import { getLocalizedSop } from "../i18n/sop-translations.js";
 
 export default function FormPanel({ sop, formData, onChange, missingFields, farmProfile }) {
+  const { lang } = useLanguage();
+  const f = T[lang].form;
+  const localizedSop = getLocalizedSop(sop, lang);
+
   const [openSection, setOpenSection] = useState(sop.sections[0]?.id);
   const [loadingField, setLoadingField] = useState(null);
 
@@ -40,7 +47,7 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
         ))}
         <input
           type="text"
-          placeholder="Other (specify)..."
+          placeholder={f.otherSpecify}
           style={{ ...inputStyle(field.id), marginTop: 4, height: 34, fontSize: 12 }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && e.target.value.trim()) {
@@ -59,7 +66,7 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
 
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px" }}>
-      {sop.sections.map(section => (
+      {localizedSop.sections.map(section => (
         <div key={section.id} className="glass" style={{ marginBottom: 20, borderRadius: 20, overflow: "hidden" }}>
           <button onClick={() => setOpenSection(openSection === section.id ? null : section.id)}
             style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 24px", background: openSection === section.id ? "rgba(0,45,84,0.05)" : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
@@ -74,7 +81,7 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
                     <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 15, fontWeight: 600, color: "var(--txt2)" }}>
                       {field.label}
                       {field.required && <span style={{ color: "var(--red)", fontSize: 14 }}>*</span>}
-                      {missingFields?.includes(field.id) && <span style={{ fontSize: 12, color: "var(--red)", marginLeft: 6 }}>Required</span>}
+                      {missingFields?.includes(field.id) && <span style={{ fontSize: 12, color: "var(--red)", marginLeft: 6 }}>{f.required}</span>}
                     </label>
                     {canAISuggest(field) && (
                       <button
@@ -88,7 +95,7 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
                           boxShadow: "0 3px 8px rgba(0,45,84,0.2)"
                         }}
                       >
-                        {loadingField === field.id ? "Working..." : "AI Suggest"}
+                        {loadingField === field.id ? f.working : f.aiSuggest}
                       </button>
                     )}
                   </div>
@@ -99,7 +106,7 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
                       placeholder={field.ph || ""} rows={3} style={inputStyle(field.id)} />
                   ) : field.type === "select" ? (
                     <select value={formData[field.id] || ""} onChange={e => onChange(field.id, e.target.value)} style={{ ...inputStyle(field.id), height: 38 }}>
-                      <option value="">— Select —</option>
+                      <option value="">{f.selectOption}</option>
                       {field.options.map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   ) : (
@@ -113,21 +120,21 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
         </div>
       ))}
       <div style={{ marginTop: 24, padding: "24px", border: "1.5px solid var(--bdr2)", borderRadius: 14, background: "var(--g50)" }}>
-        <div style={{ fontWeight: 700, fontSize: 16, color: "var(--u-navy)", marginBottom: 14 }}>{sop.log.title}</div>
+        <div style={{ fontWeight: 700, fontSize: 16, color: "var(--u-navy)", marginBottom: 14 }}>{localizedSop.log.title}</div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
-              <tr>{sop.log.cols.map(c => <th key={c} style={{ background: "var(--u-navy)", color: "white", padding: "10px 12px", textAlign: "left", whiteSpace: "nowrap", fontWeight: 600 }}>{c}</th>)}</tr>
+              <tr>{localizedSop.log.cols.map(col => <th key={col} style={{ background: "var(--u-navy)", color: "white", padding: "10px 12px", textAlign: "left", whiteSpace: "nowrap", fontWeight: 600 }}>{col}</th>)}</tr>
             </thead>
             <tbody>
               {[0, 1, 2, 3].map(i => (
                 <tr key={i}>
-                  {sop.log.cols.map((c, j) => (
+                  {localizedSop.log.cols.map((_, j) => (
                     <td key={j} style={{
                       border: "1px solid var(--bdr2)",
                       padding: "12px",
                       background: i % 2 === 0 ? "white" : "rgba(255,255,255,.5)",
-                      color: "var(--txt)", // Explicitly set color to avoid blending
+                      color: "var(--txt)",
                       minHeight: "40px"
                     }}>&nbsp;</td>
                   ))}
@@ -136,7 +143,7 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
             </tbody>
           </table>
         </div>
-        <p style={{ fontSize: 13, color: "var(--txt3)", marginTop: 12 }}>Log template preview — additional rows appear in converted Word document.</p>
+        <p style={{ fontSize: 13, color: "var(--txt3)", marginTop: 12 }}>{f.logPreview}</p>
       </div>
     </div>
   );

@@ -1,8 +1,15 @@
 import { SOP_DATA } from "../data/sop-data.js";
 import { TAG_COLORS } from "../styles/global.js";
 import { DicedHeroSection } from "./ui/diced-hero-section.tsx";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
+import { getLocalizedSop } from "../i18n/sop-translations.js";
 
 export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile }) {
+  const { lang } = useLanguage();
+  const d = T[lang].dashboard;
+  const localizedSops = SOP_DATA.map(sop => getLocalizedSop(sop, lang));
+
   const slides = [
     { title: "Berry Harvest", image: "https://images.unsplash.com/photo-1623227866882-c005c26dfe41?auto=format&fit=crop&q=80&w=1000" },
     { title: "Farm Training", image: "https://images.unsplash.com/photo-1595079676339-1534801ad6cf?auto=format&fit=crop&q=80&w=1000" },
@@ -13,10 +20,10 @@ export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile }) {
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: "32px 40px", background: "var(--cream)" }}>
       <DicedHeroSection
-        topText="FarmSafe UC ANR"
-        mainText="Compliance Simplified."
-        subMainText="Empowering California growers with AI-assisted food safety protocols. Build, store, and manage your FSMA PSR compliant Standard Operating Procedures with ease."
-        buttonText="Get Started"
+        topText={d.topText}
+        mainText={d.mainText}
+        subMainText={d.subText}
+        buttonText={d.getStarted}
         slides={slides}
         onMainButtonClick={() => onSelectSOP(SOP_DATA[0])}
         topTextStyle={{ color: "var(--u-gold)", fontWeight: 700, fontSize: "14px", letterSpacing: "2px", textTransform: "uppercase" }}
@@ -44,24 +51,24 @@ export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile }) {
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: 40, marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontFamily: "Lora,serif", fontSize: 32, color: "var(--u-navy)", fontWeight: 800, letterSpacing: "-0.02em" }}>SOP Generator</h1>
-          <p style={{ fontSize: 15, color: "var(--txt3)", marginTop: 6 }}>Standard Operating Procedures for FSMA PSR Compliance</p>
+          <h1 style={{ fontFamily: "Lora,serif", fontSize: 32, color: "var(--u-navy)", fontWeight: 800, letterSpacing: "-0.02em" }}>{d.sopGenerator}</h1>
+          <p style={{ fontSize: 15, color: "var(--txt3)", marginTop: 6 }}>{d.sopSubtitle}</p>
         </div>
         <button
           onClick={onOpenProfile}
           style={{ padding: "14px 28px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 14px rgba(253,189,16,0.3)" }}
         >
-          {farmProfile ? "Edit Farm Profile" : "Set up your Farm Profile"}
+          {farmProfile ? d.editProfile : d.setupProfile}
         </button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
-        {SOP_DATA.map(sop => (
+        {localizedSops.map((sop, idx) => (
           <div key={sop.id} className="glass" style={{
             padding: "28px", borderRadius: 22, cursor: "pointer",
             transition: "all .3s cubic-bezier(0.4, 0, 0.2, 1)",
             display: "flex", flexDirection: "column", gap: 14,
             position: "relative", overflow: "hidden"
-          }} onClick={() => onSelectSOP(sop)}>
+          }} onClick={() => onSelectSOP(SOP_DATA[idx])}>
             <div style={{ fontSize: 32, marginBottom: 4 }}>{sop.icon}</div>
             <h3 style={{ fontSize: 19, fontWeight: 700, color: "var(--u-navy)" }}>{sop.title}</h3>
             <p style={{ fontSize: 14, color: "var(--txt2)", lineHeight: 1.6, flex: 1 }}>{sop.desc}</p>
@@ -78,7 +85,7 @@ export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile }) {
         ))}
       </div>
       <div style={{ marginTop: 40, padding: "20px 24px", background: "var(--g50)", borderRadius: 14, border: "1px solid var(--g200)" }}>
-        <h3 style={{ fontFamily: "Lora,serif", fontSize: 15, color: "var(--g800)", marginBottom: 12 }}>Reference Resources</h3>
+        <h3 style={{ fontFamily: "Lora,serif", fontSize: 15, color: "var(--g800)", marginBottom: 12 }}>{d.resources}</h3>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 8 }}>
           {[
             { name: "Cornell PSA Resources", url: "https://producesafetyalliance.cornell.edu/resources" },

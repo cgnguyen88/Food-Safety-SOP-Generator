@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { SOP_DATA } from "../data/sop-data.js";
 import { SEVERITY_LEVELS } from "../data/cost-defaults.js";
 import IncidentLogForm from "./IncidentLogForm.jsx";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
 
 function daysAgo(n) {
   const d = new Date(); d.setDate(d.getDate() - n);
@@ -40,6 +42,9 @@ function groupByWeek(incidents) {
 }
 
 export default function ViolationDashboard({ incidents, onAddIncident, onUpdateIncident, onDeleteIncident }) {
+  const { lang } = useLanguage();
+  const v = T[lang].violations;
+
   const [startDate, setStartDate] = useState(daysAgo(30));
   const [endDate, setEndDate] = useState(daysAgo(0));
   const [showForm, setShowForm] = useState(false);
@@ -77,9 +82,9 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
   };
 
   const presets = [
-    { label: "7 Days", days: 7 },
-    { label: "30 Days", days: 30 },
-    { label: "90 Days", days: 90 },
+    { label: v.days7, days: 7 },
+    { label: v.days30, days: 30 },
+    { label: v.days90, days: 90 },
   ];
 
   return (
@@ -87,12 +92,12 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontFamily: "Lora,serif", fontSize: 32, color: "var(--u-navy)", fontWeight: 800, letterSpacing: "-0.02em" }}>Violation Dashboard</h1>
-          <p style={{ fontSize: 15, color: "var(--txt3)", marginTop: 6 }}>Track and analyze SOP violations and safety incidents</p>
+          <h1 style={{ fontFamily: "Lora,serif", fontSize: 32, color: "var(--u-navy)", fontWeight: 800, letterSpacing: "-0.02em" }}>{v.title}</h1>
+          <p style={{ fontSize: 15, color: "var(--txt3)", marginTop: 6 }}>{v.subtitle}</p>
         </div>
         <button onClick={() => { setEditingIncident(null); setShowForm(true); }}
           style={{ padding: "14px 28px", background: "var(--u-navy)", color: "white", border: "none", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 14px rgba(0,45,84,0.3)" }}>
-          + Log Incident
+          {v.logIncident}
         </button>
       </div>
 
@@ -100,7 +105,7 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
         <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
           style={{ padding: "7px 12px", border: "1.5px solid var(--bdr)", borderRadius: 8, fontSize: 13, outline: "none" }} />
-        <span style={{ color: "var(--txt3)", fontSize: 13 }}>to</span>
+        <span style={{ color: "var(--txt3)", fontSize: 13 }}>{v.to}</span>
         <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
           style={{ padding: "7px 12px", border: "1.5px solid var(--bdr)", borderRadius: 8, fontSize: 13, outline: "none" }} />
         {presets.map(p => (
@@ -114,10 +119,10 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
       {/* Summary Cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 32 }}>
         {[
-          { icon: "📊", label: "Total Violations", value: stats.total, color: "var(--u-navy)" },
-          { icon: "🔴", label: "Critical", value: stats.critical, color: "#991b1b" },
-          { icon: "✅", label: "Resolved", value: `${stats.resolvedPct}%`, color: "var(--u-navy-l)" },
-          { icon: "⏱️", label: "Avg Downtime", value: `${stats.avgDowntime}h`, color: "var(--gold)" },
+          { icon: "📊", label: v.totalViolations, value: stats.total, color: "var(--u-navy)" },
+          { icon: "🔴", label: v.critical, value: stats.critical, color: "#991b1b" },
+          { icon: "✅", label: v.resolved, value: `${stats.resolvedPct}%`, color: "var(--u-navy-l)" },
+          { icon: "⏱️", label: v.avgDowntime, value: `${stats.avgDowntime}h`, color: "var(--gold)" },
         ].map(card => (
           <div key={card.label} className="glass" style={{ padding: "24px", borderRadius: 20, textAlign: "center" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>{card.icon}</div>
@@ -130,7 +135,7 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
       {/* Bar Chart */}
       {weeklyData.length > 0 && (
         <div className="glass" style={{ borderRadius: 20, padding: "24px 32px", marginBottom: 32 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--u-navy)", marginBottom: 20, textTransform: "uppercase", letterSpacing: 1 }}>Weekly Trends</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--u-navy)", marginBottom: 20, textTransform: "uppercase", letterSpacing: 1 }}>{v.weeklyTrends}</h3>
           {weeklyData.map(week => (
             <div key={week.weekStart} style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>
               <span style={{ width: 70, fontSize: 13, color: "var(--txt2)", textAlign: "right", flexShrink: 0, fontWeight: 600 }}>{week.label}</span>
@@ -152,20 +157,20 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
       {/* Incidents Table */}
       <div style={{ background: "white", border: "1.5px solid var(--bdr2)", borderRadius: 12, overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--bdr2)" }}>
-          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--g900)" }}>Incident Log ({filtered.length})</h3>
+          <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--g900)" }}>{v.incidentLog} ({filtered.length})</h3>
         </div>
         {filtered.length === 0 ? (
           <div style={{ padding: 40, textAlign: "center", color: "var(--txt3)" }}>
             <div style={{ fontSize: 32, marginBottom: 12 }}>📋</div>
-            <p style={{ fontSize: 14 }}>No incidents recorded for this date range.</p>
-            <p style={{ fontSize: 12, marginTop: 4 }}>Click "Log Incident" to add one.</p>
+            <p style={{ fontSize: 14 }}>{v.noIncidents}</p>
+            <p style={{ fontSize: 12, marginTop: 4 }}>{v.noIncidentsHint}</p>
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--cream)" }}>
-                  {["Date", "SOP", "Type", "Severity", "Downtime", "Status", "Actions"].map(h =>
+                  {[v.tableDate, v.tableSOP, v.tableType, v.tableSeverity, v.tableDowntime, v.tableStatus, v.tableActions].map(h =>
                     <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "var(--txt2)", fontSize: 12, borderBottom: "1px solid var(--bdr2)" }}>{h}</th>
                   )}
                 </tr>
@@ -185,20 +190,20 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
                       </span>
                     </td>
                     <td style={{ padding: "10px 12px", fontSize: 12 }}>{inc.downtimeHours || 0}h</td>
-                    <td style={{ padding: "10px 12px", fontSize: 12 }}>{inc.resolved ? "Resolved" : "Open"}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 12 }}>{inc.resolved ? v.statusResolved : v.statusOpen}</td>
                     <td style={{ padding: "10px 12px", display: "flex", gap: 6 }}>
                       <button onClick={() => { setEditingIncident(inc); setShowForm(true); }}
-                        style={{ padding: "4px 10px", border: "1px solid var(--bdr)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 11 }}>Edit</button>
+                        style={{ padding: "4px 10px", border: "1px solid var(--bdr)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 11 }}>{v.edit}</button>
                       {confirmDelete === inc.id ? (
                         <>
                           <button onClick={() => handleDelete(inc.id)}
-                            style={{ padding: "4px 10px", border: "none", borderRadius: 6, background: "var(--red)", color: "white", cursor: "pointer", fontSize: 11 }}>Confirm</button>
+                            style={{ padding: "4px 10px", border: "none", borderRadius: 6, background: "var(--red)", color: "white", cursor: "pointer", fontSize: 11 }}>{v.confirm}</button>
                           <button onClick={() => setConfirmDelete(null)}
-                            style={{ padding: "4px 8px", border: "1px solid var(--bdr)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 11 }}>Cancel</button>
+                            style={{ padding: "4px 8px", border: "1px solid var(--bdr)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 11 }}>{v.cancel}</button>
                         </>
                       ) : (
                         <button onClick={() => setConfirmDelete(inc.id)}
-                          style={{ padding: "4px 10px", border: "1px solid #fca5a5", borderRadius: 6, background: "var(--red-l)", cursor: "pointer", fontSize: 11, color: "var(--red)" }}>Delete</button>
+                          style={{ padding: "4px 10px", border: "1px solid #fca5a5", borderRadius: 6, background: "var(--red-l)", cursor: "pointer", fontSize: 11, color: "var(--red)" }}>{v.delete}</button>
                       )}
                     </td>
                   </tr>

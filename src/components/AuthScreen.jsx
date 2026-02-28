@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Eye, EyeOff, Leaf, ShieldCheck, FlaskConical, Tractor } from "lucide-react";
 import { loadFromStorage, saveToStorage } from "../utils/storage.js";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
 
 /* ─── shared style helpers ─── */
 const inputStyle = (focused) => ({
@@ -203,19 +205,23 @@ function FarmSafeLogo() {
   );
 }
 
-/* ─── role options ─── */
-const ROLE_OPTIONS = [
-  { value: "owner", label: "Farm Owner / Operator", Icon: Tractor },
-  { value: "fsm", label: "Food Safety Manager", Icon: ShieldCheck },
-  { value: "consultant", label: "Consultant / Auditor", Icon: FlaskConical },
-  { value: "supervisor", label: "Harvest Supervisor", Icon: Leaf },
-  { value: "other", label: "Other", Icon: null },
+/* ─── role option keys (labels resolved inside component) ─── */
+const ROLE_OPTION_KEYS = [
+  { value: "owner", key: "roleOwner", Icon: Tractor },
+  { value: "fsm",   key: "roleFsm",   Icon: ShieldCheck },
+  { value: "consultant", key: "roleConsultant", Icon: FlaskConical },
+  { value: "supervisor", key: "roleSupervisor", Icon: Leaf },
+  { value: "other", key: "roleOther", Icon: null },
 ];
 
 /* ════════════════════════════════════════════
    Main AuthScreen component
 ═══════════════════════════════════════════ */
 export default function AuthScreen({ onLogin }) {
+  const { lang, toggleLang } = useLanguage();
+  const a = T[lang].auth;
+  const ROLE_OPTIONS = ROLE_OPTION_KEYS.map(r => ({ ...r, label: a[r.key] }));
+
   const [tab, setTab] = useState("register");
   const [error, setError] = useState("");
 
@@ -242,7 +248,7 @@ export default function AuthScreen({ onLogin }) {
     const user = users().find(
       (u) => u.email.toLowerCase() === loginEmail.trim().toLowerCase() && u.password === loginPassword
     );
-    if (!user) { setError("Invalid email or password. Please try again."); return; }
+    if (!user) { setError(a.invalidCredentials); return; }
     saveToStorage("current_user", user);
     onLogin(user);
   };
@@ -251,16 +257,16 @@ export default function AuthScreen({ onLogin }) {
     e.preventDefault();
     setError("");
     if (!firstName.trim() || !lastName.trim() || !regEmail.trim() || !regOrg.trim() || !role) {
-      setError("Please fill in all required fields."); return;
+      setError(a.fillRequired); return;
     }
-    if (!regEmail.includes("@")) { setError("Please enter a valid email address."); return; }
-    if (regPassword.length < 6) { setError("Password must be at least 6 characters."); return; }
-    if (regPassword !== regConfirm) { setError("Passwords do not match."); return; }
-    if (!agreedTerms) { setError("Please accept the Terms & Conditions to continue."); return; }
+    if (!regEmail.includes("@")) { setError(a.invalidEmail); return; }
+    if (regPassword.length < 6) { setError(a.passwordLength); return; }
+    if (regPassword !== regConfirm) { setError(a.passwordMismatch); return; }
+    if (!agreedTerms) { setError(a.acceptTerms); return; }
 
     const all = users();
     if (all.find((u) => u.email.toLowerCase() === regEmail.trim().toLowerCase())) {
-      setError("An account with this email already exists. Please sign in."); return;
+      setError(a.emailExists); return;
     }
 
     const newUser = {
@@ -327,13 +333,13 @@ export default function AuthScreen({ onLogin }) {
             Food Safety<br />SOP Assistant
           </h1>
           <p style={{ fontSize:15, lineHeight:1.7, color:"rgba(255,255,255,0.72)", marginBottom:40 }}>
-            Build FSMA-compliant Standard Operating Procedures with AI-powered assistance. Tailored for farms, food operations, and safety managers.
+            {a.brandDesc}
           </p>
           <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
             {[
-              { icon:"📋", text:"10 ready-made SOP templates" },
-              { icon:"🤖", text:"AI-powered field suggestions" },
-              { icon:"📊", text:"Violation tracking & cost analysis" },
+              { icon:"📋", text: a.feature1 },
+              { icon:"🤖", text: a.feature2 },
+              { icon:"📊", text: a.feature3 },
             ].map(({ icon, text }) => (
               <div key={text} style={{ display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ width:36, height:36, borderRadius:8, background:"rgba(255,255,255,0.1)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
@@ -354,7 +360,23 @@ export default function AuthScreen({ onLogin }) {
         justifyContent:"center",
         padding:"32px 24px",
         overflowY:"auto",
+        position:"relative",
       }}>
+        {/* Language toggle */}
+        <button
+          onClick={toggleLang}
+          title={lang === "en" ? "Switch to Spanish" : "Cambiar a Inglés"}
+          style={{
+            position:"absolute", top:20, right:24,
+            display:"flex", alignItems:"center", gap:4,
+            padding:"6px 12px", borderRadius:20,
+            border:"1.5px solid var(--bdr)", background:"white",
+            color:"var(--txt2)", cursor:"pointer", fontSize:12, fontWeight:700,
+            boxShadow:"0 2px 6px rgba(0,0,0,0.06)",
+          }}
+        >
+          {lang === "en" ? "🇲🇽 ES" : "🇺🇸 EN"}
+        </button>
         {tab === "register" ? (
           /* ══════════ REGISTRATION CARD ══════════ */
           <div style={cardStyle}>
@@ -363,10 +385,10 @@ export default function AuthScreen({ onLogin }) {
               <FarmSafeLogo />
               <div style={{ textAlign:"center" }}>
                 <h2 style={{ fontFamily:"Lora,serif", fontSize:22, fontWeight:700, color:"var(--g900)", margin:0 }}>
-                  Create an account
+                  {a.createAccount}
                 </h2>
                 <p style={{ fontSize:13, color:"var(--txt3)", marginTop:4 }}>
-                  Welcome! Fill in your details to get started.
+                  {a.createDesc}
                 </p>
               </div>
             </div>
@@ -381,7 +403,7 @@ export default function AuthScreen({ onLogin }) {
 
               <form onSubmit={handleRegister}>
                 <SelectField
-                  label="Role"
+                  label={a.role}
                   id="reg-role"
                   value={role}
                   onChange={setRole}
@@ -391,12 +413,12 @@ export default function AuthScreen({ onLogin }) {
 
                 {/* First + Last name grid */}
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:0 }}>
-                  <Field label="First name" id="reg-first" value={firstName} onChange={setFirstName} placeholder="Jane" required />
-                  <Field label="Last name"  id="reg-last"  value={lastName}  onChange={setLastName}  placeholder="Smith" required />
+                  <Field label={a.firstName} id="reg-first" value={firstName} onChange={setFirstName} placeholder="Jane" required />
+                  <Field label={a.lastName}  id="reg-last"  value={lastName}  onChange={setLastName}  placeholder="Smith" required />
                 </div>
 
                 <Field
-                  label="Email address"
+                  label={a.email}
                   id="reg-email"
                   type="email"
                   value={regEmail}
@@ -405,7 +427,7 @@ export default function AuthScreen({ onLogin }) {
                   required
                 />
                 <Field
-                  label="Phone number"
+                  label={a.phone}
                   id="reg-phone"
                   type="tel"
                   value={regPhone}
@@ -413,7 +435,7 @@ export default function AuthScreen({ onLogin }) {
                   placeholder="(555) 123-4567"
                 />
                 <Field
-                  label="Organization / Farm name"
+                  label={a.organization}
                   id="reg-org"
                   value={regOrg}
                   onChange={setRegOrg}
@@ -421,45 +443,45 @@ export default function AuthScreen({ onLogin }) {
                   required
                 />
                 <PasswordField
-                  label="Password"
+                  label={a.password}
                   id="reg-password"
                   value={regPassword}
                   onChange={setRegPassword}
-                  placeholder="At least 6 characters"
+                  placeholder={a.passwordMin}
                   required
                 />
                 <PasswordField
-                  label="Confirm password"
+                  label={a.confirmPassword}
                   id="reg-confirm"
                   value={regConfirm}
                   onChange={setRegConfirm}
-                  placeholder="Re-enter your password"
+                  placeholder={a.reenterPassword}
                   required
                 />
 
                 <div style={{ marginBottom:20 }}>
                   <CheckboxField id="terms" checked={agreedTerms} onChange={setAgreedTerms}>
-                    I agree to the{" "}
-                    <a href="#" style={{ color:"var(--g800)", textDecoration:"underline" }} onClick={e => e.preventDefault()}>Terms</a>
-                    {" "}and{" "}
-                    <a href="#" style={{ color:"var(--g800)", textDecoration:"underline" }} onClick={e => e.preventDefault()}>Privacy Policy</a>
+                    {a.agreeTerms}{" "}
+                    <a href="#" style={{ color:"var(--g800)", textDecoration:"underline" }} onClick={e => e.preventDefault()}>{a.terms}</a>
+                    {" "}{a.and}{" "}
+                    <a href="#" style={{ color:"var(--g800)", textDecoration:"underline" }} onClick={e => e.preventDefault()}>{a.privacyPolicy}</a>
                   </CheckboxField>
                 </div>
 
-                <PrimaryButton type="submit">Create free account</PrimaryButton>
+                <PrimaryButton type="submit">{a.createBtn}</PrimaryButton>
               </form>
             </div>
 
             {/* Card footer */}
             <div style={{ padding:"14px 28px", borderTop:"1px solid var(--bdr2)", textAlign:"center" }}>
               <p style={{ fontSize:13, color:"var(--txt3)" }}>
-                Already have an account?{" "}
+                {a.alreadyAccount}{" "}
                 <button
                   type="button"
                   onClick={() => switchTab("login")}
                   style={{ background:"none", border:"none", color:"var(--g800)", fontWeight:600, cursor:"pointer", fontSize:13 }}
                 >
-                  Sign in
+                  {a.signInLink}
                 </button>
               </p>
             </div>
@@ -472,10 +494,10 @@ export default function AuthScreen({ onLogin }) {
               <FarmSafeLogo />
               <div style={{ textAlign:"center" }}>
                 <h2 style={{ fontFamily:"Lora,serif", fontSize:22, fontWeight:700, color:"var(--g900)", margin:0 }}>
-                  Welcome back
+                  {a.welcomeBack}
                 </h2>
                 <p style={{ fontSize:13, color:"var(--txt3)", marginTop:4 }}>
-                  Sign in to access your SOPs and reports.
+                  {a.signInDesc}
                 </p>
               </div>
             </div>
@@ -489,7 +511,7 @@ export default function AuthScreen({ onLogin }) {
               )}
               <form onSubmit={handleLogin}>
                 <Field
-                  label="Email address"
+                  label={a.email}
                   id="login-email"
                   type="email"
                   value={loginEmail}
@@ -498,28 +520,28 @@ export default function AuthScreen({ onLogin }) {
                   required
                 />
                 <PasswordField
-                  label="Password"
+                  label={a.password}
                   id="login-password"
                   value={loginPassword}
                   onChange={setLoginPassword}
-                  placeholder="Enter your password"
+                  placeholder={a.reenterPassword}
                   required
                 />
                 <div style={{ marginBottom:20 }} />
-                <PrimaryButton type="submit">Sign in</PrimaryButton>
+                <PrimaryButton type="submit">{a.signInBtn}</PrimaryButton>
               </form>
             </div>
 
             {/* Card footer */}
             <div style={{ padding:"14px 28px", borderTop:"1px solid var(--bdr2)", textAlign:"center" }}>
               <p style={{ fontSize:13, color:"var(--txt3)" }}>
-                Don't have an account?{" "}
+                {a.noAccount}{" "}
                 <button
                   type="button"
                   onClick={() => switchTab("register")}
                   style={{ background:"none", border:"none", color:"var(--g800)", fontWeight:600, cursor:"pointer", fontSize:13 }}
                 >
-                  Create one
+                  {a.createLink}
                 </button>
               </p>
             </div>

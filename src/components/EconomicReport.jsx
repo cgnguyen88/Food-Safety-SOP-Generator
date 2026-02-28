@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { SOP_DATA } from "../data/sop-data.js";
 import { calculateEconomicImpact, parseProductWeight } from "../data/cost-defaults.js";
 import CostSettingsModal from "./CostSettingsModal.jsx";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
 
 function daysAgo(n) {
   const d = new Date(); d.setDate(d.getDate() - n);
@@ -13,6 +15,9 @@ function daysBetween(start, end) {
 }
 
 export default function EconomicReport({ incidents, costSettings, onSaveCostSettings }) {
+  const { lang } = useLanguage();
+  const ec = T[lang].economic;
+
   const [startDate, setStartDate] = useState(daysAgo(30));
   const [endDate, setEndDate] = useState(daysAgo(0));
   const [showSettings, setShowSettings] = useState(false);
@@ -44,9 +49,9 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
   const fmt = (n) => n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const presets = [
-    { label: "7 Days", days: 7 },
-    { label: "30 Days", days: 30 },
-    { label: "90 Days", days: 90 },
+    { label: T[lang].violations.days7, days: 7 },
+    { label: T[lang].violations.days30, days: 30 },
+    { label: T[lang].violations.days90, days: 90 },
   ];
 
   const exportCSV = () => {
@@ -71,17 +76,17 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontFamily: "Lora,serif", fontSize: 32, color: "var(--u-navy)", fontWeight: 800, letterSpacing: "-0.02em" }}>Economic Impact</h1>
-          <p style={{ fontSize: 15, color: "var(--txt3)", marginTop: 6 }}>{filtered.length} incidents analyzed over {days} days</p>
+          <h1 style={{ fontFamily: "Lora,serif", fontSize: 32, color: "var(--u-navy)", fontWeight: 800, letterSpacing: "-0.02em" }}>{ec.title}</h1>
+          <p style={{ fontSize: 15, color: "var(--txt3)", marginTop: 6 }}>{ec.incidentsAnalyzed(filtered.length, days)}</p>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <button onClick={() => setShowSettings(true)}
             style={{ padding: "12px 20px", border: "1.5px solid var(--u-navy)", borderRadius: 12, background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--u-navy)" }}>
-            Cost Settings
+            {ec.costSettings}
           </button>
           <button onClick={exportCSV}
             style={{ padding: "12px 24px", background: "var(--u-navy)", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 14px rgba(0,45,84,0.3)" }}>
-            Export CSV
+            {ec.exportCSV}
           </button>
         </div>
       </div>
@@ -90,7 +95,7 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24, flexWrap: "wrap" }}>
         <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
           style={{ padding: "7px 12px", border: "1.5px solid var(--bdr)", borderRadius: 8, fontSize: 13, outline: "none" }} />
-        <span style={{ color: "var(--txt3)", fontSize: 13 }}>to</span>
+        <span style={{ color: "var(--txt3)", fontSize: 13 }}>{T[lang].violations.to}</span>
         <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
           style={{ padding: "7px 12px", border: "1.5px solid var(--bdr)", borderRadius: 8, fontSize: 13, outline: "none" }} />
         {presets.map(p => (
@@ -103,12 +108,12 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
 
       {/* Total Impact Card */}
       <div className="glass" style={{ padding: "40px", borderRadius: 24, textAlign: "center", marginBottom: 32 }}>
-        <div style={{ fontSize: 14, color: "var(--txt3)", marginBottom: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>Total Economic Loss</div>
+        <div style={{ fontSize: 14, color: "var(--txt3)", marginBottom: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>{ec.totalLoss}</div>
         <div style={{ fontSize: 56, fontWeight: 900, color: impact.total > 0 ? "#991b1b" : "var(--u-navy)", letterSpacing: "-0.04em" }}>
           ${fmt(impact.total)}
         </div>
         <div style={{ fontSize: 15, color: "var(--txt2)", marginTop: 12, fontWeight: 500 }}>
-          {totalDowntimeHrs.toFixed(1)} hours downtime — {totalWeight > 0 ? `${totalWeight} lbs product loss` : "No direct product loss"}
+          {ec.downtimeHrs(totalDowntimeHrs.toFixed(1))} — {totalWeight > 0 ? ec.lbsProductLoss(totalWeight) : ec.noProductLoss}
         </div>
       </div>
 
@@ -116,16 +121,16 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 20, marginBottom: 32 }}>
         {[
           {
-            icon: "⏱️", label: "Processing Downtime", amount: impact.downtimeCost,
+            icon: "⏱️", label: ec.processing, amount: impact.downtimeCost,
             detail: `${totalDowntimeHrs.toFixed(1)} hours at $${costSettings.laborHourlyRate}/hr`,
           },
           {
-            icon: "🗑️", label: "Product Loss", amount: impact.productLossCost,
-            detail: totalWeight > 0 ? `${totalWeight} lbs at $${costSettings.produceCostPerLb}/lb` : "No product loss recorded",
+            icon: "🗑️", label: ec.productLoss, amount: impact.productLossCost,
+            detail: totalWeight > 0 ? `${totalWeight} lbs at $${costSettings.produceCostPerLb}/lb` : ec.noProductRecorded,
           },
           {
-            icon: "🔧", label: "Corrective Actions", amount: impact.correctiveActionCost,
-            detail: "Retraining, testing, equipment",
+            icon: "🔧", label: ec.correctiveActions, amount: impact.correctiveActionCost,
+            detail: ec.correctiveDetail,
           },
         ].map(card => (
           <div key={card.label} className="glass" style={{ padding: "28px", borderRadius: 22 }}>
@@ -146,13 +151,13 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
       {bySop.length > 0 && (
         <div style={{ background: "white", border: "1.5px solid var(--bdr2)", borderRadius: 12, overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--bdr2)" }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--g900)" }}>Cost by SOP Category</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--g900)" }}>{ec.costBySop}</h3>
           </div>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--cream)" }}>
-                  {["Category", "Incidents", "Total Cost", "Avg per Incident", "% of Total"].map(h =>
+                  {[ec.colCategory, ec.colIncidents, ec.colTotal, ec.colAvg, ec.colPct].map(h =>
                     <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "var(--txt2)", fontSize: 12, borderBottom: "1px solid var(--bdr2)" }}>{h}</th>
                   )}
                 </tr>
@@ -176,8 +181,8 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
       {filtered.length === 0 && (
         <div style={{ padding: 60, textAlign: "center", color: "var(--txt3)" }}>
           <div style={{ fontSize: 40, marginBottom: 16 }}>📊</div>
-          <p style={{ fontSize: 16, fontWeight: 500 }}>No incidents recorded for this date range.</p>
-          <p style={{ fontSize: 13, marginTop: 8 }}>Log incidents in the Violation Dashboard to see economic impact analysis.</p>
+          <p style={{ fontSize: 16, fontWeight: 500 }}>{ec.noData}</p>
+          <p style={{ fontSize: 13, marginTop: 8 }}>{ec.noDataHint}</p>
         </div>
       )}
 

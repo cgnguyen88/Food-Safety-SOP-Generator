@@ -1,10 +1,17 @@
 import { useState, useEffect } from "react";
 import { SOP_DATA } from "../data/sop-data.js";
 import { VIOLATION_TYPES, SEVERITY_LEVELS } from "../data/cost-defaults.js";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
+import { getLocalizedSop } from "../i18n/sop-translations.js";
 
 const today = () => new Date().toISOString().split("T")[0];
 
 export default function IncidentLogForm({ incident, onSave, onClose }) {
+  const { lang } = useLanguage();
+  const iF = T[lang].incidentForm;
+  const localizedSops = SOP_DATA.map(s => getLocalizedSop(s, lang));
+
   const [form, setForm] = useState(incident || {
     date: today(),
     sopId: "",
@@ -48,40 +55,40 @@ export default function IncidentLogForm({ incident, onSave, onClose }) {
       <div style={{ background:"var(--cream)",borderRadius:16,width:"min(640px,95vw)",maxHeight:"90vh",display:"flex",flexDirection:"column",boxShadow:"var(--shadow-lg)" }}>
         <div style={{ padding:"24px 32px 16px",borderBottom:"1px solid var(--bdr2)",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <div>
-            <h2 style={{ fontFamily:"Lora,serif",fontSize:20,color:"var(--g900)" }}>{incident ? "Edit Incident" : "Log New Incident"}</h2>
-            <p style={{ fontSize:12,color:"var(--txt3)",marginTop:2 }}>Record an SOP violation or food safety incident</p>
+            <h2 style={{ fontFamily:"Lora,serif",fontSize:20,color:"var(--g900)" }}>{incident ? iF.titleEdit : iF.titleNew}</h2>
+            <p style={{ fontSize:12,color:"var(--txt3)",marginTop:2 }}>{iF.subtitle}</p>
           </div>
           <button onClick={onClose} style={{ background:"none",border:"none",fontSize:22,cursor:"pointer",color:"var(--txt3)" }}>✕</button>
         </div>
         <div style={{ overflowY:"auto",padding:"20px 32px" }}>
           {/* Date */}
           <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>Date *</label>
+            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{iF.date} *</label>
             <input type="date" value={form.date} onChange={e=>set("date",e.target.value)} style={{...inputStyle,height:38}} />
           </div>
 
           {/* SOP Category */}
           <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>SOP Category *</label>
+            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{iF.sopCategory} *</label>
             <select value={form.sopId} onChange={e=>handleSopChange(e.target.value)} style={{...inputStyle,height:38}}>
-              <option value="">— Select SOP —</option>
-              {SOP_DATA.map(s => <option key={s.id} value={s.id}>{s.icon} {s.title}</option>)}
+              <option value="">{iF.selectSop}</option>
+              {localizedSops.map(s => <option key={s.id} value={s.id}>{s.icon} {s.title}</option>)}
             </select>
           </div>
 
           {/* Violation Type */}
           <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>Violation Type *</label>
+            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{iF.violationType} *</label>
             <select value={form.violationType} onChange={e=>set("violationType",e.target.value)} style={{...inputStyle,height:38}} disabled={!form.sopId}>
-              <option value="">— Select Type —</option>
-              {availableViolations.map(v => <option key={v} value={v}>{v}</option>)}
-              <option value="Other">Other</option>
+              <option value="">{iF.selectType}</option>
+              {availableViolations.map(vt => <option key={vt} value={vt}>{vt}</option>)}
+              <option value="Other">{iF.other}</option>
             </select>
           </div>
 
           {/* Severity */}
           <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:8 }}>Severity *</label>
+            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:8 }}>{iF.severity} *</label>
             <div style={{ display:"flex",gap:8 }}>
               {Object.entries(SEVERITY_LEVELS).map(([key, { label, color, icon }]) => (
                 <label key={key} style={{
@@ -100,21 +107,21 @@ export default function IncidentLogForm({ incident, onSave, onClose }) {
 
           {/* Description */}
           <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>Description *</label>
+            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{iF.description} *</label>
             <textarea value={form.description} onChange={e=>set("description",e.target.value)}
-              placeholder="Describe what happened, where, and when..."
+              placeholder={iF.descPlaceholder}
               rows={3} style={{...inputStyle,resize:"vertical"}} />
           </div>
 
           {/* Two columns */}
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14 }}>
             <div>
-              <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>Affected Product</label>
+              <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{iF.affectedProduct}</label>
               <input type="text" value={form.affectedProduct} onChange={e=>set("affectedProduct",e.target.value)}
-                placeholder="e.g., Lettuce, 50 lbs" style={{...inputStyle,height:38}} />
+                placeholder={iF.affectedPlaceholder} style={{...inputStyle,height:38}} />
             </div>
             <div>
-              <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>Downtime (hours)</label>
+              <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{iF.downtimeHours}</label>
               <input type="number" min="0" step="0.5" value={form.downtimeHours} onChange={e=>set("downtimeHours",parseFloat(e.target.value)||0)}
                 style={{...inputStyle,height:38}} />
             </div>
@@ -122,9 +129,9 @@ export default function IncidentLogForm({ incident, onSave, onClose }) {
 
           {/* Corrective Action */}
           <div style={{ marginBottom:14 }}>
-            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>Corrective Action Taken</label>
+            <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{iF.correctiveAction}</label>
             <textarea value={form.correctiveAction} onChange={e=>set("correctiveAction",e.target.value)}
-              placeholder="What was done to address the issue..."
+              placeholder={iF.correctivePlaceholder}
               rows={2} style={{...inputStyle,resize:"vertical"}} />
           </div>
 
@@ -133,7 +140,7 @@ export default function IncidentLogForm({ incident, onSave, onClose }) {
             <label style={{ display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,fontWeight:500,color:"var(--txt2)" }}>
               <input type="checkbox" checked={form.resolved} onChange={e=>{set("resolved",e.target.checked);if(e.target.checked)set("resolvedDate",today());}}
                 style={{ accentColor:"var(--g700)" }} />
-              Resolved
+              {iF.resolved}
             </label>
             {form.resolved && (
               <input type="date" value={form.resolvedDate} onChange={e=>set("resolvedDate",e.target.value)}
@@ -142,10 +149,10 @@ export default function IncidentLogForm({ incident, onSave, onClose }) {
           </div>
         </div>
         <div style={{ padding:"16px 32px",borderTop:"1px solid var(--bdr2)",display:"flex",gap:12,justifyContent:"flex-end" }}>
-          <button onClick={onClose} style={{ padding:"9px 20px",border:"1.5px solid var(--bdr)",borderRadius:8,background:"white",cursor:"pointer",fontSize:13,fontWeight:500 }}>Cancel</button>
+          <button onClick={onClose} style={{ padding:"9px 20px",border:"1.5px solid var(--bdr)",borderRadius:8,background:"white",cursor:"pointer",fontSize:13,fontWeight:500 }}>{iF.cancel}</button>
           <button onClick={handleSubmit} disabled={!form.date||!form.sopId||!form.description}
             style={{ padding:"9px 24px",background:"var(--g800)",color:"white",border:"none",borderRadius:8,cursor:"pointer",fontSize:13,fontWeight:600,opacity:(!form.date||!form.sopId||!form.description)?0.5:1 }}>
-            {incident ? "Save Changes" : "Log Incident"}
+            {incident ? iF.saveChanges : iF.logIncident}
           </button>
         </div>
       </div>

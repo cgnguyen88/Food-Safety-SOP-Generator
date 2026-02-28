@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { SOP_DATA } from "../data/sop-data.js";
 import { SEVERITY_LEVELS } from "../data/cost-defaults.js";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
+import { getLocalizedSop } from "../i18n/sop-translations.js";
 
 function searchAll(query, incidents) {
   if (!query || query.length < 2) return [];
@@ -85,11 +88,14 @@ function searchAll(query, incidents) {
 }
 
 export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, onLogout, currentUser, farmProfile, incidents }) {
+  const { lang, toggleLang } = useLanguage();
+  const s = T[lang].sidebar;
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
+  const localizedSops = SOP_DATA.map(sop => getLocalizedSop(sop, lang));
   const results = searchAll(query, incidents || []);
   const showResults = focused && query.length >= 2;
 
@@ -139,9 +145,30 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
 
   return (
     <div style={{ width: 260, background: "var(--u-navy)", color: "white", display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
-      <div style={{ padding: "28px 24px 22px", borderBottom: "1px solid rgba(255,255,255,.15)" }}>
-        <div style={{ fontFamily: "Lora,serif", fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>FarmSafe</div>
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,.7)", marginTop: 4 }}>UC ANR Food Safety System</div>
+      <div style={{ padding: "22px 24px 16px", borderBottom: "1px solid rgba(255,255,255,.15)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontFamily: "Lora,serif", fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>FarmSafe</div>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,.7)", marginTop: 3 }}>{s.appSub}</div>
+          </div>
+          {/* Language toggle */}
+          <button
+            onClick={toggleLang}
+            title={lang === "en" ? "Switch to Spanish" : "Cambiar a Inglés"}
+            style={{
+              display: "flex", alignItems: "center", gap: 4,
+              padding: "5px 10px", borderRadius: 20,
+              border: "1px solid rgba(255,255,255,.25)",
+              background: "rgba(255,255,255,.1)",
+              color: "white", cursor: "pointer", fontSize: 12, fontWeight: 700,
+              transition: "background .15s", flexShrink: 0,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.2)"}
+            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,.1)"}
+          >
+            {lang === "en" ? "🇲🇽 ES" : "🇺🇸 EN"}
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -154,7 +181,7 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
             value={query}
             onChange={e => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
-            placeholder="Search documents..."
+            placeholder={s.search}
             style={{
               width: "100%", padding: "12px 14px 12px 38px",
               background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)",
@@ -228,24 +255,24 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
       {/* Navigation */}
       <div style={{ padding: "12px 18px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
         <button onClick={() => onNavigate("home")} style={{ width: "100%", padding: "12px 16px", background: activePage === "home" ? "var(--u-gold)" : "rgba(255,255,255,.05)", border: "none", borderRadius: 10, color: activePage === "home" ? "var(--u-navy-d)" : "white", cursor: "pointer", fontSize: 14, fontWeight: 600, textAlign: "left", transition: "all .2s", boxShadow: activePage === "home" ? "0 4px 12px rgba(253,189,16,0.3)" : "" }}>
-          Dashboard
+          {s.dashboard}
         </button>
         <button onClick={() => onNavigate("violations")} style={{ width: "100%", padding: "12px 16px", background: activePage === "violations" ? "var(--u-gold)" : "rgba(255,255,255,.03)", border: activePage === "violations" ? "none" : "1px solid rgba(255,255,255,0.05)", borderRadius: 10, color: activePage === "violations" ? "var(--u-navy-d)" : "rgba(255,255,255,.8)", cursor: "pointer", fontSize: 14, fontWeight: 600, textAlign: "left", transition: "all .2s" }}>
-          Violation Dashboard
+          {s.violations}
         </button>
         <button onClick={() => onNavigate("economic")} style={{ width: "100%", padding: "12px 16px", background: activePage === "economic" ? "var(--u-gold)" : "rgba(255,255,255,.03)", border: activePage === "economic" ? "none" : "1px solid rgba(255,255,255,0.05)", borderRadius: 10, color: activePage === "economic" ? "var(--u-navy-d)" : "rgba(255,255,255,.8)", cursor: "pointer", fontSize: 14, fontWeight: 600, textAlign: "left", transition: "all .2s" }}>
-          Economic Report
+          {s.economic}
         </button>
         <button onClick={onOpenProfile} style={{ width: "100%", padding: "12px 16px", background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 10, color: "rgba(255,255,255,.8)", cursor: "pointer", fontSize: 14, textAlign: "left", transition: "all .2s" }}>
-          {farmProfile?.farm_name ? farmProfile.farm_name.slice(0, 22) : "My Farm Profile"}
+          {farmProfile?.farm_name ? farmProfile.farm_name.slice(0, 22) : (lang === "es" ? "Mi Perfil de Granja" : "My Farm Profile")}
         </button>
       </div>
       <div style={{ padding: "12px 18px 6px" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,.45)", padding: "0 6px", marginBottom: 8 }}>STANDARD PROCEDURES</div>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,.45)", padding: "0 6px", marginBottom: 8 }}>{s.procedures}</div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 24px" }}>
-        {SOP_DATA.map(sop => (
-          <button key={sop.id} onClick={() => onSelectSOP(sop)}
+        {localizedSops.map(sop => (
+          <button key={sop.id} onClick={() => onSelectSOP(SOP_DATA.find(s => s.id === sop.id))}
             style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", marginBottom: 4, background: activeSOP?.id === sop.id ? "rgba(255,255,255,.2)" : "transparent", border: "none", borderRadius: 8, cursor: "pointer", textAlign: "left", color: "white", transition: "all .15s" }}>
             <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{sop.icon}</span>
             <span style={{ fontSize: 13, lineHeight: 1.4, color: activeSOP?.id === sop.id ? "white" : "rgba(255,255,255,.8)", fontWeight: activeSOP?.id === sop.id ? 600 : 400 }}>{sop.short}</span>
@@ -284,7 +311,7 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
           onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,.12)"; e.currentTarget.style.color = "white"; }}
           onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,.06)"; e.currentTarget.style.color = "rgba(255,255,255,.6)"; }}
         >
-          Sign Out
+          {s.signOut}
         </button>
       </div>
     </div>

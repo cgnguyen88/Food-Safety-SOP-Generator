@@ -1,11 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import { callClaude, parseFormUpdates, stripFormUpdate } from "../utils/api.js";
 import { buildSopStandardContext } from "../utils/sop-standards.js";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
 
 export default function ChatPanel({ sop, formData, onFormUpdate, farmProfile }) {
+  const { lang } = useLanguage();
+  const c = T[lang].chat;
+
   const [messages, setMessages] = useState([
-    { role: "assistant", content: `Hello! I'm your food safety compliance assistant. I'm here to help you complete the **${sop.title}** SOP.\n\nI can:\n• **Fill in fields** based on your farm description\n• **Explain regulations** behind each requirement\n• **Review your form** for compliance gaps\n• **Provide examples** for any field\n\nHow would you like to start? Describe your farm and operation, or ask me about any specific field.` }
+    { role: "assistant", content: c.greetingText(sop.title) }
   ]);
+
+  // Reset chat greeting when language or SOP changes
+  useEffect(() => {
+    setMessages([{ role: "assistant", content: T[lang].chat.greetingText(sop.title) }]);
+  }, [lang, sop.id]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef(null);
@@ -58,7 +68,7 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
       const formUpdate = parseFormUpdates(response);
       const cleanResponse = stripFormUpdate(response);
       if (formUpdate) onFormUpdate(formUpdate);
-      setMessages(prev => [...prev, { role: "assistant", content: cleanResponse + (formUpdate ? "\n\nI've updated the relevant fields in the form." : "") }]);
+      setMessages(prev => [...prev, { role: "assistant", content: cleanResponse + (formUpdate ? `\n\n${c.updatedFields}` : "") }]);
     } catch (e) {
       setMessages(prev => [...prev, { role: "assistant", content: `Connection error: ${e.message}\n\nPlease check your API key configuration.` }]);
     }
@@ -66,10 +76,10 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
   };
 
   const quickActions = [
-    { label: "Describe my farm", text: "Let me describe my farm operation so you can help fill in this SOP." },
-    { label: "Review my form", text: "Please review my current form for any missing required fields or compliance gaps." },
-    { label: "Explain this SOP", text: "Can you explain the regulatory requirements behind this SOP and what FSMA expects?" },
-    { label: "Give me examples", text: "Can you give me example responses for the main fields in this SOP?" },
+    { label: c.quickDescribe, text: c.quickDescribeText },
+    { label: c.quickReview,   text: c.quickReviewText },
+    { label: c.quickExplain,  text: c.quickExplainText },
+    { label: c.quickExamples, text: c.quickExamplesText },
   ];
 
   const renderMarkdown = (text) => text
@@ -91,8 +101,8 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
         borderBottom: "1px solid rgba(255,255,255,0.1)",
         boxShadow: "0 2px 10px rgba(0,0,0,0.1)"
       }}>
-        <div style={{ fontSize: 17, fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>UC ANR Assistant</div>
-        <div style={{ fontSize: 13, color: "var(--u-gold)", marginTop: 2, fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px" }}>AI Compliance Guide</div>
+        <div style={{ fontSize: 17, fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>{c.assistantName}</div>
+        <div style={{ fontSize: 13, color: "var(--u-gold)", marginTop: 2, fontWeight: 600, textTransform: "uppercase", letterSpacing: "1px" }}>{c.aiGuide}</div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: 20 }}>
         {messages.map((msg, i) => (
@@ -123,7 +133,7 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
       </div>
       <div style={{ padding: "20px 24px 32px", borderTop: "1px solid var(--bdr2)", display: "flex", gap: 12, background: "rgba(255,255,255,0.5)" }}>
         <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage(input)}
-          placeholder="Describe your operation..."
+          placeholder={c.placeholder}
           style={{ flex: 1, padding: "14px 20px", border: "1.5px solid var(--u-navy-l)", borderRadius: 32, fontSize: 15, outline: "none", background: "white", boxShadow: "0 2px 8px rgba(0,0,0,0.05)", transition: "all .2s" }} />
         <button onClick={() => sendMessage(input)} disabled={loading || !input.trim()}
           style={{ width: 52, height: 52, borderRadius: "50%", background: loading || !input.trim() ? "var(--g200)" : "var(--u-navy)", border: "none", cursor: loading || !input.trim() ? "not-allowed" : "pointer", fontSize: 24, color: "white", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 16px rgba(0,45,84,0.4)" }}>

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
+import { T } from "../i18n/translations.js";
 
 const PROFILE_FIELDS = [
   { id: "farm_name", label: "Farm / Operation Name", ph: "Green Valley Farm" },
@@ -26,6 +28,8 @@ const PROFILE_FIELDS = [
 ];
 
 export default function FarmProfileModal({ profile, onSave, onClose }) {
+  const { lang } = useLanguage();
+  const fp = T[lang].farmProfile;
   const [form, setForm] = useState(profile || {});
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }));
 
@@ -35,8 +39,8 @@ export default function FarmProfileModal({ profile, onSave, onClose }) {
         <div style={{ padding: "28px 32px 20px", borderBottom: "1px solid var(--bdr2)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <h2 style={{ fontFamily: "Lora,serif", fontSize: 22, color: "var(--g900)" }}>My Farm Profile</h2>
-              <p style={{ fontSize: 13, color: "var(--txt2)", marginTop: 4 }}>Saved locally — auto-fills all SOP templates</p>
+              <h2 style={{ fontFamily: "Lora,serif", fontSize: 22, color: "var(--g900)" }}>{fp.title}</h2>
+              <p style={{ fontSize: 13, color: "var(--txt2)", marginTop: 4 }}>{fp.subtitle}</p>
             </div>
             <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--txt3)", lineHeight: 1 }}>✕</button>
           </div>
@@ -44,7 +48,7 @@ export default function FarmProfileModal({ profile, onSave, onClose }) {
         <div style={{ overflowY: "auto", padding: "24px 32px" }}>
           {PROFILE_FIELDS.map(f => (
             <div key={f.id} style={{ marginBottom: 16 }}>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--txt2)", marginBottom: 6 }}>{f.label}</label>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "var(--txt2)", marginBottom: 6 }}>{fp.fields[f.id] || f.label}</label>
               {f.multi ? (
                 <textarea value={form[f.id] || ""} onChange={e => set(f.id, e.target.value)} placeholder={f.ph}
                   style={{ width: "100%", padding: "8px 12px", border: "1.5px solid var(--bdr)", borderRadius: 8, fontSize: 13, resize: "vertical", minHeight: 64, background: "white", outline: "none" }} />
@@ -56,8 +60,8 @@ export default function FarmProfileModal({ profile, onSave, onClose }) {
           ))}
         </div>
         <div style={{ padding: "20px 32px", borderTop: "1px solid var(--bdr2)", display: "flex", gap: 12, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "9px 20px", border: "1.5px solid var(--bdr)", borderRadius: 8, background: "white", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>Cancel</button>
-          <button onClick={() => onSave(form)} style={{ padding: "9px 24px", background: "var(--g800)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Save Profile</button>
+          <button onClick={onClose} style={{ padding: "9px 20px", border: "1.5px solid var(--bdr)", borderRadius: 8, background: "white", cursor: "pointer", fontSize: 13, fontWeight: 500 }}>{fp.cancel}</button>
+          <button onClick={() => onSave(form)} style={{ padding: "9px 24px", background: "var(--g800)", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 600 }}>{fp.save}</button>
         </div>
       </div>
     </div>

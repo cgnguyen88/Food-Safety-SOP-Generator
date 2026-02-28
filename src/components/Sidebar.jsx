@@ -156,17 +156,30 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
             onClick={toggleLang}
             title={lang === "en" ? "Switch to Spanish" : "Cambiar a Inglés"}
             style={{
-              display: "flex", alignItems: "center", gap: 4,
-              padding: "5px 10px", borderRadius: 20,
-              border: "1px solid rgba(255,255,255,.25)",
-              background: "rgba(255,255,255,.1)",
-              color: "white", cursor: "pointer", fontSize: 12, fontWeight: 700,
-              transition: "background .15s", flexShrink: 0,
+              display: "flex", alignItems: "center", gap: 7,
+              padding: "8px 14px", borderRadius: 24,
+              border: "2px solid var(--u-gold)",
+              background: "var(--u-gold)",
+              color: "var(--u-navy-d)", cursor: "pointer",
+              fontSize: 13, fontWeight: 800, letterSpacing: 0.4,
+              boxShadow: "0 0 14px rgba(253,189,16,0.55), 0 2px 8px rgba(0,0,0,0.25)",
+              transition: "all .2s", flexShrink: 0,
             }}
-            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.2)"}
-            onMouseLeave={e => e.currentTarget.style.background = "rgba(255,255,255,.1)"}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = "white";
+              e.currentTarget.style.borderColor = "white";
+              e.currentTarget.style.boxShadow = "0 0 22px rgba(253,189,16,0.8), 0 4px 12px rgba(0,0,0,0.3)";
+              e.currentTarget.style.transform = "scale(1.06)";
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = "var(--u-gold)";
+              e.currentTarget.style.borderColor = "var(--u-gold)";
+              e.currentTarget.style.boxShadow = "0 0 14px rgba(253,189,16,0.55), 0 2px 8px rgba(0,0,0,0.25)";
+              e.currentTarget.style.transform = "scale(1)";
+            }}
           >
-            {lang === "en" ? "🇲🇽 ES" : "🇺🇸 EN"}
+            <span style={{ fontSize: 18, lineHeight: 1 }}>{lang === "en" ? "🇲🇽" : "🇺🇸"}</span>
+            <span>{lang === "en" ? "ES" : "EN"}</span>
           </button>
         </div>
       </div>

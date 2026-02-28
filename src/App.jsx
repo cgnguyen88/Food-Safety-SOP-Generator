@@ -4,6 +4,7 @@ import { SOP_DATA } from "./data/sop-data.js";
 import { DEFAULT_COST_SETTINGS } from "./data/cost-defaults.js";
 import { loadFromStorage, saveToStorage } from "./utils/storage.js";
 import { decodeShareLink } from "./utils/export.js";
+import AuthScreen from "./components/AuthScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
 import SOPEditor from "./components/SOPEditor.jsx";
@@ -12,6 +13,8 @@ import ViolationDashboard from "./components/ViolationDashboard.jsx";
 import EconomicReport from "./components/EconomicReport.jsx";
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
   const [activeSOP, setActiveSOP] = useState(null);
   const [activePage, setActivePage] = useState("home");
   const [showProfile, setShowProfile] = useState(false);
@@ -21,6 +24,9 @@ export default function App() {
 
   // Load all persisted data on mount
   useEffect(() => {
+    const savedUser = loadFromStorage("current_user");
+    setCurrentUser(savedUser);
+    setAuthReady(true);
     setFarmProfile(loadFromStorage("farm_profile"));
     setIncidents(loadFromStorage("incidents", []));
     setCostSettings(loadFromStorage("cost_settings", DEFAULT_COST_SETTINGS));
@@ -62,6 +68,15 @@ export default function App() {
     saveToStorage("cost_settings", settings);
   };
 
+  const handleLogin = (user) => {
+    setCurrentUser(user);
+  };
+
+  const handleLogout = () => {
+    saveToStorage("current_user", null);
+    setCurrentUser(null);
+  };
+
   const handleSelectSOP = (sop) => {
     setActiveSOP(sop);
     setActivePage(sop ? "sop" : "home");
@@ -71,6 +86,17 @@ export default function App() {
     setActivePage(page);
     if (page !== "sop") setActiveSOP(null);
   };
+
+  if (!authReady) return null;
+
+  if (!currentUser) {
+    return (
+      <>
+        <style>{GLOBAL_CSS}</style>
+        <AuthScreen onLogin={handleLogin} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -83,6 +109,8 @@ export default function App() {
           onSelectSOP={handleSelectSOP}
           onOpenProfile={() => setShowProfile(true)}
           onNavigate={handleNavigate}
+          onLogout={handleLogout}
+          currentUser={currentUser}
           farmProfile={farmProfile}
           incidents={incidents}
         />

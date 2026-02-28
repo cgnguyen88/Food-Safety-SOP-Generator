@@ -84,7 +84,7 @@ function searchAll(query, incidents) {
   }).slice(0, 12);
 }
 
-export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, farmProfile, incidents }) {
+export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, onLogout, currentUser, farmProfile, incidents }) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const inputRef = useRef(null);
@@ -252,8 +252,40 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
           </button>
         ))}
       </div>
-      <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,.15)", fontSize: 12, color: "rgba(255,255,255,.5)", lineHeight: 1.5 }}>
-        UC ANR PSR Compliant<br />Templates v1.1
+      <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,.15)" }}>
+        {currentUser && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+              background: "var(--u-gold)", color: "var(--u-navy-d)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 14, fontWeight: 700,
+            }}>
+              {currentUser.name?.charAt(0).toUpperCase() || "U"}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {currentUser.name}
+              </div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.5)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {currentUser.organization}
+              </div>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={onLogout}
+          style={{
+            width: "100%", padding: "8px 12px", background: "rgba(255,255,255,.06)",
+            border: "1px solid rgba(255,255,255,.1)", borderRadius: 8,
+            color: "rgba(255,255,255,.6)", cursor: "pointer", fontSize: 12,
+            fontWeight: 500, textAlign: "center", transition: "all .15s",
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,.12)"; e.currentTarget.style.color = "white"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "rgba(255,255,255,.06)"; e.currentTarget.style.color = "rgba(255,255,255,.6)"; }}
+        >
+          Sign Out
+        </button>
       </div>
     </div>
   );

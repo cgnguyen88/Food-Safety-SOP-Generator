@@ -1,91 +1,46 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search } from "lucide-react";
 import { SOP_DATA } from "../data/sop-data.js";
-import { callClaudeStreaming } from "../utils/api.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
 
-export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, onLogout, currentUser, farmProfile, incidents }) {
+export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, onLogout, currentUser, farmProfile }) {
   const { lang, toggleLang } = useLanguage();
   const s = T[lang].sidebar;
 
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatBottomRef = useRef(null);
-
   const localizedSops = SOP_DATA.map(sop => getLocalizedSop(sop, lang));
 
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  // ── Search state ──────────────────────────────────────────────────────────
+  const [query, setQuery] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef(null);
 
-  const buildSystemPrompt = () => {
-    const sopList = SOP_DATA.map(s => `[ID:${s.id}] ${s.short} — ${s.desc.slice(0, 90)}`).join("\n");
-    const farmCtx = farmProfile
-      ? `Farm: ${farmProfile.farm_name || ""}. Crops: ${farmProfile.crops || ""}. Type: ${farmProfile.operation_type || ""}.`
-      : "No farm profile saved yet.";
-    const incidentCount = (incidents || []).length;
-    return `You are a concise food safety AI assistant in the FarmSafe sidebar. Keep every response to 1-3 short sentences — this is a compact sidebar, not a full chat.
-
-App pages: Dashboard (SOP templates), Violation Dashboard (log & track incidents), Economic Report (cost analysis), Farm Profile (farm details).
-
-Available SOPs:\n${sopList}
-
-Farm context: ${farmCtx}
-Logged incidents: ${incidentCount}
-
-RULES:
-- Answer in the same language the user writes in (English or Spanish).
-- Be direct and specific. No preambles.
-- If you recommend a page, append exactly one of these tags on its own line: [NAV:home] [NAV:violations] [NAV:economic]
-- If you recommend a specific SOP, append [SOP:N] where N is the numeric ID.
-- Never include both a NAV and SOP tag in the same response.`;
-  };
-
-  const sendMessage = async (text) => {
-    if (!text.trim() || chatLoading) return;
-    const history = [...chatMessages, { role: "user", content: text }];
-    setChatMessages([...history, { role: "assistant", content: "", streaming: true }]);
-    setChatInput("");
-    setChatLoading(true);
-    let accumulated = "";
-    try {
-      await callClaudeStreaming(
-        history.map(m => ({ role: m.role, content: m.content })),
-        buildSystemPrompt(),
-        (chunk) => {
-          accumulated += chunk;
-          setChatMessages(prev => [
-            ...prev.slice(0, -1),
-            { role: "assistant", content: accumulated, streaming: true },
-          ]);
-        }
-      );
-      const navMatch = accumulated.match(/\[NAV:(home|violations|economic)\]/);
-      const sopMatch = accumulated.match(/\[SOP:(\d+)\]/);
-      const content = accumulated.replace(/\[NAV:[^\]]+\]/g, "").replace(/\[SOP:\d+\]/g, "").trim();
-      setChatMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content, streaming: false, navTo: navMatch?.[1] || null, sopId: sopMatch ? parseInt(sopMatch[1]) : null },
-      ]);
-    } catch (e) {
-      setChatMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content: `Error: ${e.message}`, streaming: false },
-      ]);
-    }
-    setChatLoading(false);
-  };
-
-  const quickChips = [
-    { label: s.chipWhichSop,     text: s.chipWhichSopText },
-    { label: s.chipFsma,         text: s.chipFsmaText },
-    { label: s.chipLogIncident,  text: s.chipLogIncidentText },
-    { label: s.chipCosts,        text: s.chipCostsText },
+  // Build a flat list of searchable items: pages + SOPs
+  const pages = [
+    { type: "page", icon: "🏠", label: s.dashboard,  page: "home" },
+    { type: "page", icon: "📋", label: s.violations,  page: "violations" },
+    { type: "page", icon: "📊", label: s.economic,    page: "economic" },
   ];
+  const sopItems = localizedSops.map(sop => ({
+    type: "sop", icon: sop.icon, label: sop.short, desc: sop.desc?.slice(0, 60), sopId: sop.id,
+  }));
+  const allItems = [...pages, ...sopItems];
 
-  const navLabels = { home: s.dashboard, violations: s.violations, economic: s.economic };
+  const results = query.trim()
+    ? allItems.filter(item =>
+        item.label.toLowerCase().includes(query.toLowerCase()) ||
+        item.desc?.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  const handleSelect = (item) => {
+    if (item.type === "page") onNavigate(item.page);
+    else onSelectSOP(SOP_DATA.find(d => d.id === item.sopId));
+    setQuery("");
+    setIsFocused(false);
+  };
 
   return (
     <div style={{ width: 300, background: "var(--u-navy)", color: "white", display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
@@ -130,146 +85,113 @@ RULES:
         </div>
       </div>
 
-      {/* AI Chat Widget */}
-      <div style={{
-        padding: "12px 14px",
-        borderTop: "1px solid rgba(255,255,255,.08)",
-        borderBottom: "1px solid rgba(255,255,255,.08)",
-        background: "rgba(0,0,0,0.25)",
-        backdropFilter: "blur(8px)",
-      }}>
-        {/* Section label */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 9 }}>
-          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--u-gold)", boxShadow: "0 0 6px rgba(253,189,16,0.8)" }} />
-          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,.45)", textTransform: "uppercase" }}>
-            {lang === "en" ? "AI Quick Assistant" : "Asistente IA Rápido"}
-          </span>
-        </div>
-
-        {/* Messages */}
-        <div style={{ maxHeight: 190, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7, marginBottom: 9 }}>
-          {chatMessages.length === 0 && (
-            <div style={{
-              fontSize: 12, color: "rgba(255,255,255,.65)", lineHeight: 1.55,
-              padding: "9px 11px", background: "rgba(255,255,255,.07)",
-              borderRadius: 10, border: "1px solid rgba(255,255,255,.1)",
-            }}>
-              ✨ {s.chatGreeting}
-            </div>
-          )}
-          {chatMessages.map((msg, i) => (
-            <div key={i}>
-              <div style={{
-                fontSize: 12, lineHeight: 1.55, padding: "8px 11px", borderRadius: 10,
-                background: msg.role === "user" ? "rgba(255,255,255,.18)" : "rgba(255,255,255,.08)",
-                color: "white",
-                border: msg.role === "assistant" ? "1px solid rgba(255,255,255,.1)" : "none",
-                textAlign: msg.role === "user" ? "right" : "left",
-              }}>
-                {msg.content}
-                {msg.streaming && (
-                  <span style={{ display: "inline-block", width: 1.5, height: "0.85em", background: "rgba(255,255,255,0.8)", marginLeft: 2, verticalAlign: "text-bottom", animation: "caretBlink 0.8s step-end infinite" }} />
-                )}
-              </div>
-              {/* Navigation action button */}
-              {msg.navTo && (
-                <button
-                  onClick={() => onNavigate(msg.navTo)}
-                  style={{
-                    marginTop: 5, width: "100%", padding: "6px 10px",
-                    background: "rgba(253,189,16,0.15)", border: "1px solid rgba(253,189,16,0.4)",
-                    borderRadius: 8, color: "var(--u-gold)", fontSize: 11, fontWeight: 700,
-                    cursor: "pointer", textAlign: "left", transition: "all .15s",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = "rgba(253,189,16,0.25)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "rgba(253,189,16,0.15)"}
-                >
-                  → {s.chatGoTo}: {navLabels[msg.navTo]}
-                </button>
-              )}
-              {/* SOP action button */}
-              {msg.sopId && (() => {
-                const sop = SOP_DATA.find(d => d.id === msg.sopId);
-                return sop ? (
-                  <button
-                    onClick={() => onSelectSOP(sop)}
-                    style={{
-                      marginTop: 5, width: "100%", padding: "6px 10px",
-                      background: "rgba(253,189,16,0.15)", border: "1px solid rgba(253,189,16,0.4)",
-                      borderRadius: 8, color: "var(--u-gold)", fontSize: 11, fontWeight: 700,
-                      cursor: "pointer", textAlign: "left", transition: "all .15s",
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = "rgba(253,189,16,0.25)"}
-                    onMouseLeave={e => e.currentTarget.style.background = "rgba(253,189,16,0.15)"}
-                  >
-                    → {s.chatOpenSop}: {sop.short}
-                  </button>
-                ) : null;
-              })()}
-            </div>
-          ))}
-          {chatLoading && (
-            <div style={{ display: "flex", gap: 4, padding: "8px 11px", background: "rgba(255,255,255,.07)", borderRadius: 10, width: "fit-content" }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(255,255,255,.45)", animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-              ))}
-            </div>
-          )}
-          <div ref={chatBottomRef} />
-        </div>
-
-        {/* Quick chips */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
-          {quickChips.map(chip => (
-            <button
-              key={chip.label}
-              onClick={() => sendMessage(chip.text)}
-              disabled={chatLoading}
-              style={{
-                fontSize: 11, padding: "4px 9px",
-                border: "1px solid rgba(255,255,255,.2)", borderRadius: 16,
-                background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.85)",
-                cursor: chatLoading ? "not-allowed" : "pointer", transition: "all .15s",
-                opacity: chatLoading ? 0.5 : 1,
-              }}
-              onMouseEnter={e => !chatLoading && (e.currentTarget.style.background = "rgba(255,255,255,.16)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,.08)")}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Input row */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-          <input
-            value={chatInput}
-            onChange={e => setChatInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && sendMessage(chatInput)}
-            placeholder={s.chatPlaceholder}
-            style={{
-              flex: 1, padding: "8px 12px",
-              background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)",
-              borderRadius: 20, color: "white", fontSize: 12, outline: "none",
-              fontFamily: "inherit",
+      {/* Search Bar */}
+      <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(255,255,255,.08)", position: "relative" }}>
+        <motion.div
+          animate={{ scale: isFocused ? 1.02 : 1 }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        >
+          {/* Input wrapper */}
+          <motion.div
+            animate={{
+              boxShadow: isFocused
+                ? "0 0 0 2px rgba(253,189,16,0.6), 0 8px 24px rgba(0,0,0,0.35)"
+                : "0 0 0 1px rgba(255,255,255,0.1)",
             }}
-          />
-          <button
-            onClick={() => sendMessage(chatInput)}
-            disabled={!chatInput.trim() || chatLoading}
+            transition={{ duration: 0.2 }}
             style={{
-              width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-              background: chatInput.trim() && !chatLoading ? "var(--u-gold)" : "rgba(255,255,255,.1)",
-              border: "none", cursor: chatInput.trim() && !chatLoading ? "pointer" : "not-allowed",
-              color: chatInput.trim() && !chatLoading ? "var(--u-navy-d)" : "rgba(255,255,255,.3)",
-              fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "all .2s",
-              boxShadow: chatInput.trim() && !chatLoading ? "0 0 8px rgba(253,189,16,0.4)" : "none",
+              display: "flex", alignItems: "center", gap: 8,
+              background: isFocused ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.07)",
+              borderRadius: 24, padding: "0 12px", transition: "background .2s",
             }}
           >
-            ↑
-          </button>
-        </div>
+            <Search size={15} color={isFocused ? "var(--u-gold)" : "rgba(255,255,255,0.45)"} style={{ flexShrink: 0, transition: "color .2s" }} />
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setTimeout(() => setIsFocused(false), 150)}
+              placeholder={lang === "en" ? "Search SOPs, pages…" : "Buscar POEs, páginas…"}
+              style={{
+                flex: 1, padding: "9px 0", background: "transparent",
+                border: "none", outline: "none", color: "white",
+                fontSize: 13, fontFamily: "inherit",
+              }}
+            />
+            <AnimatePresence>
+              {query && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  onClick={() => setQuery("")}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    color: "rgba(255,255,255,0.4)", fontSize: 16, lineHeight: 1,
+                    padding: 0, display: "flex", alignItems: "center", flexShrink: 0,
+                  }}
+                >
+                  ×
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
+
+        {/* Results dropdown */}
+        <AnimatePresence>
+          {isFocused && results.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -6, height: 0 }}
+              animate={{ opacity: 1, y: 0, height: "auto" }}
+              exit={{ opacity: 0, y: -6, height: 0 }}
+              transition={{ duration: 0.18 }}
+              style={{
+                position: "absolute", left: 14, right: 14, top: "100%",
+                marginTop: 6, zIndex: 200,
+                background: "rgba(0,18,40,0.97)",
+                border: "1px solid rgba(253,189,16,0.25)",
+                borderRadius: 12, overflow: "hidden",
+                boxShadow: "0 16px 40px rgba(0,0,0,0.55)",
+                backdropFilter: "blur(12px)",
+              }}
+            >
+              {results.map((item, i) => (
+                <motion.button
+                  key={item.type + (item.page || item.sopId)}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  onClick={() => handleSelect(item)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 10,
+                    padding: "9px 14px", background: "transparent", border: "none",
+                    borderBottom: i < results.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none",
+                    cursor: "pointer", textAlign: "left", transition: "background .12s",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(253,189,16,0.1)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.label}
+                    </div>
+                    {item.desc && (
+                      <div style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
+                        {item.desc}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ marginLeft: "auto", fontSize: 10, color: "rgba(253,189,16,0.6)", flexShrink: 0, fontWeight: 600, textTransform: "uppercase" }}>
+                    {item.type === "page" ? (lang === "en" ? "Page" : "Página") : "SOP"}
+                  </span>
+                </motion.button>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Navigation */}

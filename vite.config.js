@@ -13,12 +13,15 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: () => '/v1/messages',
           // Server-side key injection for local/demo backend proxy usage.
-          headers: env.ANTHROPIC_API_KEY
-            ? {
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01',
-              }
-            : undefined,
+          headers: {
+            'anthropic-dangerous-direct-browser-access': 'true',
+            ...(env.ANTHROPIC_API_KEY
+              ? {
+                  'x-api-key': env.ANTHROPIC_API_KEY,
+                  'anthropic-version': '2023-06-01',
+                }
+              : {}),
+          },
         },
       },
     },

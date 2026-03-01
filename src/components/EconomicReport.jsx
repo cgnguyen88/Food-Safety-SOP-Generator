@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { SOP_DATA } from "../data/sop-data.js";
-import { calculateEconomicImpact, parseProductWeight } from "../data/cost-defaults.js";
+import { calculateEconomicImpact, parseProductWeight, CORRECTIVE_COST_TYPES } from "../data/cost-defaults.js";
 import CostSettingsModal from "./CostSettingsModal.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
@@ -30,6 +30,7 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
   const impact = useMemo(() => calculateEconomicImpact(filtered, costSettings), [filtered, costSettings]);
 
   const totalDowntimeHrs = filtered.reduce((s, i) => s + (i.downtimeHours || 0), 0);
+  const overrideCount = filtered.filter(i => i.downtimeCostOverride > 0).length;
   const totalWeight = filtered.reduce((s, i) => s + parseProductWeight(i.affectedProduct), 0);
   const days = daysBetween(startDate, endDate);
 
@@ -55,13 +56,26 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
   ];
 
   const exportCSV = () => {
-    const headers = ["Date", "SOP", "Violation Type", "Severity", "Downtime (hrs)", "Affected Product", "Downtime Cost", "Product Loss", "Corrective Cost"];
+    const headers = ["Date", "SOP", "Violation Type", "Severity", "Downtime (hrs)", "Downtime Cost (Actual)", "Affected Product", "Downtime Cost", "Product Loss", "Corrective Cost", "Corrective: Retraining", "Corrective: Testing", "Corrective: Equipment", "Corrective: Labor", "Corrective: Other"];
     const rows = filtered.map(inc => {
-      const dtCost = (inc.downtimeHours || 0) * costSettings.laborHourlyRate;
+      const dtCost = inc.downtimeCostOverride > 0
+        ? inc.downtimeCostOverride
+        : (inc.downtimeHours || 0) * costSettings.laborHourlyRate;
       const prodCost = parseProductWeight(inc.affectedProduct) * costSettings.produceCostPerLb;
-      const corrCost = (inc.severity === "high" || inc.severity === "critical" ? costSettings.retrainingSessionCost : 0) +
-        (inc.sopId === 4 || inc.sopId === 5 ? costSettings.testingCost : 0);
-      return [inc.date, inc.sopName, inc.violationType, inc.severity, inc.downtimeHours || 0, inc.affectedProduct || "", dtCost.toFixed(2), prodCost.toFixed(2), corrCost.toFixed(2)];
+      const byType = { retraining: 0, testing: 0, equipment: 0, labor: 0, other: 0 };
+      let corrCost = 0;
+      if (inc.correctiveCosts && inc.correctiveCosts.length > 0) {
+        inc.correctiveCosts.forEach(c => {
+          const amt = c.cost || 0;
+          corrCost += amt;
+          if (byType[c.type] !== undefined) byType[c.type] += amt;
+          else byType.other += amt;
+        });
+      } else {
+        if (inc.severity === "high" || inc.severity === "critical") { corrCost += costSettings.retrainingSessionCost; byType.retraining += costSettings.retrainingSessionCost; }
+        if (inc.sopId === 4 || inc.sopId === 5) { corrCost += costSettings.testingCost; byType.testing += costSettings.testingCost; }
+      }
+      return [inc.date, inc.sopName, inc.violationType, inc.severity, inc.downtimeHours || 0, inc.downtimeCostOverride > 0 ? "Yes" : "Auto", inc.affectedProduct || "", dtCost.toFixed(2), prodCost.toFixed(2), corrCost.toFixed(2), byType.retraining.toFixed(2), byType.testing.toFixed(2), byType.equipment.toFixed(2), byType.labor.toFixed(2), byType.other.toFixed(2)];
     });
     const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -122,7 +136,9 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
         {[
           {
             icon: "⏱️", label: ec.processing, amount: impact.downtimeCost,
-            detail: `${totalDowntimeHrs.toFixed(1)} hours at $${costSettings.laborHourlyRate}/hr`,
+            detail: overrideCount > 0
+              ? ec.downtimeDetailOverride(totalDowntimeHrs.toFixed(1), overrideCount)
+              : `${totalDowntimeHrs.toFixed(1)} hours at $${costSettings.downtimeHourlyRate ?? costSettings.laborHourlyRate}/hr`,
           },
           {
             icon: "🗑️", label: ec.productLoss, amount: impact.productLossCost,
@@ -131,6 +147,7 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
           {
             icon: "🔧", label: ec.correctiveActions, amount: impact.correctiveActionCost,
             detail: ec.correctiveDetail,
+            breakdown: impact.correctiveByType,
           },
         ].map(card => (
           <div key={card.label} className="glass" style={{ padding: "28px", borderRadius: 22 }}>
@@ -143,6 +160,24 @@ export default function EconomicReport({ incidents, costSettings, onSaveCostSett
               </div>
             )}
             <div style={{ fontSize: 13, color: "var(--txt3)", marginTop: 10, lineHeight: 1.5 }}>{card.detail}</div>
+            {card.breakdown && card.amount > 0 && (
+              <div style={{ marginTop: 14, borderTop: "1px solid var(--bdr2)", paddingTop: 12 }}>
+                {CORRECTIVE_COST_TYPES.filter(t => card.breakdown[t.id] > 0).map(t => (
+                  <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, color: "var(--txt2)", display: "flex", gap: 6 }}>
+                      <span>{t.icon}</span>
+                      <span>{ec.correctiveCostTypes ? ec.correctiveCostTypes[t.id] : t.id}</span>
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--u-navy)" }}>${fmt(card.breakdown[t.id])}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {card.breakdown && card.amount === 0 && (
+              <div style={{ marginTop: 12, fontSize: 12, color: "var(--txt3)", fontStyle: "italic" }}>
+                Log corrective action costs when reporting incidents.
+              </div>
+            )}
           </div>
         ))}
       </div>

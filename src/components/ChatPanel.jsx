@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { callClaude, parseFormUpdates, stripFormUpdate } from "../utils/api.js";
+import { callClaudeStreaming, parseFormUpdates, stripFormUpdate } from "../utils/api.js";
 import { buildSopStandardContext } from "../utils/sop-standards.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
@@ -57,20 +57,37 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
 
   const sendMessage = async (text) => {
     if (!text.trim() || loading) return;
-    const userMsg = { role: "user", content: text };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
+    const history = [...messages, { role: "user", content: text }];
+    setMessages([...history, { role: "assistant", content: "", streaming: true }]);
     setInput("");
     setLoading(true);
+    let accumulated = "";
     try {
-      const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }));
-      const response = await callClaude(apiMessages, buildSystemPrompt());
-      const formUpdate = parseFormUpdates(response);
-      const cleanResponse = stripFormUpdate(response);
+      await callClaudeStreaming(
+        history.map(m => ({ role: m.role, content: m.content })),
+        buildSystemPrompt(),
+        (chunk) => {
+          accumulated += chunk;
+          // Strip form_update tags from visible text while streaming
+          setMessages(prev => [
+            ...prev.slice(0, -1),
+            { role: "assistant", content: stripFormUpdate(accumulated), streaming: true },
+          ]);
+        }
+      );
+      // On completion: parse form updates from full accumulated text
+      const formUpdate = parseFormUpdates(accumulated);
+      const cleanResponse = stripFormUpdate(accumulated);
       if (formUpdate) onFormUpdate(formUpdate);
-      setMessages(prev => [...prev, { role: "assistant", content: cleanResponse + (formUpdate ? `\n\n${c.updatedFields}` : "") }]);
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: "assistant", content: cleanResponse + (formUpdate ? `\n\n${c.updatedFields}` : ""), streaming: false },
+      ]);
     } catch (e) {
-      setMessages(prev => [...prev, { role: "assistant", content: `Connection error: ${e.message}\n\nPlease check your API key configuration.` }]);
+      setMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: "assistant", content: `Connection error: ${e.message}\n\nPlease check your API key configuration.`, streaming: false },
+      ]);
     }
     setLoading(false);
   };
@@ -113,10 +130,15 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
               color: msg.role === "user" ? "white" : "var(--txt)", fontSize: 15, lineHeight: 1.6,
               boxShadow: msg.role === "user" ? "0 8px 16px rgba(0,45,84,0.25)" : "0 4px 12px rgba(0,0,0,0.08)",
               border: msg.role === "user" ? "none" : "1px solid var(--glass-bdr)"
-            }} dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+            }}>
+              <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+              {msg.streaming && (
+                <span style={{ display: "inline-block", width: 2, height: "1em", background: "currentColor", marginLeft: 2, verticalAlign: "text-bottom", animation: "caretBlink 0.8s step-end infinite" }} />
+              )}
+            </div>
           </div>
         ))}
-        {loading && (
+        {loading && !messages.some(m => m.streaming) && (
           <div style={{ display: "flex", gap: 4, padding: "10px 14px", background: "var(--cream2)", borderRadius: "14px 14px 14px 4px", width: "fit-content" }}>
             {[0, 1, 2].map(i => <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--g600)", animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
           </div>

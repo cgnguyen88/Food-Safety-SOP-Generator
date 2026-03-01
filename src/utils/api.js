@@ -89,6 +89,84 @@ export async function callClaude(messages, systemPrompt) {
   return data.content?.map(b => b.text || "").join("") || "";
 }
 
+/**
+ * Streaming version of callClaude.
+ * Calls onChunk(text) for each token as it arrives.
+ * Returns a promise that resolves when the stream is complete.
+ */
+export async function callClaudeStreaming(messages, systemPrompt, onChunk) {
+  const modelCandidates = [...new Set(MODEL_FALLBACKS.filter(Boolean))];
+  let lastErr = new Error("Streaming request failed");
+  const endpoints = ALLOW_CLIENT_KEY_FALLBACK
+    ? [PROXY_ENDPOINT, DIRECT_ENDPOINT]
+    : [PROXY_ENDPOINT];
+
+  for (const model of modelCandidates) {
+    for (const endpoint of endpoints) {
+      const isProxyEndpoint = endpoint === PROXY_ENDPOINT;
+      let apiKey = "";
+      if (!isProxyEndpoint) {
+        apiKey = resolveApiKey();
+        if (!apiKey) continue;
+      }
+
+      let res;
+      try {
+        res = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(apiKey ? { "x-api-key": apiKey } : {}),
+            ...(!isProxyEndpoint ? { "anthropic-version": "2023-06-01" } : {}),
+            ...(!isProxyEndpoint ? { "anthropic-dangerous-direct-browser-access": "true" } : {}),
+          },
+          body: JSON.stringify({ temperature: 0.2, max_tokens: 1500, system: systemPrompt, messages, model, stream: true }),
+        });
+      } catch (e) {
+        lastErr = e;
+        continue;
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        lastErr = new Error(getErrorMessage(data, res.status));
+        if (!shouldRetryWithAnotherModel(res.status, data)) break;
+        continue;
+      }
+
+      // Read SSE stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6).trim();
+            if (payload === "[DONE]") return;
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta" && parsed.delta.text) {
+                onChunk(parsed.delta.text);
+              }
+            } catch { /* ignore malformed SSE lines */ }
+          }
+        }
+        return; // stream finished successfully
+      } catch (e) {
+        lastErr = e;
+        continue;
+      }
+    }
+  }
+  throw lastErr;
+}
+
 export function parseFormUpdates(text) {
   const match = text.match(/<form_update>([\s\S]*?)<\/form_update>/);
   if (!match) return null;

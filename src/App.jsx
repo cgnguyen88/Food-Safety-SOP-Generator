@@ -12,6 +12,7 @@ import SOPEditor from "./components/SOPEditor.jsx";
 import FarmProfileModal from "./components/FarmProfileModal.jsx";
 import ViolationDashboard from "./components/ViolationDashboard.jsx";
 import EconomicReport from "./components/EconomicReport.jsx";
+import ExpandableChat from "./components/ExpandableChat.jsx";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -102,7 +103,7 @@ export default function App() {
   return (
     <LanguageProvider>
       <style>{GLOBAL_CSS}</style>
-      <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}`}</style>
+      <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}@keyframes caretBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
       <div style={{ height:"100vh",display:"flex",overflow:"hidden" }}>
         <Sidebar
           activeSOP={activeSOP}
@@ -124,6 +125,7 @@ export default function App() {
               onAddIncident={addIncident}
               onUpdateIncident={updateIncident}
               onDeleteIncident={deleteIncident}
+              costSettings={costSettings}
             />
           ) : activePage === "economic" ? (
             <EconomicReport
@@ -141,6 +143,7 @@ export default function App() {
         </div>
       </div>
       {showProfile && <FarmProfileModal profile={farmProfile} onSave={saveFarmProfile} onClose={() => setShowProfile(false)} />}
+      <ExpandableChat farmProfile={farmProfile} incidents={incidents} />
     </LanguageProvider>
   );
 }

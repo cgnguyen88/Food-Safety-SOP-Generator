@@ -1,150 +1,96 @@
 import { useState, useRef, useEffect } from "react";
 import { SOP_DATA } from "../data/sop-data.js";
-import { SEVERITY_LEVELS } from "../data/cost-defaults.js";
+import { callClaudeStreaming } from "../utils/api.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
 
-function searchAll(query, incidents) {
-  if (!query || query.length < 2) return [];
-  const q = query.toLowerCase();
-  const results = [];
-
-  // Search SOPs — title, short, desc, ref, tag
-  SOP_DATA.forEach(sop => {
-    const titleMatch = sop.title.toLowerCase().includes(q) || sop.short.toLowerCase().includes(q);
-    const descMatch = sop.desc.toLowerCase().includes(q);
-    const refMatch = sop.ref.toLowerCase().includes(q);
-    const tagMatch = sop.tag.toLowerCase().includes(q);
-
-    if (titleMatch || descMatch || refMatch || tagMatch) {
-      results.push({ type: "sop", icon: sop.icon, title: sop.title, subtitle: sop.tag, data: sop });
-    }
-
-    // Search within SOP sections and fields
-    sop.sections.forEach(section => {
-      const sectionMatch = section.title.toLowerCase().includes(q);
-      if (sectionMatch && !titleMatch) {
-        results.push({ type: "sop-section", icon: sop.icon, title: section.title, subtitle: `${sop.short}`, data: sop });
-      }
-      section.fields.forEach(field => {
-        if (field.label.toLowerCase().includes(q) && !titleMatch && !sectionMatch) {
-          results.push({ type: "sop-field", icon: "📝", title: field.label, subtitle: `${sop.short} > ${section.title}`, data: sop });
-        }
-      });
-    });
-
-    // Search log template
-    if (sop.log.title.toLowerCase().includes(q)) {
-      results.push({ type: "sop-log", icon: "📋", title: sop.log.title, subtitle: sop.short, data: sop });
-    }
-  });
-
-  // Search incidents/violations
-  if (incidents && incidents.length > 0) {
-    incidents.forEach(inc => {
-      const matches =
-        (inc.description || "").toLowerCase().includes(q) ||
-        (inc.violationType || "").toLowerCase().includes(q) ||
-        (inc.sopName || "").toLowerCase().includes(q) ||
-        (inc.correctiveAction || "").toLowerCase().includes(q) ||
-        (inc.affectedProduct || "").toLowerCase().includes(q);
-
-      if (matches) {
-        results.push({
-          type: "incident",
-          icon: SEVERITY_LEVELS[inc.severity]?.icon || "⚠️",
-          title: inc.violationType || inc.description?.slice(0, 50) || "Incident",
-          subtitle: `${inc.date} — ${inc.sopName || "Unknown SOP"}`,
-          data: inc,
-        });
-      }
-    });
-  }
-
-  // Search pages
-  const pages = [
-    { name: "Dashboard", page: "home", desc: "SOP templates and overview" },
-    { name: "Violation Dashboard", page: "violations", desc: "Track and log incidents" },
-    { name: "Economic Report", page: "economic", desc: "Cost impact analysis" },
-    { name: "Farm Profile", page: "profile", desc: "Farm information and settings" },
-  ];
-  pages.forEach(p => {
-    if (p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)) {
-      results.push({ type: "page", icon: "📄", title: p.name, subtitle: p.desc, data: p });
-    }
-  });
-
-  // Deduplicate SOPs (keep first match only)
-  const seen = new Set();
-  return results.filter(r => {
-    if (r.type === "sop" || r.type === "sop-section" || r.type === "sop-field" || r.type === "sop-log") {
-      const key = `sop-${r.data.id}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-    }
-    return true;
-  }).slice(0, 12);
-}
-
 export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, onLogout, currentUser, farmProfile, incidents }) {
   const { lang, toggleLang } = useLanguage();
   const s = T[lang].sidebar;
-  const [query, setQuery] = useState("");
-  const [focused, setFocused] = useState(false);
-  const inputRef = useRef(null);
-  const containerRef = useRef(null);
+
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatBottomRef = useRef(null);
 
   const localizedSops = SOP_DATA.map(sop => getLocalizedSop(sop, lang));
-  const results = searchAll(query, incidents || []);
-  const showResults = focused && query.length >= 2;
 
-  // Close dropdown on outside click
   useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setFocused(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
-  const handleSelect = (result) => {
-    setQuery("");
-    setFocused(false);
+  const buildSystemPrompt = () => {
+    const sopList = SOP_DATA.map(s => `[ID:${s.id}] ${s.short} — ${s.desc.slice(0, 90)}`).join("\n");
+    const farmCtx = farmProfile
+      ? `Farm: ${farmProfile.farm_name || ""}. Crops: ${farmProfile.crops || ""}. Type: ${farmProfile.operation_type || ""}.`
+      : "No farm profile saved yet.";
+    const incidentCount = (incidents || []).length;
+    return `You are a concise food safety AI assistant in the FarmSafe sidebar. Keep every response to 1-3 short sentences — this is a compact sidebar, not a full chat.
 
-    if (result.type === "sop" || result.type === "sop-section" || result.type === "sop-field" || result.type === "sop-log") {
-      onSelectSOP(result.data);
-    } else if (result.type === "incident") {
-      onNavigate("violations");
-    } else if (result.type === "page") {
-      if (result.data.page === "profile") {
-        onOpenProfile();
-      } else {
-        onNavigate(result.data.page);
-      }
-    }
+App pages: Dashboard (SOP templates), Violation Dashboard (log & track incidents), Economic Report (cost analysis), Farm Profile (farm details).
+
+Available SOPs:\n${sopList}
+
+Farm context: ${farmCtx}
+Logged incidents: ${incidentCount}
+
+RULES:
+- Answer in the same language the user writes in (English or Spanish).
+- Be direct and specific. No preambles.
+- If you recommend a page, append exactly one of these tags on its own line: [NAV:home] [NAV:violations] [NAV:economic]
+- If you recommend a specific SOP, append [SOP:N] where N is the numeric ID.
+- Never include both a NAV and SOP tag in the same response.`;
   };
 
-  // Keyboard shortcut: Ctrl/Cmd+K to focus search
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-      if (e.key === "Escape") {
-        setFocused(false);
-        inputRef.current?.blur();
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, []);
+  const sendMessage = async (text) => {
+    if (!text.trim() || chatLoading) return;
+    const history = [...chatMessages, { role: "user", content: text }];
+    setChatMessages([...history, { role: "assistant", content: "", streaming: true }]);
+    setChatInput("");
+    setChatLoading(true);
+    let accumulated = "";
+    try {
+      await callClaudeStreaming(
+        history.map(m => ({ role: m.role, content: m.content })),
+        buildSystemPrompt(),
+        (chunk) => {
+          accumulated += chunk;
+          setChatMessages(prev => [
+            ...prev.slice(0, -1),
+            { role: "assistant", content: accumulated, streaming: true },
+          ]);
+        }
+      );
+      const navMatch = accumulated.match(/\[NAV:(home|violations|economic)\]/);
+      const sopMatch = accumulated.match(/\[SOP:(\d+)\]/);
+      const content = accumulated.replace(/\[NAV:[^\]]+\]/g, "").replace(/\[SOP:\d+\]/g, "").trim();
+      setChatMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: "assistant", content, streaming: false, navTo: navMatch?.[1] || null, sopId: sopMatch ? parseInt(sopMatch[1]) : null },
+      ]);
+    } catch (e) {
+      setChatMessages(prev => [
+        ...prev.slice(0, -1),
+        { role: "assistant", content: `Error: ${e.message}`, streaming: false },
+      ]);
+    }
+    setChatLoading(false);
+  };
+
+  const quickChips = [
+    { label: s.chipWhichSop,     text: s.chipWhichSopText },
+    { label: s.chipFsma,         text: s.chipFsmaText },
+    { label: s.chipLogIncident,  text: s.chipLogIncidentText },
+    { label: s.chipCosts,        text: s.chipCostsText },
+  ];
+
+  const navLabels = { home: s.dashboard, violations: s.violations, economic: s.economic };
 
   return (
-    <div style={{ width: 260, background: "var(--u-navy)", color: "white", display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+    <div style={{ width: 300, background: "var(--u-navy)", color: "white", display: "flex", flexDirection: "column", flexShrink: 0, overflow: "hidden" }}>
+
+      {/* Header */}
       <div style={{ padding: "22px 24px 16px", borderBottom: "1px solid rgba(255,255,255,.15)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -184,85 +130,146 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
         </div>
       </div>
 
-      {/* Search Bar */}
-      <div ref={containerRef} style={{ padding: "16px 24px 12px", position: "relative" }}>
-        <div style={{ position: "relative" }}>
-          <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: "rgba(255,255,255,.35)", pointerEvents: "none" }}>⌕</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            onFocus={() => setFocused(true)}
-            placeholder={s.search}
-            style={{
-              width: "100%", padding: "12px 14px 12px 38px",
-              background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.1)",
-              borderRadius: 12, color: "white", fontSize: 14, outline: "none",
-              fontFamily: "inherit", backdropFilter: "blur(8px)", transition: "all .2s",
-            }}
-          />
-          {!query && (
-            <span style={{
-              position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: "rgba(255,255,255,.4)", pointerEvents: "none",
-              padding: "2px 6px", border: "1px solid rgba(255,255,255,.2)", borderRadius: 4
-            }}>
-              ⌘K
-            </span>
-          )}
-          {query && (
-            <button onClick={() => { setQuery(""); inputRef.current?.focus(); }}
-              style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "rgba(255,255,255,.4)", cursor: "pointer", fontSize: 14, lineHeight: 1 }}>
-              ✕
-            </button>
-          )}
+      {/* AI Chat Widget */}
+      <div style={{
+        padding: "12px 14px",
+        borderTop: "1px solid rgba(255,255,255,.08)",
+        borderBottom: "1px solid rgba(255,255,255,.08)",
+        background: "rgba(0,0,0,0.25)",
+        backdropFilter: "blur(8px)",
+      }}>
+        {/* Section label */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 9 }}>
+          <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--u-gold)", boxShadow: "0 0 6px rgba(253,189,16,0.8)" }} />
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,.45)", textTransform: "uppercase" }}>
+            {lang === "en" ? "AI Quick Assistant" : "Asistente IA Rápido"}
+          </span>
         </div>
 
-        {/* Search Results Dropdown */}
-        {showResults && (
-          <div style={{
-            position: "absolute", left: 12, right: 12, top: "100%", marginTop: 4,
-            background: "#1a2e1a", border: "1px solid rgba(255,255,255,.15)", borderRadius: 10,
-            boxShadow: "0 8px 24px rgba(0,0,0,.4)", zIndex: 100, maxHeight: 360, overflowY: "auto",
-          }}>
-            {results.length === 0 ? (
-              <div style={{ padding: "16px", textAlign: "center", color: "rgba(255,255,255,.4)", fontSize: 12 }}>
-                No results for "{query}"
+        {/* Messages */}
+        <div style={{ maxHeight: 190, overflowY: "auto", display: "flex", flexDirection: "column", gap: 7, marginBottom: 9 }}>
+          {chatMessages.length === 0 && (
+            <div style={{
+              fontSize: 12, color: "rgba(255,255,255,.65)", lineHeight: 1.55,
+              padding: "9px 11px", background: "rgba(255,255,255,.07)",
+              borderRadius: 10, border: "1px solid rgba(255,255,255,.1)",
+            }}>
+              ✨ {s.chatGreeting}
+            </div>
+          )}
+          {chatMessages.map((msg, i) => (
+            <div key={i}>
+              <div style={{
+                fontSize: 12, lineHeight: 1.55, padding: "8px 11px", borderRadius: 10,
+                background: msg.role === "user" ? "rgba(255,255,255,.18)" : "rgba(255,255,255,.08)",
+                color: "white",
+                border: msg.role === "assistant" ? "1px solid rgba(255,255,255,.1)" : "none",
+                textAlign: msg.role === "user" ? "right" : "left",
+              }}>
+                {msg.content}
+                {msg.streaming && (
+                  <span style={{ display: "inline-block", width: 1.5, height: "0.85em", background: "rgba(255,255,255,0.8)", marginLeft: 2, verticalAlign: "text-bottom", animation: "caretBlink 0.8s step-end infinite" }} />
+                )}
               </div>
-            ) : (
-              results.map((r, i) => (
+              {/* Navigation action button */}
+              {msg.navTo && (
                 <button
-                  key={`${r.type}-${i}`}
-                  onClick={() => handleSelect(r)}
+                  onClick={() => onNavigate(msg.navTo)}
                   style={{
-                    width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px",
-                    background: "transparent", border: "none", borderBottom: i < results.length - 1 ? "1px solid rgba(255,255,255,.06)" : "none",
-                    cursor: "pointer", textAlign: "left", color: "white", transition: "background .1s",
+                    marginTop: 5, width: "100%", padding: "6px 10px",
+                    background: "rgba(253,189,16,0.15)", border: "1px solid rgba(253,189,16,0.4)",
+                    borderRadius: 8, color: "var(--u-gold)", fontSize: 11, fontWeight: 700,
+                    cursor: "pointer", textAlign: "left", transition: "all .15s",
                   }}
-                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.08)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(253,189,16,0.25)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "rgba(253,189,16,0.15)"}
                 >
-                  <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{r.icon}</span>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12, fontWeight: 500, color: "white", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.title}
-                    </div>
-                    <div style={{ fontSize: 10, color: "rgba(255,255,255,.4)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      <span style={{
-                        display: "inline-block", padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 600, marginRight: 4,
-                        background: r.type === "incident" ? "rgba(220,38,38,.2)" : r.type === "page" ? "rgba(255,255,255,.1)" : "rgba(22,163,74,.2)",
-                        color: r.type === "incident" ? "#fca5a5" : r.type === "page" ? "rgba(255,255,255,.6)" : "#86efac",
-                      }}>
-                        {r.type === "sop" ? "SOP" : r.type === "sop-section" ? "Section" : r.type === "sop-field" ? "Field" : r.type === "sop-log" ? "Log" : r.type === "incident" ? "Violation" : "Page"}
-                      </span>
-                      {r.subtitle}
-                    </div>
-                  </div>
+                  → {s.chatGoTo}: {navLabels[msg.navTo]}
                 </button>
-              ))
-            )}
-          </div>
-        )}
+              )}
+              {/* SOP action button */}
+              {msg.sopId && (() => {
+                const sop = SOP_DATA.find(d => d.id === msg.sopId);
+                return sop ? (
+                  <button
+                    onClick={() => onSelectSOP(sop)}
+                    style={{
+                      marginTop: 5, width: "100%", padding: "6px 10px",
+                      background: "rgba(253,189,16,0.15)", border: "1px solid rgba(253,189,16,0.4)",
+                      borderRadius: 8, color: "var(--u-gold)", fontSize: 11, fontWeight: 700,
+                      cursor: "pointer", textAlign: "left", transition: "all .15s",
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "rgba(253,189,16,0.25)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "rgba(253,189,16,0.15)"}
+                  >
+                    → {s.chatOpenSop}: {sop.short}
+                  </button>
+                ) : null;
+              })()}
+            </div>
+          ))}
+          {chatLoading && (
+            <div style={{ display: "flex", gap: 4, padding: "8px 11px", background: "rgba(255,255,255,.07)", borderRadius: 10, width: "fit-content" }}>
+              {[0, 1, 2].map(i => (
+                <div key={i} style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(255,255,255,.45)", animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+              ))}
+            </div>
+          )}
+          <div ref={chatBottomRef} />
+        </div>
+
+        {/* Quick chips */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 8 }}>
+          {quickChips.map(chip => (
+            <button
+              key={chip.label}
+              onClick={() => sendMessage(chip.text)}
+              disabled={chatLoading}
+              style={{
+                fontSize: 11, padding: "4px 9px",
+                border: "1px solid rgba(255,255,255,.2)", borderRadius: 16,
+                background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.85)",
+                cursor: chatLoading ? "not-allowed" : "pointer", transition: "all .15s",
+                opacity: chatLoading ? 0.5 : 1,
+              }}
+              onMouseEnter={e => !chatLoading && (e.currentTarget.style.background = "rgba(255,255,255,.16)")}
+              onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,.08)")}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Input row */}
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <input
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && sendMessage(chatInput)}
+            placeholder={s.chatPlaceholder}
+            style={{
+              flex: 1, padding: "8px 12px",
+              background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.15)",
+              borderRadius: 20, color: "white", fontSize: 12, outline: "none",
+              fontFamily: "inherit",
+            }}
+          />
+          <button
+            onClick={() => sendMessage(chatInput)}
+            disabled={!chatInput.trim() || chatLoading}
+            style={{
+              width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
+              background: chatInput.trim() && !chatLoading ? "var(--u-gold)" : "rgba(255,255,255,.1)",
+              border: "none", cursor: chatInput.trim() && !chatLoading ? "pointer" : "not-allowed",
+              color: chatInput.trim() && !chatLoading ? "var(--u-navy-d)" : "rgba(255,255,255,.3)",
+              fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all .2s",
+              boxShadow: chatInput.trim() && !chatLoading ? "0 0 8px rgba(253,189,16,0.4)" : "none",
+            }}
+          >
+            ↑
+          </button>
+        </div>
       </div>
 
       {/* Navigation */}
@@ -280,18 +287,22 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
           {farmProfile?.farm_name ? farmProfile.farm_name.slice(0, 22) : (lang === "es" ? "Mi Perfil de Granja" : "My Farm Profile")}
         </button>
       </div>
+
+      {/* SOP List */}
       <div style={{ padding: "12px 18px 6px" }}>
         <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,.45)", padding: "0 6px", marginBottom: 8 }}>{s.procedures}</div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 24px" }}>
         {localizedSops.map(sop => (
-          <button key={sop.id} onClick={() => onSelectSOP(SOP_DATA.find(s => s.id === sop.id))}
+          <button key={sop.id} onClick={() => onSelectSOP(SOP_DATA.find(d => d.id === sop.id))}
             style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", marginBottom: 4, background: activeSOP?.id === sop.id ? "rgba(255,255,255,.2)" : "transparent", border: "none", borderRadius: 8, cursor: "pointer", textAlign: "left", color: "white", transition: "all .15s" }}>
             <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{sop.icon}</span>
             <span style={{ fontSize: 13, lineHeight: 1.4, color: activeSOP?.id === sop.id ? "white" : "rgba(255,255,255,.8)", fontWeight: activeSOP?.id === sop.id ? 600 : 400 }}>{sop.short}</span>
           </button>
         ))}
       </div>
+
+      {/* User / Sign out */}
       <div style={{ padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,.15)" }}>
         {currentUser && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>

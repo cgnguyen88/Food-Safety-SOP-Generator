@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { SOP_DATA } from "../data/sop-data.js";
-import { SEVERITY_LEVELS } from "../data/cost-defaults.js";
+import { SEVERITY_LEVELS, incidentCorrectiveCost, DEFAULT_COST_SETTINGS } from "../data/cost-defaults.js";
 import IncidentLogForm from "./IncidentLogForm.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
@@ -41,7 +41,7 @@ function groupByWeek(incidents) {
   }));
 }
 
-export default function ViolationDashboard({ incidents, onAddIncident, onUpdateIncident, onDeleteIncident }) {
+export default function ViolationDashboard({ incidents, onAddIncident, onUpdateIncident, onDeleteIncident, costSettings = DEFAULT_COST_SETTINGS }) {
   const { lang } = useLanguage();
   const v = T[lang].violations;
 
@@ -50,6 +50,7 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
   const [showForm, setShowForm] = useState(false);
   const [editingIncident, setEditingIncident] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [lightbox, setLightbox] = useState(null); // { images, index }
 
   const filtered = useMemo(() =>
     incidents.filter(i => i.date >= startDate && i.date <= endDate).sort((a, b) => b.date.localeCompare(a.date)),
@@ -170,7 +171,7 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: "var(--cream)" }}>
-                  {[v.tableDate, v.tableSOP, v.tableType, v.tableSeverity, v.tableDowntime, v.tableStatus, v.tableActions].map(h =>
+                  {[v.tableDate, v.tableSOP, v.tableType, v.tableSeverity, v.tableDowntime, v.tableCorrCost, v.tableStatus, v.tableActions].map(h =>
                     <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600, color: "var(--txt2)", fontSize: 12, borderBottom: "1px solid var(--bdr2)" }}>{h}</th>
                   )}
                 </tr>
@@ -190,7 +191,31 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
                       </span>
                     </td>
                     <td style={{ padding: "10px 12px", fontSize: 12 }}>{inc.downtimeHours || 0}h</td>
-                    <td style={{ padding: "10px 12px", fontSize: 12 }}>{inc.resolved ? v.statusResolved : v.statusOpen}</td>
+                    <td style={{ padding: "10px 12px", fontSize: 12 }}>
+                      {incidentCorrectiveCost(inc) > 0 ? (
+                        <span style={{ fontWeight: 600, color: "var(--u-navy)" }}>
+                          ${incidentCorrectiveCost(inc).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--txt3)" }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", fontSize: 12 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {inc.resolved ? v.statusResolved : v.statusOpen}
+                        {(inc.images||[]).length > 0 && (
+                          <button
+                            onClick={() => setLightbox({ images: inc.images, index: 0 })}
+                            title={`${inc.images.length} photo${inc.images.length !== 1 ? "s" : ""} — click to view`}
+                            style={{ display:"inline-flex", alignItems:"center", gap:2, padding:"2px 7px", borderRadius:10, background:"rgba(0,45,84,0.08)", fontSize:10, fontWeight:700, color:"var(--u-navy)", border:"1px solid rgba(0,45,84,0.15)", cursor:"pointer", transition:"all .15s" }}
+                            onMouseEnter={e => { e.currentTarget.style.background="var(--u-navy)"; e.currentTarget.style.color="white"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background="rgba(0,45,84,0.08)"; e.currentTarget.style.color="var(--u-navy)"; }}
+                          >
+                            📷 {inc.images.length}
+                          </button>
+                        )}
+                      </div>
+                    </td>
                     <td style={{ padding: "10px 12px", display: "flex", gap: 6 }}>
                       <button onClick={() => { setEditingIncident(inc); setShowForm(true); }}
                         style={{ padding: "4px 10px", border: "1px solid var(--bdr)", borderRadius: 6, background: "white", cursor: "pointer", fontSize: 11 }}>{v.edit}</button>
@@ -220,7 +245,72 @@ export default function ViolationDashboard({ incidents, onAddIncident, onUpdateI
           incident={editingIncident}
           onSave={handleSave}
           onClose={() => { setShowForm(false); setEditingIncident(null); }}
+          costSettings={costSettings}
         />
+      )}
+
+      {/* Photo Lightbox */}
+      {lightbox && (
+        <div
+          onClick={() => setLightbox(null)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.88)", zIndex:2000, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", backdropFilter:"blur(6px)" }}
+        >
+          {/* Main image */}
+          <div onClick={e => e.stopPropagation()} style={{ position:"relative", maxWidth:"90vw", maxHeight:"75vh" }}>
+            <img
+              src={lightbox.images[lightbox.index].dataUrl}
+              alt={lightbox.images[lightbox.index].name}
+              style={{ maxWidth:"90vw", maxHeight:"75vh", borderRadius:12, boxShadow:"0 24px 64px rgba(0,0,0,0.6)", objectFit:"contain", display:"block" }}
+            />
+            {/* Prev / Next */}
+            {lightbox.images.length > 1 && (
+              <>
+                <button
+                  onClick={() => setLightbox(lb => ({ ...lb, index: (lb.index - 1 + lb.images.length) % lb.images.length }))}
+                  style={{ position:"absolute", left:-52, top:"50%", transform:"translateY(-50%)", width:40, height:40, borderRadius:"50%", background:"rgba(255,255,255,.15)", border:"none", color:"white", fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"background .15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,.3)"}
+                  onMouseLeave={e => e.currentTarget.style.background="rgba(255,255,255,.15)"}
+                >‹</button>
+                <button
+                  onClick={() => setLightbox(lb => ({ ...lb, index: (lb.index + 1) % lb.images.length }))}
+                  style={{ position:"absolute", right:-52, top:"50%", transform:"translateY(-50%)", width:40, height:40, borderRadius:"50%", background:"rgba(255,255,255,.15)", border:"none", color:"white", fontSize:20, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", transition:"background .15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background="rgba(255,255,255,.3)"}
+                  onMouseLeave={e => e.currentTarget.style.background="rgba(255,255,255,.15)"}
+                >›</button>
+              </>
+            )}
+            {/* Close */}
+            <button
+              onClick={() => setLightbox(null)}
+              style={{ position:"absolute", top:-14, right:-14, width:32, height:32, borderRadius:"50%", background:"rgba(255,255,255,.15)", border:"none", color:"white", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}
+            >✕</button>
+          </div>
+
+          {/* Filename + counter */}
+          <div style={{ marginTop:14, color:"rgba(255,255,255,.7)", fontSize:12, textAlign:"center" }}>
+            {lightbox.images[lightbox.index].name}
+            {lightbox.images.length > 1 && (
+              <span style={{ marginLeft:10, color:"rgba(255,255,255,.45)" }}>
+                {lightbox.index + 1} / {lightbox.images.length}
+              </span>
+            )}
+          </div>
+
+          {/* Thumbnail strip */}
+          {lightbox.images.length > 1 && (
+            <div onClick={e => e.stopPropagation()} style={{ display:"flex", gap:8, marginTop:14 }}>
+              {lightbox.images.map((img, i) => (
+                <img
+                  key={i}
+                  src={img.dataUrl}
+                  alt={img.name}
+                  onClick={() => setLightbox(lb => ({ ...lb, index: i }))}
+                  style={{ width:52, height:52, objectFit:"cover", borderRadius:6, cursor:"pointer", border: i === lightbox.index ? "2px solid white" : "2px solid transparent", opacity: i === lightbox.index ? 1 : 0.5, transition:"all .15s" }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

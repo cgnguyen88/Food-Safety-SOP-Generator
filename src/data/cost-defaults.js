@@ -1,4 +1,5 @@
 export const DEFAULT_COST_SETTINGS = {
+  downtimeHourlyRate: 50,
   laborHourlyRate: 25,
   produceCostPerLb: 2,
   retrainingSessionCost: 500,
@@ -7,11 +8,21 @@ export const DEFAULT_COST_SETTINGS = {
 };
 
 export const COST_FIELDS = [
-  { id: "laborHourlyRate", label: "Labor Hourly Rate", prefix: "$", suffix: "/hour" },
+  { id: "downtimeHourlyRate", label: "Downtime Cost Rate", prefix: "$", suffix: "/hour", hint: "Total cost per hour of operation downtime (idle labor, lost production, equipment)" },
+  { id: "laborHourlyRate", label: "Standard Labor Hourly Rate", prefix: "$", suffix: "/hour" },
   { id: "produceCostPerLb", label: "Average Produce Cost", prefix: "$", suffix: "/lb" },
   { id: "retrainingSessionCost", label: "Retraining Session Cost", prefix: "$", suffix: "" },
   { id: "testingCost", label: "Water/Product Testing Cost", prefix: "$", suffix: "/test" },
   { id: "equipmentReplacementCost", label: "Equipment Replacement Cost", prefix: "$", suffix: "" },
+];
+
+// Corrective action cost categories for per-incident tracking
+export const CORRECTIVE_COST_TYPES = [
+  { id: "retraining", icon: "🎓" },
+  { id: "testing", icon: "🧪" },
+  { id: "equipment", icon: "🔧" },
+  { id: "labor", icon: "👷" },
+  { id: "other", icon: "📋" },
 ];
 
 export const SEVERITY_LEVELS = {
@@ -41,24 +52,64 @@ export function parseProductWeight(str) {
 }
 
 export function calculateEconomicImpact(incidents, costSettings) {
-  const breakdown = { downtimeCost: 0, productLossCost: 0, correctiveActionCost: 0, total: 0 };
+  const breakdown = {
+    downtimeCost: 0,
+    productLossCost: 0,
+    correctiveActionCost: 0,
+    total: 0,
+    correctiveByType: { retraining: 0, testing: 0, equipment: 0, labor: 0, other: 0 },
+  };
 
   incidents.forEach(inc => {
-    if (inc.downtimeHours) {
-      breakdown.downtimeCost += inc.downtimeHours * costSettings.laborHourlyRate;
+    const downtimeRate = costSettings.downtimeHourlyRate ?? costSettings.laborHourlyRate;
+    if (inc.downtimeCostOverride > 0) {
+      // Use the manually entered actual cost instead of the auto-calculation
+      breakdown.downtimeCost += inc.downtimeCostOverride;
+    } else if (inc.downtimeHours) {
+      breakdown.downtimeCost += inc.downtimeHours * downtimeRate;
     }
     const lbs = parseProductWeight(inc.affectedProduct);
     if (lbs > 0) {
       breakdown.productLossCost += lbs * costSettings.produceCostPerLb;
     }
-    if (inc.severity === "high" || inc.severity === "critical") {
-      breakdown.correctiveActionCost += costSettings.retrainingSessionCost;
-    }
-    if (inc.sopId === 4 || inc.sopId === 5) {
-      breakdown.correctiveActionCost += costSettings.testingCost;
+
+    // Use actual per-incident corrective costs if logged, else fall back to heuristic
+    if (inc.correctiveCosts && inc.correctiveCosts.length > 0) {
+      inc.correctiveCosts.forEach(c => {
+        const amount = c.cost || 0;
+        breakdown.correctiveActionCost += amount;
+        if (breakdown.correctiveByType[c.type] !== undefined) {
+          breakdown.correctiveByType[c.type] += amount;
+        } else {
+          breakdown.correctiveByType.other += amount;
+        }
+      });
+    } else {
+      // Legacy heuristic for incidents logged before this feature
+      if (inc.severity === "high" || inc.severity === "critical") {
+        breakdown.correctiveActionCost += costSettings.retrainingSessionCost;
+        breakdown.correctiveByType.retraining += costSettings.retrainingSessionCost;
+      }
+      if (inc.sopId === 4 || inc.sopId === 5) {
+        breakdown.correctiveActionCost += costSettings.testingCost;
+        breakdown.correctiveByType.testing += costSettings.testingCost;
+      }
     }
   });
 
   breakdown.total = breakdown.downtimeCost + breakdown.productLossCost + breakdown.correctiveActionCost;
   return breakdown;
+}
+
+// Calculate downtime cost for a single incident given costSettings
+export function incidentDowntimeCost(inc, costSettings) {
+  if (inc.downtimeCostOverride > 0) return inc.downtimeCostOverride;
+  const rate = costSettings.downtimeHourlyRate ?? costSettings.laborHourlyRate;
+  return (inc.downtimeHours || 0) * rate;
+}
+
+// Sum corrective costs for a single incident
+export function incidentCorrectiveCost(inc) {
+  if (!inc.correctiveCosts || inc.correctiveCosts.length === 0) return 0;
+  return inc.correctiveCosts.reduce((s, c) => s + (c.cost || 0), 0);
 }

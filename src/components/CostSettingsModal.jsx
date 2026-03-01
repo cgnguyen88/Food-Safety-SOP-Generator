@@ -20,12 +20,13 @@ export default function CostSettingsModal({ settings, onSave, onClose }) {
         <div style={{ padding:"20px 32px" }}>
           {COST_FIELDS.map(field => (
             <div key={field.id} style={{ marginBottom:16 }}>
-              <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:5 }}>{field.label}</label>
+              <label style={{ display:"block",fontSize:13,fontWeight:600,color:"var(--txt2)",marginBottom:2 }}>{field.label}</label>
+              {field.hint && <p style={{ fontSize:11,color:"var(--txt3)",marginBottom:5,lineHeight:1.4 }}>{field.hint}</p>}
               <div style={{ display:"flex",alignItems:"center",gap:6 }}>
                 <span style={{ fontSize:14,color:"var(--txt2)",fontWeight:600 }}>{field.prefix}</span>
                 <input
                   type="number" step="0.01" min="0"
-                  value={form[field.id]}
+                  value={form[field.id] ?? 0}
                   onChange={e => setForm({ ...form, [field.id]: parseFloat(e.target.value) || 0 })}
                   style={{ flex:1,padding:"8px 12px",border:"1.5px solid var(--bdr)",borderRadius:8,fontSize:13,background:"white",outline:"none" }}
                 />

@@ -264,7 +264,7 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
           {loading && (
             <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--u-gold)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Bot size={13} color="var(--u-navy-d)" />
+                <span style={{ fontSize: 14, lineHeight: 1 }}>🍓</span>
               </div>
               <div style={{ padding: "10px 16px", background: "white", borderRadius: "18px 18px 18px 4px", border: "1px solid var(--bdr2)", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", display: "flex", gap: 4, alignItems: "center" }}>
                 {[0, 1, 2].map((i) => (

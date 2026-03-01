@@ -13,6 +13,7 @@ import FarmProfileModal from "./components/FarmProfileModal.jsx";
 import ViolationDashboard from "./components/ViolationDashboard.jsx";
 import EconomicReport from "./components/EconomicReport.jsx";
 import ExpandableChat from "./components/ExpandableChat.jsx";
+import PlanGenerator from "./components/PlanGenerator.jsx";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
@@ -104,7 +105,7 @@ export default function App() {
     <LanguageProvider>
       <style>{GLOBAL_CSS}</style>
       <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}@keyframes caretBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
-      <div style={{ height:"100vh",display:"flex",overflow:"hidden" }}>
+      <div style={{ height: "100vh", display: "flex", overflow: "hidden" }}>
         <Sidebar
           activeSOP={activeSOP}
           activePage={activePage}
@@ -116,7 +117,7 @@ export default function App() {
           farmProfile={farmProfile}
           incidents={incidents}
         />
-        <div style={{ flex:1,display:"flex",flexDirection:"column",overflow:"hidden",background:"var(--cream)" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--cream)" }}>
           {activePage === "sop" && activeSOP ? (
             <SOPEditor sop={activeSOP} farmProfile={farmProfile} onBack={() => handleNavigate("home")} />
           ) : activePage === "violations" ? (
@@ -133,11 +134,17 @@ export default function App() {
               costSettings={costSettings}
               onSaveCostSettings={saveCostSettings}
             />
+          ) : activePage === "plan_generator" ? (
+            <PlanGenerator
+              farmProfile={farmProfile}
+              onBack={() => handleNavigate("home")}
+            />
           ) : (
             <Dashboard
               farmProfile={farmProfile}
               onSelectSOP={handleSelectSOP}
               onOpenProfile={() => setShowProfile(true)}
+              onNavigate={handleNavigate}
             />
           )}
         </div>

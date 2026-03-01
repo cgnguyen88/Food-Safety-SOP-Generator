@@ -57,7 +57,7 @@ export default function ExpandableChat({ farmProfile, incidents }) {
     const farmCtx = farmProfile
       ? `Farm: ${farmProfile.farm_name || ""}. Crops: ${farmProfile.crops || ""}. Type: ${farmProfile.operation_type || ""}. FSMA status: ${farmProfile.fsma_status || ""}.`
       : "No farm profile saved yet.";
-    return `You are an expert FSMA Produce Safety Rule food safety AI assistant embedded in FarmSafe, a compliance platform for California farms.
+    return `You are an expert FSMA Produce Safety Rule food safety AI assistant embedded in FarmSafe, a compliance platform for California farms. You also act as a guide and "Skill Creator" for farmers building their Farm Food Safety Plans.
 
 Farm context: ${farmCtx}
 Logged incidents so far: ${(incidents || []).length}
@@ -65,7 +65,7 @@ Logged incidents so far: ${(incidents || []).length}
 Available SOPs in the app:
 ${sopList}
 
-Answer questions about food safety regulations, FSMA PSR requirements, produce safety best practices, SOP documentation, and how to use the app. Be conversational, specific, and accurate. Reference FDA FSMA PSR, Cornell PSA, and UC ANR guidance where relevant. Keep responses to 2–4 paragraphs max. Answer in the same language the user writes in (English or Spanish). Do not invent regulatory thresholds — say "verify with current guidance" if uncertain.`;
+Answer questions about food safety regulations, FSMA PSR requirements, produce safety best practices, SOP documentation, and how to use the app. As a Skill Creator, guide farmers step-by-step on how to conduct risk assessments, establish a traceability/lot code system (e.g. Farm + Field + Date), and perform a mock recall. Be conversational, specific, and accurate. Reference FDA FSMA PSR, Cornell PSA, and UC ANR guidance where relevant. Keep responses to 2–4 paragraphs max. Answer in the same language the user writes in (English or Spanish). Do not invent regulatory thresholds — say "verify with current guidance" if uncertain.`;
   };
 
   const sendMessage = async (text) => {
@@ -104,17 +104,17 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
   const quickChips =
     lang === "en"
       ? [
-          { label: "Which SOP first?", text: "Which SOP should I work on first for my farm?" },
-          { label: "FSMA overview", text: "Give me a quick overview of the key FSMA Produce Safety Rule requirements." },
-          { label: "Water testing", text: "What are the FSMA agricultural water testing requirements?" },
-          { label: "Worker hygiene", text: "What are the key worker hygiene requirements under FSMA PSR?" },
-        ]
+        { label: "Plan Generator Help", text: "How do I build a Farm Food Safety Plan?" },
+        { label: "Lot codes", text: "How should I create a Lot Code system for my farm?" },
+        { label: "Mock Recall", text: "How do I conduct a mock recall?" },
+        { label: "Which SOP first?", text: "Which SOP should I work on first for my farm?" },
+      ]
       : [
-          { label: "¿Qué POE primero?", text: "¿En qué POE debería trabajar primero para mi granja?" },
-          { label: "Resumen FSMA", text: "Dame un resumen de los requisitos clave de la Regla de Seguridad de Productos FSMA." },
-          { label: "Pruebas de agua", text: "¿Cuáles son los requisitos de pruebas de agua agrícola bajo FSMA?" },
-          { label: "Higiene laboral", text: "¿Cuáles son los requisitos clave de higiene laboral bajo FSMA PSR?" },
-        ];
+        { label: "Ayuda con el Plan", text: "¿Cómo elaboro un Plan de Seguridad Alimentaria de la Granja?" },
+        { label: "Códigos de lote", text: "¿Cómo debo crear un sistema de código de lote para mi granja?" },
+        { label: "Simulacro", text: "¿Cómo realizo un simulacro de retiro (mock recall)?" },
+        { label: "¿Qué POE primero?", text: "¿En qué POE debería trabajar primero para mi granja?" },
+      ];
 
   const headerLabel =
     lang === "en" ? "Food Safety Assistant" : "Asistente de Seguridad Alimentaria";

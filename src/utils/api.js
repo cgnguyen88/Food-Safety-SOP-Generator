@@ -1,170 +1,88 @@
 import { buildSopStandardContext } from "./sop-standards.js";
-const DIRECT_ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const PROXY_ENDPOINT = "/api/claude";
-const DIRECT_ENDPOINT = import.meta.env.VITE_ANTHROPIC_API_URL || DIRECT_ANTHROPIC_URL;
-const ALLOW_CLIENT_KEY_FALLBACK = import.meta.env.VITE_ALLOW_CLIENT_KEY_FALLBACK === "true";
-const ENV_ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "";
-const MODEL = import.meta.env.VITE_ANTHROPIC_MODEL || "claude-sonnet-4-0";
-const MODEL_FALLBACKS = [
-  MODEL,
-  "claude-sonnet-4-0",
-  "claude-sonnet-4-20250514",
-  "claude-3-7-sonnet-latest",
-];
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-function getErrorMessage(data, status) {
-  if (data?.error?.message) return data.error.message;
-  if (typeof data?.error === "string") return data.error;
-  return `Anthropic request failed (HTTP ${status})`;
-}
+const ENV_GEMINI_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || "AIzaSyB9Eum_iJF__GfZmhkONVhxMhrlU7nNpJk";
+const MODEL_NAME = "gemini-2.5-flash";
 
-function shouldRetryWithAnotherModel(status, data) {
-  const code = data?.error?.type || data?.error?.code || "";
-  const message = (data?.error?.message || "").toLowerCase();
-  return status === 404 || code.includes("model") || message.includes("model");
-}
-
-function resolveApiKey() {
-  const envKey = ENV_ANTHROPIC_API_KEY.trim();
-  if (envKey) return envKey;
-  return "";
-}
-
-async function sendClaudeRequest(payload) {
-  const modelCandidates = [...new Set(MODEL_FALLBACKS.filter(Boolean))];
-  let lastErr = new Error("Anthropic request failed");
-  let apiKey = "";
-  const endpoints = ALLOW_CLIENT_KEY_FALLBACK
-    ? [PROXY_ENDPOINT, DIRECT_ENDPOINT]
-    : [PROXY_ENDPOINT];
-
-  for (const model of modelCandidates) {
-    for (const endpoint of endpoints) {
-      const isProxyEndpoint = endpoint === "/api/claude";
-      if (!isProxyEndpoint && !apiKey) {
-        apiKey = resolveApiKey();
-        if (!apiKey) {
-          throw new Error("AI service unavailable. Configure backend ANTHROPIC_API_KEY.");
-        }
-      }
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(apiKey ? { "x-api-key": apiKey } : {}),
-          ...(!isProxyEndpoint ? { "anthropic-version": "2023-06-01" } : {}),
-          ...(!isProxyEndpoint ? { "anthropic-dangerous-direct-browser-access": "true" } : {}),
-        },
-        body: JSON.stringify({
-          temperature: 0.2,
-          ...payload,
-          model,
-        }),
-      });
-
-      let data;
-      try {
-        data = await res.json();
-      } catch {
-        // If proxy route returns HTML/404 in deployed builds, try next endpoint.
-        lastErr = new Error(`AI endpoint failed (${endpoint}, HTTP ${res.status})`);
-        continue;
-      }
-
-      if (res.ok && !data?.error) return data;
-
-      lastErr = new Error(getErrorMessage(data, res.status));
-      if (!apiKey && !isProxyEndpoint && (res.status === 401 || res.status === 403)) {
-        lastErr = new Error("AI service unavailable. Configure backend ANTHROPIC_API_KEY.");
-      }
-      if (!shouldRetryWithAnotherModel(res.status, data)) break;
+function getGeminiModel(systemInstruction) {
+  const genAI = new GoogleGenerativeAI(ENV_GEMINI_API_KEY);
+  return genAI.getGenerativeModel({
+    model: MODEL_NAME,
+    systemInstruction,
+    generationConfig: {
+      temperature: 0.2,
+      maxOutputTokens: 1500,
     }
+  });
+}
+
+function formatMessages(messages) {
+  // Gemini strictly requires chat history to begin with a 'user' message. 
+  // Strip any leading assistant messages (like UI greetings) before parsing.
+  let startIdx = 0;
+  while (startIdx < messages.length && messages[startIdx].role === "assistant") {
+    startIdx++;
   }
 
-  throw lastErr;
+  return messages.slice(startIdx).map(m => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }]
+  }));
 }
 
 export async function callClaude(messages, systemPrompt) {
-  const data = await sendClaudeRequest({ max_tokens: 1500, system: systemPrompt, messages });
-  return data.content?.map(b => b.text || "").join("") || "";
+  if (!ENV_GEMINI_API_KEY) throw new Error("AI service unavailable. Missing API Key.");
+
+  try {
+    const model = getGeminiModel(systemPrompt);
+    const formattedHistory = formatMessages(messages);
+
+    // The last message is the current prompt, we separate history from the current prompt for Gemini
+    const chat = model.startChat({ history: formattedHistory.slice(0, -1) });
+    const currentMessage = formattedHistory[formattedHistory.length - 1].parts[0].text;
+
+    const result = await chat.sendMessage(currentMessage);
+    return result.response.text();
+  } catch (err) {
+    console.error("Gemini request failed:", err);
+    throw new Error(err.message || "Request failed.");
+  }
 }
 
-/**
- * Streaming version of callClaude.
- * Calls onChunk(text) for each token as it arrives.
- * Returns a promise that resolves when the stream is complete.
- */
-export async function callClaudeStreaming(messages, systemPrompt, onChunk) {
-  const modelCandidates = [...new Set(MODEL_FALLBACKS.filter(Boolean))];
-  let lastErr = new Error("Streaming request failed");
-  const endpoints = ALLOW_CLIENT_KEY_FALLBACK
-    ? [PROXY_ENDPOINT, DIRECT_ENDPOINT]
-    : [PROXY_ENDPOINT];
-
-  for (const model of modelCandidates) {
-    for (const endpoint of endpoints) {
-      const isProxyEndpoint = endpoint === PROXY_ENDPOINT;
-      let apiKey = "";
-      if (!isProxyEndpoint) {
-        apiKey = resolveApiKey();
-        if (!apiKey) continue;
-      }
-
-      let res;
-      try {
-        res = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(apiKey ? { "x-api-key": apiKey } : {}),
-            ...(!isProxyEndpoint ? { "anthropic-version": "2023-06-01" } : {}),
-            ...(!isProxyEndpoint ? { "anthropic-dangerous-direct-browser-access": "true" } : {}),
-          },
-          body: JSON.stringify({ temperature: 0.2, max_tokens: 1500, system: systemPrompt, messages, model, stream: true }),
-        });
-      } catch (e) {
-        lastErr = e;
-        continue;
-      }
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        lastErr = new Error(getErrorMessage(data, res.status));
-        if (!shouldRetryWithAnotherModel(res.status, data)) break;
-        continue;
-      }
-
-      // Read SSE stream
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const payload = line.slice(6).trim();
-            if (payload === "[DONE]") return;
-            try {
-              const parsed = JSON.parse(payload);
-              if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta" && parsed.delta.text) {
-                onChunk(parsed.delta.text);
-              }
-            } catch { /* ignore malformed SSE lines */ }
-          }
-        }
-        return; // stream finished successfully
-      } catch (e) {
-        lastErr = e;
-        continue;
-      }
-    }
+export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDone = () => { }, onError = async () => { }) {
+  if (!ENV_GEMINI_API_KEY) {
+    onError(new Error("AI service unavailable. Missing API Key."));
+    return;
   }
-  throw lastErr;
+
+  try {
+    let currentMessage;
+    let formattedHistory = [];
+
+    // Normalize string messages input vs array objects input 
+    if (typeof messages === "string") {
+      currentMessage = messages;
+    } else {
+      formattedHistory = formatMessages(messages);
+      currentMessage = formattedHistory[formattedHistory.length - 1].parts[0].text;
+      formattedHistory = formattedHistory.slice(0, -1);
+    }
+
+    const model = getGeminiModel(systemPrompt);
+    const chat = model.startChat({ history: formattedHistory });
+
+    const result = await chat.sendMessageStream(currentMessage);
+
+    for await (const chunk of result.stream) {
+      onChunk(chunk.text());
+    }
+
+    onDone();
+  } catch (err) {
+    console.error("Gemini stream failed:", err);
+    onError(err);
+    throw err;
+  }
 }
 
 export function parseFormUpdates(text) {
@@ -180,10 +98,7 @@ export function stripFormUpdate(text) {
 const suggestionCache = new Map();
 
 export async function getFieldSuggestion(field, sop, formData, farmProfile) {
-  const contextFingerprint = JSON.stringify({
-    formData,
-    farmProfile,
-  });
+  const contextFingerprint = JSON.stringify({ formData, farmProfile });
   const cacheKey = `${field.id}-${sop.id}-${contextFingerprint}`;
   if (suggestionCache.has(cacheKey)) return suggestionCache.get(cacheKey);
 
@@ -215,8 +130,7 @@ INSTRUCTIONS:
   const messages = [{ role: "user", content: `Generate the value for the "${field.label}" field.` }];
 
   try {
-    const data = await sendClaudeRequest({ max_tokens: 300, system: systemPrompt, messages });
-    const suggestion = data.content?.map(b => b.text || "").join("") || "";
+    const suggestion = await callClaude(messages, systemPrompt);
     suggestionCache.set(cacheKey, suggestion);
     return suggestion;
   } catch (e) {
@@ -259,10 +173,9 @@ INSTRUCTIONS:
   const messages = [{ role: "user", content: `Draft documentation notes for this checklist item: "${item.label}"` }];
 
   try {
-    const data = await sendClaudeRequest({ max_tokens: 180, system: systemPrompt, messages });
-    const suggestion = data.content?.map((b) => b.text || "").join("").trim() || "";
-    suggestionCache.set(cacheKey, suggestion);
-    return suggestion;
+    const suggestion = await callClaude(messages, systemPrompt);
+    suggestionCache.set(cacheKey, suggestion.trim());
+    return suggestion.trim();
   } catch (e) {
     console.error("Record item AI suggestion failed:", e);
     return null;

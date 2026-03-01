@@ -5,7 +5,7 @@ import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
 
-export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile }) {
+export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile, onNavigate }) {
   const { lang } = useLanguage();
   const d = T[lang].dashboard;
   const localizedSops = SOP_DATA.map(sop => getLocalizedSop(sop, lang));
@@ -54,12 +54,20 @@ export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile }) {
           <h1 style={{ fontFamily: "Lora,serif", fontSize: 32, color: "var(--u-navy)", fontWeight: 800, letterSpacing: "-0.02em" }}>{d.sopGenerator}</h1>
           <p style={{ fontSize: 15, color: "var(--txt3)", marginTop: 6 }}>{d.sopSubtitle}</p>
         </div>
-        <button
-          onClick={onOpenProfile}
-          style={{ padding: "14px 28px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 14px rgba(253,189,16,0.3)" }}
-        >
-          {farmProfile ? d.editProfile : d.setupProfile}
-        </button>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button
+            onClick={() => onNavigate("plan_generator")}
+            style={{ padding: "14px 28px", background: "var(--u-sky)", color: "white", border: "none", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 800, boxShadow: "0 6px 18px rgba(58,168,228,0.4)" }}
+          >
+            📋 {d.foodSafetyPlan}
+          </button>
+          <button
+            onClick={onOpenProfile}
+            style={{ padding: "14px 28px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 14px rgba(253,189,16,0.3)" }}
+          >
+            {farmProfile ? d.editProfile : d.setupProfile}
+          </button>
+        </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))", gap: 16 }}>
         {localizedSops.map((sop, idx) => (

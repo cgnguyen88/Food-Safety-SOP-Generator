@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, Bot, ChevronDown } from "lucide-react";
+import { MessageCircle, X, Send, ChevronDown } from "lucide-react";
 import { callClaudeStreaming } from "../utils/api.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { SOP_DATA } from "../data/sop-data.js";
@@ -24,8 +24,8 @@ export default function ExpandableChat({ farmProfile, incidents }) {
 
   const greeting =
     lang === "en"
-      ? "Hi! I'm your FarmSafe AI assistant. Ask me anything about food safety regulations, FSMA compliance, or your SOPs — I'm here to help."
-      : "¡Hola! Soy tu asistente de IA de FarmSafe. Pregúntame sobre regulaciones de seguridad alimentaria, cumplimiento FSMA o tus POEs — estoy aquí para ayudar.";
+      ? "🍓 Hey there! I'm Jimmy, your FarmSafe food safety guide. Whether you have questions about regulations, need help with your SOPs, or just want some guidance — I'm here for you. What can I help you with today?"
+      : "🍓 ¡Hola! Soy Jimmy, tu guía de seguridad alimentaria de FarmSafe. Ya sea que tengas preguntas sobre regulaciones, necesites ayuda con tus POEs, o simplemente quieras orientación — aquí estoy para ti. ¿En qué puedo ayudarte hoy?";
 
   // Reset greeting on language change
   useEffect(() => {
@@ -57,7 +57,9 @@ export default function ExpandableChat({ farmProfile, incidents }) {
     const farmCtx = farmProfile
       ? `Farm: ${farmProfile.farm_name || ""}. Crops: ${farmProfile.crops || ""}. Type: ${farmProfile.operation_type || ""}. FSMA status: ${farmProfile.fsma_status || ""}.`
       : "No farm profile saved yet.";
-    return `You are an expert FSMA Produce Safety Rule food safety AI assistant embedded in FarmSafe, a compliance platform for California farms. You also act as a guide and "Skill Creator" for farmers building their Farm Food Safety Plans.
+    return `Your name is Jimmy. You are a friendly, knowledgeable, and supportive food safety assistant for FarmSafe — like a dedicated customer service agent specifically for farmers and producers. You assist not only with questions and information requests, but also provide step-by-step guidance and encouragement throughout their food safety compliance journey.
+
+You are embedded in FarmSafe, a compliance platform for California farms. You are an expert in FSMA Produce Safety Rule requirements and also act as a guide and "Skill Creator" for farmers building their Farm Food Safety Plans.
 
 Farm context: ${farmCtx}
 Logged incidents so far: ${(incidents || []).length}
@@ -65,7 +67,7 @@ Logged incidents so far: ${(incidents || []).length}
 Available SOPs in the app:
 ${sopList}
 
-Answer questions about food safety regulations, FSMA PSR requirements, produce safety best practices, SOP documentation, and how to use the app. As a Skill Creator, guide farmers step-by-step on how to conduct risk assessments, establish a traceability/lot code system (e.g. Farm + Field + Date), and perform a mock recall. Be conversational, specific, and accurate. Reference FDA FSMA PSR, Cornell PSA, and UC ANR guidance where relevant. Keep responses to 2–4 paragraphs max. Answer in the same language the user writes in (English or Spanish). Do not invent regulatory thresholds — say "verify with current guidance" if uncertain.`;
+Answer questions about food safety regulations, FSMA PSR requirements, produce safety best practices, SOP documentation, and how to use the app. As a Skill Creator, guide farmers step-by-step on how to conduct risk assessments, establish a traceability/lot code system (e.g. Farm + Field + Date), and perform a mock recall. Be warm, conversational, specific, and accurate — like a helpful customer service agent who genuinely cares about the farmer's success. Reference FDA FSMA PSR, Cornell PSA, and UC ANR guidance where relevant. Keep responses to 2–4 paragraphs max. Answer in the same language the user writes in (English or Spanish). Do not invent regulatory thresholds — say "verify with current guidance" if uncertain.`;
   };
 
   const sendMessage = async (text) => {
@@ -117,7 +119,7 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
       ];
 
   const headerLabel =
-    lang === "en" ? "Food Safety Assistant" : "Asistente de Seguridad Alimentaria";
+    lang === "en" ? "Your Food Safety Guide" : "Tu Guía de Seguridad Alimentaria";
   const placeholder =
     lang === "en" ? "Ask about food safety..." : "Pregunta sobre seguridad alimentaria...";
 
@@ -167,11 +169,11 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
                 boxShadow: "0 0 12px rgba(253,189,16,0.5)",
               }}
             >
-              <Bot size={19} color="var(--u-navy-d)" />
+              <span style={{ fontSize: 20, lineHeight: 1 }}>🍓</span>
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>
-                FarmSafe AI
+                Jimmy
               </div>
               <div style={{ fontSize: 11, color: "var(--u-gold)", fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>
                 {headerLabel}
@@ -222,7 +224,7 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
                     boxShadow: "0 2px 6px rgba(253,189,16,0.4)",
                   }}
                 >
-                  <Bot size={13} color="var(--u-navy-d)" />
+                  <span style={{ fontSize: 14, lineHeight: 1 }}>🍓</span>
                 </div>
               )}
               <div
@@ -369,7 +371,7 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
       {/* Toggle Button */}
       <button
         onClick={() => setIsOpen((o) => !o)}
-        title={lang === "en" ? "FarmSafe AI Assistant" : "Asistente IA de FarmSafe"}
+        title={lang === "en" ? "Chat with Jimmy" : "Chatear con Jimmy"}
         style={{
           width: 58, height: 58, borderRadius: "50%",
           background: isOpen

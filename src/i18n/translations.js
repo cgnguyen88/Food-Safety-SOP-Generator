@@ -120,8 +120,8 @@ export const T = {
       logPreview: "Log template preview — additional rows appear in converted Word document.",
     },
     chat: {
-      assistantName: "UC ANR Assistant",
-      aiGuide: "AI Compliance Guide",
+      assistantName: "Jimmy",
+      aiGuide: "Your Food Safety Guide",
       placeholder: "Describe your operation...",
       quickDescribe: "Describe my farm",
       quickReview: "Review my form",
@@ -129,7 +129,7 @@ export const T = {
       quickExamples: "Give me examples",
       updatedFields: "I've updated the relevant fields in the form.",
       greetingText: (sopTitle) =>
-        `Hello! I'm your food safety compliance assistant. I'm here to help you complete the **${sopTitle}** SOP.\n\nI can:\n• **Fill in fields** based on your farm description\n• **Explain regulations** behind each requirement\n• **Review your form** for compliance gaps\n• **Provide examples** for any field\n\nHow would you like to start? Describe your farm and operation, or ask me about any specific field.`,
+        `🍓 Hey there! I'm Jimmy, your FarmSafe food safety guide. I'm here to help you complete the **${sopTitle}** SOP.\n\nI can:\n• **Fill in fields** based on your farm description\n• **Explain regulations** behind each requirement\n• **Review your form** for compliance gaps\n• **Provide examples** for any field\n\nHow would you like to start? Describe your farm and operation, or just ask me anything!`,
       quickDescribeText: "Let me describe my farm operation so you can help fill in this SOP.",
       quickReviewText: "Please review my current form for any missing required fields or compliance gaps.",
       quickExplainText: "Can you explain the regulatory requirements behind this SOP and what FSMA expects?",
@@ -418,8 +418,8 @@ export const T = {
       logPreview: "Vista previa de plantilla de registro — filas adicionales aparecen en el documento Word convertido.",
     },
     chat: {
-      assistantName: "Asistente UC ANR",
-      aiGuide: "Guía de Cumplimiento IA",
+      assistantName: "Jimmy",
+      aiGuide: "Tu Guía de Seguridad Alimentaria",
       placeholder: "Describa su operación...",
       quickDescribe: "Describir mi granja",
       quickReview: "Revisar mi formulario",
@@ -427,7 +427,7 @@ export const T = {
       quickExamples: "Dame ejemplos",
       updatedFields: "He actualizado los campos relevantes en el formulario.",
       greetingText: (sopTitle) =>
-        `¡Hola! Soy su asistente de cumplimiento de seguridad alimentaria. Estoy aquí para ayudarle a completar el POE de **${sopTitle}**.\n\nPuedo:\n• **Completar campos** basándome en la descripción de su granja\n• **Explicar regulaciones** detrás de cada requisito\n• **Revisar su formulario** para detectar brechas de cumplimiento\n• **Proporcionar ejemplos** para cualquier campo\n\n¿Cómo le gustaría comenzar? Describa su granja y operación, o pregúnteme sobre algún campo específico.`,
+        `🍓 ¡Hola! Soy Jimmy, tu guía de seguridad alimentaria de FarmSafe. Estoy aquí para ayudarte a completar el POE de **${sopTitle}**.\n\nPuedo:\n• **Completar campos** basándome en la descripción de tu granja\n• **Explicar regulaciones** detrás de cada requisito\n• **Revisar tu formulario** para detectar brechas de cumplimiento\n• **Proporcionar ejemplos** para cualquier campo\n\n¿Cómo te gustaría comenzar? Describe tu granja y operación, ¡o pregúntame lo que necesites!`,
       quickDescribeText: "Déjeme describir mi operación de granja para que pueda ayudarme a completar este POE.",
       quickReviewText: "Por favor revise mi formulario actual para detectar campos requeridos faltantes o brechas de cumplimiento.",
       quickExplainText: "¿Puede explicar los requisitos regulatorios detrás de este POE y qué espera FSMA?",

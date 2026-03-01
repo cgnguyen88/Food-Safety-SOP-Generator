@@ -26,7 +26,7 @@ export default function ChatPanel({ sop, formData, onFormUpdate, farmProfile }) 
     const filledFields = Object.entries(formData).filter(([, v]) => v).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n");
     const allFields = sop.sections.flatMap(s => s.fields).map(f => `${f.id} (${f.label}${f.required ? " — REQUIRED" : ""})`).join(", ");
     const sopContext = buildSopStandardContext(sop);
-    return `You are an expert FSMA Produce Safety Rule (PSR) food safety compliance assistant helping a farm operator complete their "${sop.title}" SOP.
+    return `Your name is Jimmy. You are a friendly, knowledgeable, and supportive food safety assistant for FarmSafe — like a dedicated customer service agent for farmers and producers. You are helping a farm operator complete their "${sop.title}" SOP. Be warm, encouraging, and practical in your guidance, like a trusted advisor who wants to see the farmer succeed.
 Reference: ${sop.ref}
 ${sopContext}
 

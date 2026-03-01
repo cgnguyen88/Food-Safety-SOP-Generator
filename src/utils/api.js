@@ -1,88 +1,100 @@
 import { buildSopStandardContext } from "./sop-standards.js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const ENV_GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const MODEL_NAME = "gemini-2.5-flash";
-
-function getGeminiModel(systemInstruction) {
-  const genAI = new GoogleGenerativeAI(ENV_GEMINI_API_KEY);
-  return genAI.getGenerativeModel({
-    model: MODEL_NAME,
-    systemInstruction,
-    generationConfig: {
-      temperature: 0.2,
-      maxOutputTokens: 1500,
-    }
-  });
-}
+const MODEL = "claude-haiku-4-5-20251001";
 
 function formatMessages(messages) {
-  // Gemini strictly requires chat history to begin with a 'user' message. 
-  // Strip any leading assistant messages (like UI greetings) before parsing.
+  // Anthropic requires the first message to be from "user"
   let startIdx = 0;
   while (startIdx < messages.length && messages[startIdx].role === "assistant") {
     startIdx++;
   }
-
   return messages.slice(startIdx).map(m => ({
-    role: m.role === "assistant" ? "model" : "user",
-    parts: [{ text: m.content }]
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: m.content,
   }));
 }
 
 export async function callClaude(messages, systemPrompt) {
-  if (!ENV_GEMINI_API_KEY) throw new Error("AI service unavailable. Missing API Key.");
-
-  try {
-    const model = getGeminiModel(systemPrompt);
-    const formattedHistory = formatMessages(messages);
-
-    // The last message is the current prompt, we separate history from the current prompt for Gemini
-    const chat = model.startChat({ history: formattedHistory.slice(0, -1) });
-    const currentMessage = formattedHistory[formattedHistory.length - 1].parts[0].text;
-
-    const result = await chat.sendMessage(currentMessage);
-    return result.response.text();
-  } catch (err) {
-    console.error("Gemini request failed:", err);
-    throw new Error(err.message || "Request failed.");
+  const formatted = formatMessages(messages);
+  const res = await fetch("/api/claude", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 1500,
+      system: systemPrompt,
+      messages: formatted,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `API error ${res.status}`);
   }
+  const data = await res.json();
+  return data.content?.[0]?.text || "";
 }
 
-export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDone = () => { }, onError = async () => { }) {
-  if (!ENV_GEMINI_API_KEY) {
-    onError(new Error("AI service unavailable. Missing API Key."));
-    return;
-  }
-
+export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDone = () => {}, onError = async () => {}) {
+  const formatted = formatMessages(messages);
+  let res;
   try {
-    let currentMessage;
-    let formattedHistory = [];
-
-    // Normalize string messages input vs array objects input 
-    if (typeof messages === "string") {
-      currentMessage = messages;
-    } else {
-      formattedHistory = formatMessages(messages);
-      currentMessage = formattedHistory[formattedHistory.length - 1].parts[0].text;
-      formattedHistory = formattedHistory.slice(0, -1);
-    }
-
-    const model = getGeminiModel(systemPrompt);
-    const chat = model.startChat({ history: formattedHistory });
-
-    const result = await chat.sendMessageStream(currentMessage);
-
-    for await (const chunk of result.stream) {
-      onChunk(chunk.text());
-    }
-
-    onDone();
+    res = await fetch("/api/claude", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODEL,
+        max_tokens: 1500,
+        system: systemPrompt,
+        messages: formatted,
+        stream: true,
+      }),
+    });
   } catch (err) {
-    console.error("Gemini stream failed:", err);
     onError(err);
     throw err;
   }
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    const err = new Error(errData?.error?.message || `API error ${res.status}`);
+    onError(err);
+    throw err;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop(); // keep any incomplete line for the next chunk
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") break;
+        try {
+          const parsed = JSON.parse(data);
+          // Anthropic SSE sends content_block_delta events with text_delta
+          if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") {
+            onChunk(parsed.delta.text);
+          }
+        } catch {
+          // skip malformed SSE lines
+        }
+      }
+    }
+  } catch (err) {
+    onError(err);
+    throw err;
+  }
+
+  onDone();
 }
 
 export function parseFormUpdates(text) {
@@ -105,7 +117,7 @@ export async function getFieldSuggestion(field, sop, formData, farmProfile) {
   const sopContext = buildSopStandardContext(sop);
   const systemPrompt = `You are an expert FSMA Produce Safety Rule compliance assistant. Generate a specific, compliant value for a single SOP form field.
 ${sopContext}
- 
+
 Farm Context:
 ${farmProfile ? Object.entries(farmProfile).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("\n") : "No farm profile available — use general best practices."}
 

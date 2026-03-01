@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     res.status(500).json({
       error: {
         message:
-          "Server missing Anthropic key. Set ANTHROPIC_API_KEY (preferred) or VITE_ANTHROPIC_API_KEY in Vercel Environment Variables and redeploy.",
+          "Server missing Anthropic key. Set ANTHROPIC_API_KEY in Vercel Environment Variables and redeploy.",
       },
     });
     return;
@@ -46,13 +46,31 @@ export default async function handler(req, res) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Accept: "application/json",
+        Accept: body.stream ? "text/event-stream" : "application/json",
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify(body),
     });
 
+    // Stream mode: pipe SSE response directly to client
+    if (body.stream) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+      res.status(upstream.status);
+
+      const reader = upstream.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+      res.end();
+      return;
+    }
+
+    // Non-streaming: return JSON
     const text = await upstream.text();
     let data;
     try {
@@ -60,7 +78,6 @@ export default async function handler(req, res) {
     } catch {
       data = { error: { message: "Anthropic returned non-JSON response." }, raw: text.slice(0, 300) };
     }
-
     res.status(upstream.status).json(data);
   } catch (err) {
     res.status(500).json({

@@ -21,6 +21,7 @@ const MODEL_CANDIDATES = [
   ...ENV_MODEL_CANDIDATES,
   "claude-3-5-sonnet-latest",
   "claude-3-5-haiku-latest",
+  "claude-3-haiku-20240307",
   "claude-sonnet-4-0",
 ];
 const BLOCKED_MODELS = new Set(["claude-3-7-sonnet-latest"]);

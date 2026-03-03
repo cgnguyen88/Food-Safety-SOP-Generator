@@ -2,7 +2,7 @@ import { buildSopStandardContext } from "./sop-standards.js";
 
 const BLOCKED_MODELS = new Set(["claude-3-7-sonnet-latest"]);
 const ENV_MODEL = (import.meta.env.VITE_ANTHROPIC_MODEL || "").trim();
-const MODEL = !ENV_MODEL || BLOCKED_MODELS.has(ENV_MODEL) ? "claude-3-5-sonnet-latest" : ENV_MODEL;
+const MODEL = !ENV_MODEL || BLOCKED_MODELS.has(ENV_MODEL) ? "claude-3-haiku-20240307" : ENV_MODEL;
 
 function formatMessages(messages) {
   // Anthropic requires the first message to be from "user"

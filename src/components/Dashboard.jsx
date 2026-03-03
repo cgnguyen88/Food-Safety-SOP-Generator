@@ -73,7 +73,19 @@ export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile, onN
         <div style={{ display: "flex", gap: "12px" }}>
           <button
             onClick={() => onNavigate("plan_generator")}
-            style={{ padding: "14px 28px", background: "var(--u-sky)", color: "white", border: "none", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 800, boxShadow: "0 6px 18px rgba(58,168,228,0.4)" }}
+            style={{
+              padding: "16px 32px",
+              background: "linear-gradient(135deg, var(--u-sky), #005baa)",
+              color: "white",
+              border: "2px solid #ffffff",
+              borderRadius: "16px",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: 900,
+              boxShadow: "0 8px 24px rgba(0,91,170,0.5)",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}
           >
             📋 {d.foodSafetyPlan}
           </button>

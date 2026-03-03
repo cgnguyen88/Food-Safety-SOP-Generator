@@ -91,7 +91,19 @@ export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile, onN
           </button>
           <button
             onClick={onOpenProfile}
-            style={{ padding: "14px 28px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 14, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 14px rgba(253,189,16,0.3)" }}
+            style={{
+              padding: "16px 32px",
+              background: "linear-gradient(135deg, var(--u-gold), #f9a826)",
+              color: "var(--u-navy-d)",
+              border: "2px solid #ffffff",
+              borderRadius: "16px",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: 900,
+              boxShadow: "0 8px 24px rgba(253,189,16,0.5)",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px"
+            }}
           >
             {farmProfile ? d.editProfile : d.setupProfile}
           </button>

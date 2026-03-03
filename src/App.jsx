@@ -24,6 +24,7 @@ export default function App() {
   const [farmProfile, setFarmProfile] = useState(null);
   const [incidents, setIncidents] = useState([]);
   const [costSettings, setCostSettings] = useState(DEFAULT_COST_SETTINGS);
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
 
   // Load all persisted data on mount
   useEffect(() => {
@@ -73,6 +74,7 @@ export default function App() {
 
   const handleLogin = (user) => {
     setCurrentUser(user);
+    setJustLoggedIn(true);
   };
 
   const handleLogout = () => {
@@ -150,7 +152,7 @@ export default function App() {
         </div>
       </div>
       {showProfile && <FarmProfileModal profile={farmProfile} onSave={saveFarmProfile} onClose={() => setShowProfile(false)} />}
-      <ExpandableChat farmProfile={farmProfile} incidents={incidents} />
+      <ExpandableChat farmProfile={farmProfile} incidents={incidents} defaultOpen={justLoggedIn} />
     </LanguageProvider>
   );
 }

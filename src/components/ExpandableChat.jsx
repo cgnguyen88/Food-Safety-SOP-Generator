@@ -11,9 +11,9 @@ function renderMarkdown(text) {
     .replace(/\n/g, "<br/>");
 }
 
-export default function ExpandableChat({ farmProfile, incidents }) {
+export default function ExpandableChat({ farmProfile, incidents, defaultOpen = false }) {
   const { lang } = useLanguage();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);

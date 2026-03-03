@@ -25,6 +25,7 @@ interface DicedHeroSectionProps {
     mainText: string;
     subMainText: string;
     buttonText: string;
+    underButtonContent?: React.ReactNode;
     slides: SlideContent[];
     onMainButtonClick?: () => void;
     onGridImageHover?: (index: number) => void;
@@ -47,6 +48,7 @@ export const DicedHeroSection: React.FC<DicedHeroSectionProps> = ({
     mainText,
     subMainText,
     buttonText,
+    underButtonContent,
     slides,
     onMainButtonClick,
     onGridImageHover,
@@ -204,7 +206,8 @@ export const DicedHeroSection: React.FC<DicedHeroSectionProps> = ({
                     style={{
                         marginTop: '1rem',
                         display: 'flex',
-                        justifyContent: isMobile
+                        flexDirection: 'column',
+                        alignItems: isMobile
                             ? 'center'
                             : isRTL
                                 ? 'flex-end'
@@ -221,6 +224,11 @@ export const DicedHeroSection: React.FC<DicedHeroSectionProps> = ({
                         customBackground={buttonStyle?.backgroundColor}
                         customForeground={buttonStyle?.color}
                     />
+                    {underButtonContent && (
+                        <div style={{ marginTop: '1.5rem', width: '100%' }}>
+                            {underButtonContent}
+                        </div>
+                    )}
                 </motion.div>
             </div>
             <div

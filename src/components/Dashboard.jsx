@@ -46,6 +46,13 @@ export default function Dashboard({ onSelectSOP, farmProfile, onOpenProfile, onN
         separatorColor="var(--u-gold)"
         maxContentWidth="100%"
         fontFamily="'Inter', sans-serif"
+        underButtonContent={
+          <div style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: "0.85rem", lineHeight: "1.5", textAlign: "left" }}>
+            <p style={{ margin: 0 }}>Created by Jimmy Nguyen</p>
+            <p style={{ margin: "2px 0 0 0" }}>Food Safety and Organic Production Advisor, UCCE Imperial and Riverside County</p>
+            <p style={{ margin: "2px 0 0 0" }}>© 2026 University of California Agriculture and Natural Resources</p>
+          </div>
+        }
       />
 
       {/* Header */}

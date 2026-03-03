@@ -4,7 +4,9 @@ import { T } from "../i18n/translations.js";
 import { SOP_DATA } from "../data/sop-data.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
 import { callClaudeStreaming } from "../utils/api.js";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Download } from "lucide-react";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, BorderStyle, WidthType, ShadingType } from "docx";
+import { saveAs } from "file-saver";
 
 export default function PlanGenerator({ farmProfile, onBack }) {
     const { lang } = useLanguage();
@@ -20,11 +22,21 @@ export default function PlanGenerator({ farmProfile, onBack }) {
         riskSoil: "no",
         selectedSops: [],
         lotCodeSystem: "",
-        mockRecall: ""
+        mockRecall: "",
+        practices: "",
+        policies: "",
+        emergencyContact: "",
+        supplierInfo: "",
+        servicesInfo: ""
     });
 
     const [isGeneratingLot, setIsGeneratingLot] = useState(false);
     const [isGeneratingRecall, setIsGeneratingRecall] = useState(false);
+    const [isGeneratingPractices, setIsGeneratingPractices] = useState(false);
+    const [isGeneratingPolicies, setIsGeneratingPolicies] = useState(false);
+    const [isGeneratingEmergency, setIsGeneratingEmergency] = useState(false);
+    const [isGeneratingSupplier, setIsGeneratingSupplier] = useState(false);
+    const [isGeneratingServices, setIsGeneratingServices] = useState(false);
 
     const localizedSops = SOP_DATA.map(sop => getLocalizedSop(sop, lang));
 
@@ -44,27 +56,212 @@ export default function PlanGenerator({ farmProfile, onBack }) {
     };
 
     const nextStep = () => {
-        if (step < 5) setStep(step + 1);
+        if (step < 6) setStep(step + 1);
     };
 
     const prevStep = () => {
         if (step > 1) setStep(step - 1);
     };
 
-    const handlePrint = () => {
-        window.print();
+    const handleDownloadWord = async () => {
+        const doc = new Document({
+            sections: [{
+                properties: {},
+                children: [
+                    new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                        borders: {
+                            top: { style: BorderStyle.SINGLE, size: 20, color: "005baa" },
+                            bottom: { style: BorderStyle.SINGLE, size: 20, color: "005baa" },
+                            left: { style: BorderStyle.NIL },
+                            right: { style: BorderStyle.NIL },
+                            insideHorizontal: { style: BorderStyle.SINGLE, size: 10, color: "005baa" },
+                            insideVertical: { style: BorderStyle.NIL },
+                        },
+                        rows: [
+                            new TableRow({
+                                children: [
+                                    new TableCell({
+                                        shading: { type: ShadingType.CLEAR, fill: "F0F8FF" },
+                                        padding: { top: 200, bottom: 200, left: 200, right: 200 },
+                                        children: [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: farmProfile?.farm_name || "Farm Name", bold: true, size: 36, color: "001A31" })
+                                                ],
+                                                spacing: { after: 100 }
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "Farm Food Safety Plan", bold: true, size: 32, color: "005baa" })
+                                                ],
+                                                spacing: { after: 100 }
+                                            }),
+                                        ],
+                                    }),
+                                ],
+                            }),
+                            new TableRow({
+                                children: [
+                                    new TableCell({
+                                        shading: { type: ShadingType.CLEAR, fill: "F9FAFB" },
+                                        padding: { top: 200, bottom: 200, left: 200, right: 200 },
+                                        children: [
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "Farm Name: ", bold: true }),
+                                                    new TextRun(farmProfile?.farm_name || "N/A"),
+                                                    new TextRun({ text: " | ", color: "888888" }),
+                                                    new TextRun({ text: "Address: ", bold: true }),
+                                                    new TextRun(farmProfile?.address || "N/A")
+                                                ],
+                                                spacing: { after: 100 }
+                                            }),
+                                            new Paragraph({
+                                                children: [
+                                                    new TextRun({ text: "Owner: ", bold: true }),
+                                                    new TextRun(farmProfile?.owner_name || "N/A"),
+                                                    new TextRun({ text: " | ", color: "888888" }),
+                                                    new TextRun({ text: "Food Safety Manager: ", bold: true }),
+                                                    new TextRun(`${formData.fsmName} (${formData.fsmRole})`)
+                                                ]
+                                            }),
+                                        ],
+                                    }),
+                                ],
+                            }),
+                        ],
+                    }),
+                    new Paragraph({ spacing: { before: 400 } }), // Spacer
+                    new Paragraph({
+                        text: "2. Risk Assessment Summary",
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 }
+                    }),
+                    ...[
+                        { id: "riskWater", label: s.riskWater },
+                        { id: "riskAnimals", label: s.riskAnimals },
+                        { id: "riskHygiene", label: s.riskHygiene },
+                        { id: "riskSoil", label: s.riskSoil }
+                    ].map(risk => new Paragraph({
+                        children: [
+                            new TextRun({ text: risk.label + ": ", bold: true }),
+                            new TextRun({ text: (formData[risk.id] || "N/A").toUpperCase(), color: formData[risk.id] === 'yes' ? "D32F2F" : "000000" })
+                        ],
+                        spacing: { before: 100 }
+                    })),
+                    new Paragraph({
+                        text: "3. Standard Operating Procedures (SOPs)",
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 }
+                    }),
+                    ...(formData.selectedSops.length > 0
+                        ? formData.selectedSops.map(id => {
+                            const sop = localizedSops.find(s => s.id === id);
+                            return new Paragraph({
+                                text: `• ${sop?.short || "Unknown SOP"}`,
+                                spacing: { before: 100 }
+                            });
+                        })
+                        : [new Paragraph({ text: "No SOPs selected.", italics: true })]
+                    ),
+                    new Paragraph({
+                        text: "4. Traceability System",
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 }
+                    }),
+                    new Paragraph({
+                        text: "Lot Coding System",
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 200, after: 100 }
+                    }),
+                    ...(formData.lotCodeSystem ? formData.lotCodeSystem.split('\n').map(line => new Paragraph({ text: line })) : [new Paragraph({ text: "Not specified.", italics: true })]),
+                    new Paragraph({
+                        text: "Mock Recall Procedure",
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 200, after: 100 }
+                    }),
+                    ...(formData.mockRecall ? formData.mockRecall.split('\n').map(line => new Paragraph({ text: line })) : [new Paragraph({ text: "Not specified.", italics: true })]),
+                    new Paragraph({
+                        text: "5. Additional Policies & Contacts",
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 }
+                    }),
+                    new Paragraph({ text: s.practicesLabel, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 } }),
+                    ...(formData.practices ? formData.practices.split('\n').map(line => new Paragraph({ text: line })) : [new Paragraph({ text: "Not specified.", italics: true })]),
+                    new Paragraph({ text: s.policiesLabel, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 } }),
+                    ...(formData.policies ? formData.policies.split('\n').map(line => new Paragraph({ text: line })) : [new Paragraph({ text: "Not specified.", italics: true })]),
+                    new Paragraph({ text: s.emergencyContactLabel, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 } }),
+                    ...(formData.emergencyContact ? formData.emergencyContact.split('\n').map(line => new Paragraph({ text: line })) : [new Paragraph({ text: "Not specified.", italics: true })]),
+                    new Paragraph({ text: s.supplierLabel, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 } }),
+                    ...(formData.supplierInfo ? formData.supplierInfo.split('\n').map(line => new Paragraph({ text: line })) : [new Paragraph({ text: "Not specified.", italics: true })]),
+                    new Paragraph({ text: s.servicesLabel, heading: HeadingLevel.HEADING_2, spacing: { before: 200, after: 100 } }),
+                    ...(formData.servicesInfo ? formData.servicesInfo.split('\n').map(line => new Paragraph({ text: line })) : [new Paragraph({ text: "Not specified.", italics: true })]),
+
+                    new Paragraph({
+                        text: "6. Required Attachments",
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 }
+                    }),
+                    new Paragraph({ text: `[ ] ${s.recordsPracticesLabel}`, spacing: { before: 100 } }),
+                    new Paragraph({ text: `[ ] ${s.farmMapsLabel}`, spacing: { before: 100 } }),
+                    new Paragraph({ text: `[ ] ${s.trainingRecordsLabel}`, spacing: { before: 100 } }),
+                    new Paragraph({ text: `[ ] ${s.waterTestLabel}`, spacing: { before: 100 } }),
+                ]
+            }]
+        });
+
+        const blob = await Packer.toBlob(doc);
+        saveAs(blob, "Farm-Food-Safety-Plan.docx");
     };
 
     const generateSuggestion = async (type) => {
-        const isLot = type === 'lot';
-        const setGenerating = isLot ? setIsGeneratingLot : setIsGeneratingRecall;
+        let setGenerating, promptSnippet, fieldName;
+
+        switch (type) {
+            case 'lot':
+                setGenerating = setIsGeneratingLot;
+                promptSnippet = `generate a concise, practical, and compliant example of a "Lot Code System" for traceability. A lot code should typically include the farm name/location, the specific field/block harvested from, and the date of harvest. Keep it to 1-2 short paragraphs explaining the system format and giving one practical example.`;
+                fieldName = "lotCodeSystem";
+                break;
+            case 'recall':
+                setGenerating = setIsGeneratingRecall;
+                promptSnippet = `generate a concise, practical, and compliant "Mock Recall Procedure". The procedure should outline 3-4 bullet points on how to conduct a dummy recall (tracing one lot forward to the buyer and backward to the field within 2 hours). Keep it brief, action-oriented, and easy to understand.`;
+                fieldName = "mockRecall";
+                break;
+            case 'practices':
+                setGenerating = setIsGeneratingPractices;
+                promptSnippet = `generate a concise list of 4-5 "Practices to reduce food safety risks". These should be practical, everyday actions farm workers take (e.g., handwashing, tool sanitizing, looking for animal signs, keeping harvested crops off ground). Keep it brief and action-oriented.`;
+                fieldName = "practices";
+                break;
+            case 'policies':
+                setGenerating = setIsGeneratingPolicies;
+                promptSnippet = `generate a concise, practical "Farm Food Safety Policy" statement. This should be 1-2 paragraphs declaring the farm's commitment to producing safe food, following FSMA Produce Safety Rule regulations, and empowering workers to report safety concerns.`;
+                fieldName = "policies";
+                break;
+            case 'emergencyContact':
+                setGenerating = setIsGeneratingEmergency;
+                promptSnippet = `generate a template for "Emergency contact information" for a farm. It should include placeholders for Local Police/Fire/Medical (911), Poison Control, the Farm Owner, Food Safety Manager, and the State Agriculture Department. Format it clearly as a list.`;
+                fieldName = "emergencyContact";
+                break;
+            case 'supplierInfo':
+                setGenerating = setIsGeneratingSupplier;
+                promptSnippet = `generate a template for "Supplier and buyer information" for an agricultural operation. Include fields/placeholders for primary packaging suppliers, fertilizer/amendment suppliers, and primary wholesale buyers/distributors. Format it clearly with bullet points.`;
+                fieldName = "supplierInfo";
+                break;
+            case 'servicesInfo':
+                setGenerating = setIsGeneratingServices;
+                promptSnippet = `generate a template for "Contact info for contracted services". Include placeholders for common farm contracted services such as pest control, port-a-john/sanitation services, chemical applicators, and third-party auditors. Format it clearly as a list.`;
+                fieldName = "servicesInfo";
+                break;
+            default:
+                return;
+        }
 
         setGenerating(true);
         try {
             const systemPrompt = "You are an expert in FSMA Produce Safety Rule compliance. The user is a farmer creating their Farm Food Safety Plan.";
-            const userPrompt = isLot
-                ? `Based on my farm profile (Name: ${farmProfile?.farm_name || 'N/A'}, Crops: ${farmProfile?.crops || 'N/A'}, Operation Type: ${farmProfile?.operation_type || 'N/A'}), generate a concise, practical, and compliant example of a "Lot Code System" for traceability. A lot code should typically include the farm name/location, the specific field/block harvested from, and the date of harvest. Keep it to 1-2 short paragraphs explaining the system format and giving one practical example. Return ONLY the suggested text.`
-                : `Based on my farm profile (Name: ${farmProfile?.farm_name || 'N/A'}, Crops: ${farmProfile?.crops || 'N/A'}), generate a concise, practical, and compliant "Mock Recall Procedure". The procedure should outline 3-4 bullet points on how to conduct a dummy recall (tracing one lot forward to the buyer and backward to the field within 2 hours). Keep it brief, action-oriented, and easy to understand. Return ONLY the suggested text.`;
+            const userPrompt = `Based on my farm profile (Name: ${farmProfile?.farm_name || 'N/A'}, Crops: ${farmProfile?.crops || 'N/A'}, Operation Type: ${farmProfile?.operation_type || 'N/A'}), ${promptSnippet} Return ONLY the suggested text.`;
 
             const messages = [{ role: "user", content: userPrompt }];
 
@@ -72,17 +269,17 @@ export default function PlanGenerator({ farmProfile, onBack }) {
 
             await callClaudeStreaming(messages, systemPrompt, (chunk) => {
                 fullText += chunk;
-                handleChange(isLot ? "lotCodeSystem" : "mockRecall", fullText);
+                handleChange(fieldName, fullText);
             });
 
             if (!fullText) {
                 const errorMsg = "Could not generate suggestion. Please add your API key in settings or try again later.";
-                handleChange(isLot ? "lotCodeSystem" : "mockRecall", errorMsg);
+                handleChange(fieldName, errorMsg);
             }
         } catch (error) {
             console.error("Error generating suggestion:", error);
             const errorMsg = "An error occurred while generating the suggestion. Please try again.";
-            handleChange(isLot ? "lotCodeSystem" : "mockRecall", errorMsg);
+            handleChange(fieldName, errorMsg);
         } finally {
             setGenerating(false);
         }
@@ -229,6 +426,57 @@ export default function PlanGenerator({ farmProfile, onBack }) {
                 );
             case 5:
                 return (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                        <p>{s.step5Desc}</p>
+                        <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <label style={{ fontWeight: 600 }}>{s.practicesLabel}</label>
+                                <button onClick={() => generateSuggestion('practices')} disabled={isGeneratingPractices} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: "14px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: isGeneratingPractices ? "not-allowed" : "pointer", opacity: isGeneratingPractices ? 0.7 : 1 }}>
+                                    <Sparkles size={14} /> {isGeneratingPractices ? "Generating..." : "AI Suggestion"}
+                                </button>
+                            </div>
+                            <textarea rows="3" value={formData.practices} onChange={(e) => handleChange("practices", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid var(--bdr)", resize: "vertical" }} />
+                        </div>
+                        <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <label style={{ fontWeight: 600 }}>{s.policiesLabel}</label>
+                                <button onClick={() => generateSuggestion('policies')} disabled={isGeneratingPolicies} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: "14px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: isGeneratingPolicies ? "not-allowed" : "pointer", opacity: isGeneratingPolicies ? 0.7 : 1 }}>
+                                    <Sparkles size={14} /> {isGeneratingPolicies ? "Generating..." : "AI Suggestion"}
+                                </button>
+                            </div>
+                            <textarea rows="3" value={formData.policies} onChange={(e) => handleChange("policies", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid var(--bdr)", resize: "vertical" }} />
+                        </div>
+                        <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <label style={{ fontWeight: 600 }}>{s.emergencyContactLabel}</label>
+                                <button onClick={() => generateSuggestion('emergencyContact')} disabled={isGeneratingEmergency} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: "14px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: isGeneratingEmergency ? "not-allowed" : "pointer", opacity: isGeneratingEmergency ? 0.7 : 1 }}>
+                                    <Sparkles size={14} /> {isGeneratingEmergency ? "Generating..." : "AI Suggestion"}
+                                </button>
+                            </div>
+                            <textarea rows="3" value={formData.emergencyContact} onChange={(e) => handleChange("emergencyContact", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid var(--bdr)", resize: "vertical" }} />
+                        </div>
+                        <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <label style={{ fontWeight: 600 }}>{s.supplierLabel}</label>
+                                <button onClick={() => generateSuggestion('supplierInfo')} disabled={isGeneratingSupplier} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: "14px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: isGeneratingSupplier ? "not-allowed" : "pointer", opacity: isGeneratingSupplier ? 0.7 : 1 }}>
+                                    <Sparkles size={14} /> {isGeneratingSupplier ? "Generating..." : "AI Suggestion"}
+                                </button>
+                            </div>
+                            <textarea rows="3" value={formData.supplierInfo} onChange={(e) => handleChange("supplierInfo", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid var(--bdr)", resize: "vertical" }} />
+                        </div>
+                        <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <label style={{ fontWeight: 600 }}>{s.servicesLabel}</label>
+                                <button onClick={() => generateSuggestion('servicesInfo')} disabled={isGeneratingServices} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: "14px", padding: "6px 12px", fontSize: "12px", fontWeight: 700, cursor: isGeneratingServices ? "not-allowed" : "pointer", opacity: isGeneratingServices ? 0.7 : 1 }}>
+                                    <Sparkles size={14} /> {isGeneratingServices ? "Generating..." : "AI Suggestion"}
+                                </button>
+                            </div>
+                            <textarea rows="3" value={formData.servicesInfo} onChange={(e) => handleChange("servicesInfo", e.target.value)} style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid var(--bdr)", resize: "vertical" }} />
+                        </div>
+                    </div>
+                );
+            case 6:
+                return (
                     <div className="print-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                         <div className="no-print" style={{ background: "var(--g100)", borderLeft: "4px solid var(--u-sky)", padding: "16px", borderRadius: "4px" }}>
                             <p>{s.planGenerated}</p>
@@ -292,6 +540,41 @@ export default function PlanGenerator({ farmProfile, onBack }) {
                                     </div>
                                 </div>
                             </section>
+                            <section style={{ marginBottom: "32px" }}>
+                                <h2 style={{ color: "var(--u-navy-l)", marginBottom: "16px", fontSize: "20px" }}>5. Additional Policies & Contacts</h2>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                                    <div>
+                                        <h3 style={{ fontSize: "16px", marginBottom: "8px" }}>{s.practicesLabel}</h3>
+                                        <div style={{ background: "var(--cream)", padding: "16px", borderRadius: "8px" }}>{formData.practices ? <p style={{ whiteSpace: "pre-wrap" }}>{formData.practices}</p> : <p style={{ fontStyle: "italic", color: "var(--txt3)" }}>Not specified.</p>}</div>
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: "16px", marginBottom: "8px" }}>{s.policiesLabel}</h3>
+                                        <div style={{ background: "var(--cream)", padding: "16px", borderRadius: "8px" }}>{formData.policies ? <p style={{ whiteSpace: "pre-wrap" }}>{formData.policies}</p> : <p style={{ fontStyle: "italic", color: "var(--txt3)" }}>Not specified.</p>}</div>
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: "16px", marginBottom: "8px" }}>{s.emergencyContactLabel}</h3>
+                                        <div style={{ background: "var(--cream)", padding: "16px", borderRadius: "8px" }}>{formData.emergencyContact ? <p style={{ whiteSpace: "pre-wrap" }}>{formData.emergencyContact}</p> : <p style={{ fontStyle: "italic", color: "var(--txt3)" }}>Not specified.</p>}</div>
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: "16px", marginBottom: "8px" }}>{s.supplierLabel}</h3>
+                                        <div style={{ background: "var(--cream)", padding: "16px", borderRadius: "8px" }}>{formData.supplierInfo ? <p style={{ whiteSpace: "pre-wrap" }}>{formData.supplierInfo}</p> : <p style={{ fontStyle: "italic", color: "var(--txt3)" }}>Not specified.</p>}</div>
+                                    </div>
+                                    <div>
+                                        <h3 style={{ fontSize: "16px", marginBottom: "8px" }}>{s.servicesLabel}</h3>
+                                        <div style={{ background: "var(--cream)", padding: "16px", borderRadius: "8px" }}>{formData.servicesInfo ? <p style={{ whiteSpace: "pre-wrap" }}>{formData.servicesInfo}</p> : <p style={{ fontStyle: "italic", color: "var(--txt3)" }}>Not specified.</p>}</div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            <section style={{ marginBottom: "32px" }}>
+                                <h2 style={{ color: "var(--u-navy-l)", marginBottom: "16px", fontSize: "20px" }}>6. Required Attachments</h2>
+                                <ul style={{ listStyleType: "none", padding: "0" }}>
+                                    <li style={{ marginBottom: "8px" }}>[ ] {s.recordsPracticesLabel}</li>
+                                    <li style={{ marginBottom: "8px" }}>[ ] {s.farmMapsLabel}</li>
+                                    <li style={{ marginBottom: "8px" }}>[ ] {s.trainingRecordsLabel}</li>
+                                    <li style={{ marginBottom: "8px" }}>[ ] {s.waterTestLabel}</li>
+                                </ul>
+                            </section>
                         </div>
                     </div>
                 );
@@ -324,9 +607,9 @@ export default function PlanGenerator({ farmProfile, onBack }) {
             {/* Progress Bar (No print) */}
             <div className="no-print" style={{ display: "flex", justifyContent: "space-between", marginBottom: "32px", position: "relative" }}>
                 <div style={{ position: "absolute", top: "14px", left: 0, right: 0, height: "3px", background: "var(--bdr2)", zIndex: 0 }}></div>
-                <div style={{ position: "absolute", top: "14px", left: 0, width: `${(step - 1) * 25}%`, height: "3px", background: "var(--u-navy)", zIndex: 0, transition: "width 0.3s ease" }}></div>
+                <div style={{ position: "absolute", top: "14px", left: 0, width: `${(step - 1) * 20}%`, height: "3px", background: "var(--u-navy)", zIndex: 0, transition: "width 0.3s ease" }}></div>
 
-                {[{ num: 1, label: s.step1 }, { num: 2, label: s.step2 }, { num: 3, label: s.step3 }, { num: 4, label: s.step4 }, { num: 5, label: s.step5 }].map(st => (
+                {[{ num: 1, label: s.step1 }, { num: 2, label: s.step2 }, { num: 3, label: s.step3 }, { num: 4, label: s.step4 }, { num: 5, label: s.step5 }, { num: 6, label: s.step6 }].map(st => (
                     <div key={st.num} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", zIndex: 1, cursor: "pointer" }} onClick={() => setStep(st.num)}>
                         <div style={{
                             width: "32px", height: "32px", borderRadius: "50%",
@@ -346,7 +629,7 @@ export default function PlanGenerator({ farmProfile, onBack }) {
             </div>
 
             {/* Main Content */}
-            <div style={{ flex: 1, overflowY: "auto", background: step < 5 ? "white" : "transparent", padding: step < 5 ? "32px" : "0", borderRadius: "16px", boxShadow: step < 5 ? "var(--shadow)" : "none", marginBottom: "24px" }}>
+            <div style={{ flex: 1, overflowY: "auto", background: step < 6 ? "white" : "transparent", padding: step < 6 ? "32px" : "0", borderRadius: "16px", boxShadow: step < 6 ? "var(--shadow)" : "none", marginBottom: "24px" }}>
                 {renderStepContent()}
             </div>
 
@@ -361,7 +644,7 @@ export default function PlanGenerator({ farmProfile, onBack }) {
                     </button>
                 ) : <div />}
 
-                {step < 5 ? (
+                {step < 6 ? (
                     <button
                         onClick={nextStep}
                         style={{ padding: "12px 24px", borderRadius: "8px", background: "var(--u-navy)", border: "none", fontWeight: 600, color: "white", cursor: "pointer", boxShadow: "var(--shadow-md)" }}
@@ -370,10 +653,10 @@ export default function PlanGenerator({ farmProfile, onBack }) {
                     </button>
                 ) : (
                     <button
-                        onClick={handlePrint}
+                        onClick={handleDownloadWord}
                         style={{ padding: "12px 24px", borderRadius: "8px", background: "var(--u-gold)", border: "none", fontWeight: 800, color: "var(--u-navy-d)", cursor: "pointer", boxShadow: "var(--shadow-md)", display: "flex", alignItems: "center", gap: "8px" }}
                     >
-                        🖨️ {s.printPdf}
+                        <Download size={18} /> Download Word Document
                     </button>
                 )}
             </div>

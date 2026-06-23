@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Leaf, ShieldCheck, FlaskConical, Tractor } from "lucide-react";
 import { loadFromStorage, saveToStorage } from "../utils/storage.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
@@ -218,6 +218,28 @@ const ROLE_OPTION_KEYS = [
    Main AuthScreen component
 ═══════════════════════════════════════════ */
 export default function AuthScreen({ onLogin }) {
+  useEffect(() => {
+    const mockUser = {
+      id: Date.now(),
+      name: "Test User",
+      firstName: "Test",
+      lastName: "User",
+      email: "test@example.com",
+      phone: "",
+      organization: "Test Farm",
+      role: "owner",
+      password: "test",
+      createdAt: new Date().toISOString(),
+    };
+    saveToStorage("current_user", mockUser);
+    onLogin(mockUser);
+  }, [onLogin]);
+
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
+      <p>Loading testing environment...</p>
+    </div>
+  );
   const { lang, toggleLang } = useLanguage();
   const a = T[lang].auth;
   const ROLE_OPTIONS = ROLE_OPTION_KEYS.map(r => ({ ...r, label: a[r.key] }));

@@ -1,30 +1,26 @@
 import { buildSopStandardContext } from "./sop-standards.js";
 
-const BLOCKED_MODELS = new Set(["claude-3-7-sonnet-latest"]);
-const ENV_MODEL = (import.meta.env.VITE_ANTHROPIC_MODEL || "").trim();
-const MODEL = !ENV_MODEL || BLOCKED_MODELS.has(ENV_MODEL) ? "claude-3-haiku-20240307" : ENV_MODEL;
+const MODEL = "gpt-oss-120b";
 
-function formatMessages(messages) {
-  // Anthropic requires the first message to be from "user"
-  let startIdx = 0;
-  while (startIdx < messages.length && messages[startIdx].role === "assistant") {
-    startIdx++;
+function formatMessages(messages, systemPrompt) {
+  const result = [];
+  if (systemPrompt) {
+    result.push({ role: "system", content: systemPrompt });
   }
-  return messages.slice(startIdx).map(m => ({
-    role: m.role === "assistant" ? "assistant" : "user",
-    content: m.content,
-  }));
+  for (const m of messages) {
+    result.push({ role: m.role === "assistant" ? "assistant" : "user", content: m.content });
+  }
+  return result;
 }
 
 export async function callClaude(messages, systemPrompt) {
-  const formatted = formatMessages(messages);
+  const formatted = formatMessages(messages, systemPrompt);
   const res = await fetch("/api/claude", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       model: MODEL,
       max_tokens: 1500,
-      system: systemPrompt,
       messages: formatted,
     }),
   });
@@ -33,11 +29,11 @@ export async function callClaude(messages, systemPrompt) {
     throw new Error(err?.error?.message || `API error ${res.status}`);
   }
   const data = await res.json();
-  return data.content?.[0]?.text || "";
+  return data.choices?.[0]?.message?.content || "";
 }
 
 export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDone = () => { }, onError = async () => { }) {
-  const formatted = formatMessages(messages);
+  const formatted = formatMessages(messages, systemPrompt);
   let res;
   try {
     res = await fetch("/api/claude", {
@@ -46,7 +42,6 @@ export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDon
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 1500,
-        system: systemPrompt,
         messages: formatted,
         stream: true,
       }),
@@ -82,10 +77,9 @@ export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDon
         if (data === "[DONE]") break;
         try {
           const parsed = JSON.parse(data);
-          // Anthropic SSE sends content_block_delta events with text_delta
-          if (parsed.type === "content_block_delta" && parsed.delta?.type === "text_delta") {
-            onChunk(parsed.delta.text);
-          }
+          // OpenAI-compatible SSE sends choices[0].delta.content
+          const chunk = parsed.choices?.[0]?.delta?.content;
+          if (chunk) onChunk(chunk);
         } catch {
           // skip malformed SSE lines
         }

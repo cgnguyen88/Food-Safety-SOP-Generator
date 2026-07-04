@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, X, Send, ChevronDown } from "lucide-react";
 import { callClaudeStreaming } from "../utils/api.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { SOP_DATA } from "../data/sop-data.js";
@@ -24,27 +23,23 @@ export default function ExpandableChat({ farmProfile, incidents, defaultOpen = f
 
   const greeting =
     lang === "en"
-      ? "🍓 Hey there! I'm Jimmy, your FarmSafe food safety guide. Whether you have questions about regulations, need help with your SOPs, or just want some guidance — I'm here for you. What can I help you with today?"
-      : "🍓 ¡Hola! Soy Jimmy, tu guía de seguridad alimentaria de FarmSafe. Ya sea que tengas preguntas sobre regulaciones, necesites ayuda con tus POEs, o simplemente quieras orientación — aquí estoy para ti. ¿En qué puedo ayudarte hoy?";
+      ? "Hello. I'm Jimmy, your FarmSafe food safety advisor. I can help you with FSMA regulations, SOP documentation, and compliance guidance. What would you like to work on today?"
+      : "Hola. Soy Jimmy, tu asesor de seguridad alimentaria de FarmSafe. Puedo ayudarte con regulaciones FSMA, documentación de POEs y orientación de cumplimiento. ¿En qué te puedo ayudar hoy?";
 
-  // Reset greeting on language change
   useEffect(() => {
     setMessages([{ role: "assistant", content: greeting }]);
   }, [lang]);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (isAtBottom) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isAtBottom]);
 
-  // Focus input when panel opens
   useEffect(() => {
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 150);
   }, [isOpen]);
 
-  // Track scroll position
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -57,9 +52,7 @@ export default function ExpandableChat({ farmProfile, incidents, defaultOpen = f
     const farmCtx = farmProfile
       ? `Farm: ${farmProfile.farm_name || ""}. Crops: ${farmProfile.crops || ""}. Type: ${farmProfile.operation_type || ""}. FSMA status: ${farmProfile.fsma_status || ""}.`
       : "No farm profile saved yet.";
-    return `Your name is Jimmy. You are a friendly, knowledgeable, and supportive food safety assistant for FarmSafe — like a dedicated customer service agent specifically for farmers and producers. You assist not only with questions and information requests, but also provide step-by-step guidance and encouragement throughout their food safety compliance journey.
-
-You are embedded in FarmSafe, a compliance platform for California farms. You are an expert in FSMA Produce Safety Rule requirements and also act as a guide and "Skill Creator" for farmers building their Farm Food Safety Plans.
+    return `Your name is Jimmy. You are a knowledgeable and professional food safety advisor for FarmSafe — a compliance platform for California farms. You assist farmers and producers with FSMA Produce Safety Rule requirements, SOP documentation, and food safety compliance.
 
 Farm context: ${farmCtx}
 Logged incidents so far: ${(incidents || []).length}
@@ -67,7 +60,7 @@ Logged incidents so far: ${(incidents || []).length}
 Available SOPs in the app:
 ${sopList}
 
-Answer questions about food safety regulations, FSMA PSR requirements, produce safety best practices, SOP documentation, and how to use the app. As a Skill Creator, guide farmers step-by-step on how to conduct risk assessments, establish a traceability/lot code system (e.g. Farm + Field + Date), and perform a mock recall. Be warm, conversational, specific, and accurate — like a helpful customer service agent who genuinely cares about the farmer's success. Reference FDA FSMA PSR, Cornell PSA, and UC ANR guidance where relevant. Keep responses to 2–4 paragraphs max. Answer in the same language the user writes in (English or Spanish). Do not invent regulatory thresholds — say "verify with current guidance" if uncertain.`;
+Answer questions about food safety regulations, FSMA PSR requirements, produce safety best practices, SOP documentation, and how to use the app. Guide farmers step-by-step on how to conduct risk assessments, establish a traceability/lot code system (e.g. Farm + Field + Date), and perform a mock recall. Be professional, specific, and accurate. Reference FDA FSMA PSR, Cornell PSA, and UC ANR guidance where relevant. Keep responses to 2–4 paragraphs max. Answer in the same language the user writes in (English or Spanish). Do not invent regulatory thresholds — say "verify with current guidance" if uncertain.`;
   };
 
   const sendMessage = async (text) => {
@@ -106,22 +99,23 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
   const quickChips =
     lang === "en"
       ? [
-        { label: "Plan Generator Help", text: "How do I build a Farm Food Safety Plan?" },
-        { label: "Lot codes", text: "How should I create a Lot Code system for my farm?" },
-        { label: "Mock Recall", text: "How do I conduct a mock recall?" },
-        { label: "Which SOP first?", text: "Which SOP should I work on first for my farm?" },
-      ]
+          { label: "Plan Generator Help", text: "How do I build a Farm Food Safety Plan?" },
+          { label: "Lot codes", text: "How should I create a Lot Code system for my farm?" },
+          { label: "Mock Recall", text: "How do I conduct a mock recall?" },
+          { label: "Which SOP first?", text: "Which SOP should I work on first for my farm?" },
+        ]
       : [
-        { label: "Ayuda con el Plan", text: "¿Cómo elaboro un Plan de Seguridad Alimentaria de la Granja?" },
-        { label: "Códigos de lote", text: "¿Cómo debo crear un sistema de código de lote para mi granja?" },
-        { label: "Simulacro", text: "¿Cómo realizo un simulacro de retiro (mock recall)?" },
-        { label: "¿Qué POE primero?", text: "¿En qué POE debería trabajar primero para mi granja?" },
-      ];
+          { label: "Ayuda con el Plan", text: "¿Cómo elaboro un Plan de Seguridad Alimentaria de la Granja?" },
+          { label: "Códigos de lote", text: "¿Cómo debo crear un sistema de código de lote para mi granja?" },
+          { label: "Simulacro", text: "¿Cómo realizo un simulacro de retiro (mock recall)?" },
+          { label: "¿Qué POE primero?", text: "¿En qué POE debería trabajar primero para mi granja?" },
+        ];
 
   const headerLabel =
     lang === "en" ? "Your Food Safety Guide" : "Tu Guía de Seguridad Alimentaria";
   const placeholder =
     lang === "en" ? "Ask about food safety..." : "Pregunta sobre seguridad alimentaria...";
+  const senderYou = lang === "en" ? "You" : "Tú";
 
   return (
     <div style={{ position: "fixed", bottom: 24, right: 28, zIndex: 9999 }}>
@@ -141,7 +135,6 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
           flexDirection: "column",
           overflow: "hidden",
           border: "1px solid rgba(0,45,84,0.1)",
-          // animate open/close
           opacity: isOpen ? 1 : 0,
           transform: isOpen ? "translateY(0) scale(1)" : "translateY(16px) scale(0.97)",
           pointerEvents: isOpen ? "auto" : "none",
@@ -167,9 +160,10 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
                 background: "var(--u-gold)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 boxShadow: "0 0 12px rgba(253,189,16,0.5)",
+                flexShrink: 0,
               }}
             >
-              <span style={{ fontSize: 20, lineHeight: 1 }}>🍓</span>
+              <span style={{ fontSize: 16, fontWeight: 900, color: "var(--u-navy)", lineHeight: 1, letterSpacing: "-0.02em" }}>J</span>
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 800, color: "white", letterSpacing: "-0.01em" }}>
@@ -186,12 +180,13 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
               background: "rgba(255,255,255,.12)", border: "none", borderRadius: "50%",
               width: 32, height: 32, cursor: "pointer", color: "white",
               display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, lineHeight: 1,
               transition: "background .15s",
             }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,.22)")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,.12)")}
           >
-            <X size={16} />
+            ×
           </button>
         </div>
 
@@ -210,23 +205,17 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
               key={i}
               style={{
                 display: "flex",
-                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
-                alignItems: "flex-end",
-                gap: 8,
+                flexDirection: "column",
+                alignItems: msg.role === "user" ? "flex-end" : "flex-start",
               }}
             >
-              {msg.role === "assistant" && (
-                <div
-                  style={{
-                    width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                    background: "var(--u-gold)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    boxShadow: "0 2px 6px rgba(253,189,16,0.4)",
-                  }}
-                >
-                  <span style={{ fontSize: 14, lineHeight: 1 }}>🍓</span>
-                </div>
-              )}
+              <div style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: "0.08em",
+                textTransform: "uppercase", color: "#94a3b8",
+                marginBottom: 4,
+              }}>
+                {msg.role === "user" ? senderYou : "Jimmy"}
+              </div>
               <div
                 style={{
                   maxWidth: "78%",
@@ -246,30 +235,23 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
                   <span style={{ display: "inline-block", width: 2, height: "1em", background: "currentColor", marginLeft: 2, verticalAlign: "text-bottom", animation: "caretBlink 0.8s step-end infinite" }} />
                 )}
               </div>
-              {msg.role === "user" && (
-                <div
-                  style={{
-                    width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
-                    background: "var(--u-navy-l)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 12, fontWeight: 700, color: "white",
-                  }}
-                >
-                  U
-                </div>
-              )}
             </div>
           ))}
 
           {loading && (
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--u-gold)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 14, lineHeight: 1 }}>🍓</span>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "#94a3b8", marginBottom: 4 }}>
+                Jimmy
               </div>
-              <div style={{ padding: "10px 16px", background: "white", borderRadius: "18px 18px 18px 4px", border: "1px solid var(--bdr2)", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", display: "flex", gap: 4, alignItems: "center" }}>
-                {[0, 1, 2].map((i) => (
-                  <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--g400)", animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }} />
-                ))}
+              <div style={{
+                padding: "10px 16px",
+                background: "white",
+                borderRadius: "18px 18px 18px 4px",
+                border: "1px solid var(--bdr2)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.07)",
+                fontSize: 13, color: "var(--g500)", fontStyle: "italic",
+              }}>
+                {lang === "en" ? "Composing response..." : "Redactando respuesta..."}
               </div>
             </div>
           )}
@@ -287,9 +269,10 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
               background: "var(--u-navy)", border: "none", cursor: "pointer",
               display: "flex", alignItems: "center", justifyContent: "center",
               boxShadow: "0 4px 12px rgba(0,45,84,0.3)",
+              fontSize: 16, color: "white", lineHeight: 1,
             }}
           >
-            <ChevronDown size={16} color="white" />
+            ↓
           </button>
         )}
 
@@ -315,6 +298,7 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
                 color: "var(--u-navy)", fontWeight: 600,
                 opacity: loading ? 0.5 : 1, transition: "all .15s",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+                fontFamily: "inherit",
               }}
               onMouseEnter={(e) => !loading && (e.currentTarget.style.background = "var(--u-navy)", e.currentTarget.style.color = "white", e.currentTarget.style.borderColor = "var(--u-navy)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "white", e.currentTarget.style.color = "var(--u-navy)", e.currentTarget.style.borderColor = "var(--bdr)")}
@@ -361,9 +345,11 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "all .2s",
               boxShadow: input.trim() && !loading ? "0 4px 14px rgba(0,45,84,0.35)" : "none",
+              fontSize: 18, color: input.trim() && !loading ? "white" : "var(--g400)",
+              lineHeight: 1,
             }}
           >
-            <Send size={16} color={input.trim() && !loading ? "white" : "var(--g400)"} />
+            ↑
           </button>
         </div>
       </div>
@@ -381,13 +367,16 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 8px 24px rgba(0,45,84,0.45), 0 2px 8px rgba(0,0,0,0.2)",
           transition: "all .3s ease",
+          fontSize: isOpen ? 22 : 18,
+          color: "white",
+          fontWeight: 900,
+          lineHeight: 1,
+          letterSpacing: "-0.02em",
         }}
         onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.1)"; e.currentTarget.style.boxShadow = "0 12px 28px rgba(0,45,84,0.5), 0 0 0 4px rgba(0,45,84,0.1)"; }}
         onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,45,84,0.45), 0 2px 8px rgba(0,0,0,0.2)"; }}
       >
-        <div style={{ transition: "transform .3s ease", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)" }}>
-          {isOpen ? <X size={24} color="white" /> : <MessageCircle size={24} color="white" />}
-        </div>
+        {isOpen ? "×" : "J"}
       </button>
     </div>
   );

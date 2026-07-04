@@ -9,18 +9,13 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api/claude': {
-          target: 'https://api.anthropic.com',
+          target: 'https://openrouter.ai',
           changeOrigin: true,
-          rewrite: () => '/v1/messages',
-          // Server-side key injection for local/demo backend proxy usage.
+          rewrite: () => '/api/v1/chat/completions',
           headers: {
-            'anthropic-dangerous-direct-browser-access': 'true',
-            ...(env.ANTHROPIC_API_KEY
-              ? {
-                'x-api-key': env.ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01',
-              }
-              : {}),
+            'Authorization': `Bearer ${env.OPENROUTER_KEY}`,
+            'HTTP-Referer': 'http://localhost:5173',
+            'X-Title': 'Food Safety SOP Generator',
           },
         },
       },

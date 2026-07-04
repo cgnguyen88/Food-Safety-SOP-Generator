@@ -141,7 +141,7 @@ export const T = {
       quickExamples: "Give me examples",
       updatedFields: "I've updated the relevant fields in the form.",
       greetingText: (sopTitle) =>
-        `🍓 Hey there! I'm Jimmy, your FarmSafe food safety guide. I'm here to help you complete the **${sopTitle}** SOP.\n\nI can:\n• **Fill in fields** based on your farm description\n• **Explain regulations** behind each requirement\n• **Review your form** for compliance gaps\n• **Provide examples** for any field\n\nHow would you like to start? Describe your farm and operation, or just ask me anything!`,
+        `Hello. I'm Jimmy, your FarmSafe food safety advisor. I'm here to help you complete the **${sopTitle}** SOP.\n\nI can assist with:\n- Filling in fields based on your farm description\n- Explaining the regulations behind each requirement\n- Reviewing your form for compliance gaps\n- Providing examples for any field\n\nDescribe your farm operation to get started, or ask me anything directly.`,
       quickDescribeText: "Let me describe my farm operation so you can help fill in this SOP.",
       quickReviewText: "Please review my current form for any missing required fields or compliance gaps.",
       quickExplainText: "Can you explain the regulatory requirements behind this SOP and what FSMA expects?",
@@ -451,7 +451,7 @@ export const T = {
       quickExamples: "Dame ejemplos",
       updatedFields: "He actualizado los campos relevantes en el formulario.",
       greetingText: (sopTitle) =>
-        `🍓 ¡Hola! Soy Jimmy, tu guía de seguridad alimentaria de FarmSafe. Estoy aquí para ayudarte a completar el POE de **${sopTitle}**.\n\nPuedo:\n• **Completar campos** basándome en la descripción de tu granja\n• **Explicar regulaciones** detrás de cada requisito\n• **Revisar tu formulario** para detectar brechas de cumplimiento\n• **Proporcionar ejemplos** para cualquier campo\n\n¿Cómo te gustaría comenzar? Describe tu granja y operación, ¡o pregúntame lo que necesites!`,
+        `Hola. Soy Jimmy, tu asesor de seguridad alimentaria de FarmSafe. Estoy aquí para ayudarte a completar el POE de **${sopTitle}**.\n\nPuedo ayudarte con:\n- Completar campos basándome en la descripción de tu granja\n- Explicar las regulaciones detrás de cada requisito\n- Revisar tu formulario para detectar brechas de cumplimiento\n- Proporcionar ejemplos para cualquier campo\n\nDescribe tu operación de granja para comenzar, o pregúntame lo que necesites.`,
       quickDescribeText: "Déjeme describir mi operación de granja para que pueda ayudarme a completar este POE.",
       quickReviewText: "Por favor revise mi formulario actual para detectar campos requeridos faltantes o brechas de cumplimiento.",
       quickExplainText: "¿Puede explicar los requisitos regulatorios detrás de este POE y qué espera FSMA?",

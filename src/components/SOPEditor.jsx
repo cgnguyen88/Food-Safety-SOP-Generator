@@ -35,7 +35,7 @@ function buildProfilePrefill(sop, farmProfile) {
   return prefill;
 }
 
-export default function SOPEditor({ sop, farmProfile, onBack }) {
+export default function SOPEditor({ sop, farmProfile, activityRecords, onSaveActivityRecords, onBack }) {
   const { lang } = useLanguage();
   const e = T[lang].editor;
   const localizedSop = getLocalizedSop(sop, lang);
@@ -173,7 +173,7 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
       </div>
 
       {showExport && <ExportModal sop={sop} formData={formData} farmProfile={farmProfile} onClose={() => setShowExport(false)} />}
-      {showRecords && <SOPRecordModal sop={sop} formData={formData} farmProfile={farmProfile} onClose={() => setShowRecords(false)} />}
+      {showRecords && <SOPRecordModal sop={sop} formData={formData} farmProfile={farmProfile} allRecords={activityRecords} onSaveAll={onSaveActivityRecords} onClose={() => setShowRecords(false)} />}
     </div>
   );
 }

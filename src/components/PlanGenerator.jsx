@@ -3,7 +3,7 @@ import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 import { SOP_DATA } from "../data/sop-data.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
-import { callClaudeStreaming } from "../utils/api.js";
+import { streamAI } from "../utils/api.js";
 import { Sparkles, Download } from "lucide-react";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, BorderStyle, WidthType, ShadingType } from "docx";
 import { saveAs } from "file-saver";
@@ -37,6 +37,7 @@ export default function PlanGenerator({ farmProfile, onBack }) {
     const [isGeneratingEmergency, setIsGeneratingEmergency] = useState(false);
     const [isGeneratingSupplier, setIsGeneratingSupplier] = useState(false);
     const [isGeneratingServices, setIsGeneratingServices] = useState(false);
+    const [aiError, setAiError] = useState("");
 
     const localizedSops = SOP_DATA.map(sop => getLocalizedSop(sop, lang));
 
@@ -215,73 +216,44 @@ export default function PlanGenerator({ farmProfile, onBack }) {
         saveAs(blob, "Farm-Food-Safety-Plan.docx");
     };
 
+    // Which plan field each AI button fills, and its "working" flag. The instructions live on the server.
+    const SUGGESTION_TARGETS = {
+        lot: { field: "lotCodeSystem", setGenerating: setIsGeneratingLot },
+        recall: { field: "mockRecall", setGenerating: setIsGeneratingRecall },
+        practices: { field: "practices", setGenerating: setIsGeneratingPractices },
+        policies: { field: "policies", setGenerating: setIsGeneratingPolicies },
+        emergencyContact: { field: "emergencyContact", setGenerating: setIsGeneratingEmergency },
+        supplierInfo: { field: "supplierInfo", setGenerating: setIsGeneratingSupplier },
+        servicesInfo: { field: "servicesInfo", setGenerating: setIsGeneratingServices },
+    };
+
     const generateSuggestion = async (type) => {
-        let setGenerating, promptSnippet, fieldName;
-
-        switch (type) {
-            case 'lot':
-                setGenerating = setIsGeneratingLot;
-                promptSnippet = `generate a concise, practical, and compliant example of a "Lot Code System" for traceability. A lot code should typically include the farm name/location, the specific field/block harvested from, and the date of harvest. Keep it to 1-2 short paragraphs explaining the system format and giving one practical example.`;
-                fieldName = "lotCodeSystem";
-                break;
-            case 'recall':
-                setGenerating = setIsGeneratingRecall;
-                promptSnippet = `generate a concise, practical, and compliant "Mock Recall Procedure". The procedure should outline 3-4 bullet points on how to conduct a dummy recall (tracing one lot forward to the buyer and backward to the field within 2 hours). Keep it brief, action-oriented, and easy to understand.`;
-                fieldName = "mockRecall";
-                break;
-            case 'practices':
-                setGenerating = setIsGeneratingPractices;
-                promptSnippet = `generate a concise list of 4-5 "Practices to reduce food safety risks". These should be practical, everyday actions farm workers take (e.g., handwashing, tool sanitizing, looking for animal signs, keeping harvested crops off ground). Keep it brief and action-oriented.`;
-                fieldName = "practices";
-                break;
-            case 'policies':
-                setGenerating = setIsGeneratingPolicies;
-                promptSnippet = `generate a concise, practical "Farm Food Safety Policy" statement. This should be 1-2 paragraphs declaring the farm's commitment to producing safe food, following FSMA Produce Safety Rule regulations, and empowering workers to report safety concerns.`;
-                fieldName = "policies";
-                break;
-            case 'emergencyContact':
-                setGenerating = setIsGeneratingEmergency;
-                promptSnippet = `generate a template for "Emergency contact information" for a farm. It should include placeholders for Local Police/Fire/Medical (911), Poison Control, the Farm Owner, Food Safety Manager, and the State Agriculture Department. Format it clearly as a list.`;
-                fieldName = "emergencyContact";
-                break;
-            case 'supplierInfo':
-                setGenerating = setIsGeneratingSupplier;
-                promptSnippet = `generate a template for "Supplier and buyer information" for an agricultural operation. Include fields/placeholders for primary packaging suppliers, fertilizer/amendment suppliers, and primary wholesale buyers/distributors. Format it clearly with bullet points.`;
-                fieldName = "supplierInfo";
-                break;
-            case 'servicesInfo':
-                setGenerating = setIsGeneratingServices;
-                promptSnippet = `generate a template for "Contact info for contracted services". Include placeholders for common farm contracted services such as pest control, port-a-john/sanitation services, chemical applicators, and third-party auditors. Format it clearly as a list.`;
-                fieldName = "servicesInfo";
-                break;
-            default:
-                return;
-        }
-
-        setGenerating(true);
+        const target = SUGGESTION_TARGETS[type];
+        if (!target) return;
+        const previous = formData[target.field];
+        setAiError("");
+        target.setGenerating(true);
+        let fullText = "";
         try {
-            const systemPrompt = "You are an expert in FSMA Produce Safety Rule compliance. The user is a farmer creating their Farm Food Safety Plan.";
-            const userPrompt = `Based on my farm profile (Name: ${farmProfile?.farm_name || 'N/A'}, Crops: ${farmProfile?.crops || 'N/A'}, Operation Type: ${farmProfile?.operation_type || 'N/A'}), ${promptSnippet} Return ONLY the suggested text.`;
-
-            const messages = [{ role: "user", content: userPrompt }];
-
-            let fullText = "";
-
-            await callClaudeStreaming(messages, systemPrompt, (chunk) => {
+            const { truncated } = await streamAI({ mode: "plan_section", lang, context: { section: type, farm: farmProfile } }, (chunk) => {
                 fullText += chunk;
-                handleChange(fieldName, fullText);
+                handleChange(target.field, fullText);
             });
-
-            if (!fullText) {
-                const errorMsg = "Could not generate suggestion. Please add your API key in settings or try again later.";
-                handleChange(fieldName, errorMsg);
+            if (truncated) {
+                setAiError(lang === "en"
+                    ? "The suggestion was cut short before it finished. Read it through and complete it before using it in your plan."
+                    : "La sugerencia quedó incompleta. Revísela y complétela antes de usarla en su plan.");
+            }
+            if (!fullText.trim()) {
+                handleChange(target.field, previous);
+                setAiError(lang === "en" ? "The AI returned no text. Please try again." : "La IA no devolvió texto. Inténtalo de nuevo.");
             }
         } catch (error) {
-            console.error("Error generating suggestion:", error);
-            const errorMsg = "An error occurred while generating the suggestion. Please try again.";
-            handleChange(fieldName, errorMsg);
+            // Never leave half an answer, or the error itself, in the plan.
+            handleChange(target.field, previous);
+            setAiError(error.message);
         } finally {
-            setGenerating(false);
+            target.setGenerating(false);
         }
     };
 
@@ -627,6 +599,13 @@ export default function PlanGenerator({ farmProfile, onBack }) {
                     </div>
                 ))}
             </div>
+
+            {aiError && (
+                <div role="alert" className="no-print" style={{ marginBottom: "16px", padding: "12px 16px", borderRadius: "10px", background: "var(--red-l)", color: "var(--red)", fontSize: "14px", display: "flex", justifyContent: "space-between", gap: "12px" }}>
+                    <span>{aiError}</span>
+                    <button onClick={() => setAiError("")} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontWeight: 700 }} aria-label={lang === "en" ? "Dismiss" : "Cerrar"}>×</button>
+                </div>
+            )}
 
             {/* Main Content */}
             <div style={{ flex: 1, overflowY: "auto", background: step < 6 ? "white" : "transparent", padding: step < 6 ? "32px" : "0", borderRadius: "16px", boxShadow: step < 6 ? "var(--shadow)" : "none", marginBottom: "24px" }}>

@@ -1,191 +1,213 @@
-import { buildSopStandardContext } from "./sop-standards.js";
+import { authedFetch } from "../lib/apiClient.js";
 
-const MODEL = "gpt-oss-120b";
+/**
+ * The browser side of the AI features. It sends only a mode (which feature), a little context and
+ * the language; the server owns the instructions, the model and the limits (api/_lib/modes.js).
+ */
 
-function formatMessages(messages, systemPrompt) {
-  const result = [];
-  if (systemPrompt) {
-    result.push({ role: "system", content: systemPrompt });
+/** An AI request that failed, with a message that can be shown as is. */
+export class AiError extends Error {
+  constructor(message, { status, code } = {}) {
+    super(message);
+    this.name = "AiError";
+    this.status = status;
+    this.code = code;
   }
-  for (const m of messages) {
-    result.push({ role: m.role === "assistant" ? "assistant" : "user", content: m.content });
-  }
-  return result;
 }
 
-export async function callClaude(messages, systemPrompt) {
-  const formatted = formatMessages(messages, systemPrompt);
-  const res = await fetch("/api/claude", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: 1500,
-      messages: formatted,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `API error ${res.status}`);
-  }
-  const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
+const MESSAGES_BY_STATUS = {
+  401: "Your session has ended. Please sign in again.",
+  413: "This request is too long for the AI assistant. Shorten it and try again.",
+  429: "Too many AI requests in a short time. Please wait a moment and try again.",
+};
+
+function messageFor(status, serverMessage) {
+  if (MESSAGES_BY_STATUS[status]) return MESSAGES_BY_STATUS[status];
+  if (typeof serverMessage === "string" && serverMessage.trim()) return serverMessage;
+  return `The AI service did not answer (error ${status}). Please try again.`;
 }
 
-export async function callClaudeStreaming(messages, systemPrompt, onChunk, onDone = () => { }, onError = async () => { }) {
-  const formatted = formatMessages(messages, systemPrompt);
+async function post({ mode, messages, context, lang }, { stream = false } = {}) {
+  const body = { mode, messages, context, lang, ...(stream ? { stream: true } : {}) };
   let res;
   try {
-    res = await fetch("/api/claude", {
+    res = await authedFetch("/api/claude", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1500,
-        messages: formatted,
-        stream: true,
-      }),
+      body: JSON.stringify(body),
     });
-  } catch (err) {
-    onError(err);
-    throw err;
+  } catch (error) {
+    if (error?.code === "not_signed_in") throw error;
+    throw new AiError("Could not reach the AI service. Check your connection and try again.", { code: "network" });
   }
-
   if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    const err = new Error(errData?.error?.message || `API error ${res.status}`);
-    onError(err);
-    throw err;
+    const data = await res.json().catch(() => ({}));
+    throw new AiError(messageFor(res.status, data?.error), { status: res.status });
   }
+  return res;
+}
 
+/**
+ * One complete answer.
+ * @param {{ mode: string, messages?: Array<{ role: string, content: string }>, context?: object, lang?: 'en' | 'es' }} request
+ * @returns {Promise<string>}
+ */
+export async function askAI(request) {
+  const res = await post(request);
+  const data = await res.json().catch(() => null);
+  const blocks = Array.isArray(data?.content) ? data.content : [];
+  return blocks.filter((b) => b?.type === "text" && typeof b.text === "string").map((b) => b.text).join("");
+}
+
+/**
+ * An answer streamed piece by piece. Resolves only when the server says the answer is complete; an
+ * answer that stops early is an error, so nobody keeps a cut-off text by mistake.
+ *
+ * @param {{ mode: string, messages?: Array<{ role: string, content: string }>, context?: object, lang?: 'en' | 'es' }} request
+ * @param {(chunk: string) => void} onChunk
+ * @returns {Promise<{ text: string, truncated: boolean }>} `truncated` when the answer hit the length limit
+ */
+export async function streamAI(request, onChunk) {
+  const res = await post(request, { stream: true });
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let text = "";
+  let truncated = false;
+
+  // Handles one line of the event stream; true once the server says the answer is complete.
+  const handle = (line) => {
+    if (!line.startsWith("data: ")) return false;
+    const data = line.slice(6).trim();
+    if (data === "[DONE]") return true;
+    let event;
+    try {
+      event = JSON.parse(data);
+    } catch {
+      return false; // not one of ours; skip it
+    }
+    if (event?.error) throw new AiError(event.error.message || "The AI service stopped answering. Please try again.");
+    const choice = event?.choices?.[0];
+    if (choice?.finish_reason === "length") truncated = true;
+    const chunk = choice?.delta?.content;
+    if (typeof chunk === "string" && chunk) {
+      text += chunk;
+      onChunk(chunk);
+    }
+    return false;
+  };
 
   try {
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-
       const lines = buffer.split("\n");
-      buffer = lines.pop(); // keep any incomplete line for the next chunk
-
+      buffer = lines.pop();
       for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6).trim();
-        if (data === "[DONE]") break;
-        try {
-          const parsed = JSON.parse(data);
-          // OpenAI-compatible SSE sends choices[0].delta.content
-          const chunk = parsed.choices?.[0]?.delta?.content;
-          if (chunk) onChunk(chunk);
-        } catch {
-          // skip malformed SSE lines
-        }
+        if (handle(line)) return { text, truncated };
       }
     }
-  } catch (err) {
-    onError(err);
-    throw err;
+  } catch (error) {
+    if (error instanceof AiError) throw error;
+    throw new AiError("The connection to the AI service dropped. Please try again.", { code: "network" });
   }
-
-  onDone();
+  if (handle(buffer)) return { text, truncated };
+  throw new AiError("The answer was cut off before it finished. Please try again.", { code: "incomplete" });
 }
 
-export function parseFormUpdates(text) {
-  const match = text.match(/<form_update>([\s\S]*?)<\/form_update>/);
-  if (!match) return null;
-  try { return JSON.parse(match[1].trim()); } catch { return null; }
+// ─── Conversations ───────────────────────────────────────────────────────────
+
+const MAX_TURNS = 30;
+
+/**
+ * The chat as shown on screen, turned into what the model reads: no greeting before the person's
+ * first message, no error or empty bubbles, turns of the same speaker joined, only the latest turns.
+ *
+ * @param {Array<{ role: string, content: string, error?: boolean }>} shown
+ * @param {number} [maxTurns]
+ * @returns {Array<{ role: 'user' | 'assistant', content: string }>}
+ */
+export function toConversation(shown, maxTurns = MAX_TURNS) {
+  const turns = [];
+  for (const message of shown) {
+    if (message.error || typeof message.content !== "string" || !message.content.trim()) continue;
+    const role = message.role === "assistant" ? "assistant" : "user";
+    const last = turns.at(-1);
+    if (last?.role === role) turns[turns.length - 1] = { role, content: `${last.content}\n\n${message.content}` };
+    else turns.push({ role, content: message.content });
+  }
+  let recent = turns.slice(-maxTurns);
+  while (recent.length && recent[0].role !== "user") recent = recent.slice(1);
+  return recent;
 }
 
-export function stripFormUpdate(text) {
-  return text.replace(/<form_update>[\s\S]*?<\/form_update>/g, "").trim();
-}
+// ─── Form fields and checklist notes ─────────────────────────────────────────
 
+const MAX_CACHED = 100;
 const suggestionCache = new Map();
 
-export async function getFieldSuggestion(field, sop, formData, farmProfile) {
-  const contextFingerprint = JSON.stringify({ formData, farmProfile });
-  const cacheKey = `${field.id}-${sop.id}-${contextFingerprint}`;
-  if (suggestionCache.has(cacheKey)) return suggestionCache.get(cacheKey);
-
-  const sopContext = buildSopStandardContext(sop);
-  const systemPrompt = `You are an expert FSMA Produce Safety Rule compliance assistant. Generate a specific, compliant value for a single SOP form field.
-${sopContext}
-
-Farm Context:
-${farmProfile ? Object.entries(farmProfile).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("\n") : "No farm profile available — use general best practices."}
-
-SOP: ${sop.title} (${sop.ref})
-Field: ${field.label}
-Field Type: ${field.type}
-Placeholder/Example: ${field.ph || "None"}
-${field.required ? "This field is REQUIRED." : ""}
-
-Current form values for context:
-${Object.entries(formData).filter(([, v]) => v).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n") || "No fields filled yet."}
-
-INSTRUCTIONS:
-- Provide ONLY the field value — no explanation, no preamble, no quotes.
-- Stay strictly within this SOP's standard and scope.
-- Be specific and regulatory-compliant.
-- For textarea fields, format each item as a bullet point line starting with "• " (bullet + space). Use one bullet per distinct item or step. Use actual newlines between bullets.
-- Follow FSMA PSR, Cornell PSA, and industry best practices.
-- Do not fabricate legal thresholds, dates, or citations. If a numeric requirement is uncertain, use conservative procedural wording.
-- If the field is about locations/names specific to the farm, provide a realistic template the user can customize.`;
-
-  const messages = [{ role: "user", content: `Generate the value for the "${field.label}" field.` }];
-
-  try {
-    const suggestion = await callClaude(messages, systemPrompt);
-    suggestionCache.set(cacheKey, suggestion);
-    return suggestion;
-  } catch (e) {
-    console.error("AI suggestion failed:", e);
-    return null;
-  }
+/** Forget remembered suggestions (for tests, and after signing out). */
+export function clearSuggestionCache() {
+  suggestionCache.clear();
 }
 
-export async function getRecordItemSuggestion(item, sop, formData, farmProfile, recordMeta = {}) {
-  const cacheKey = `record-${sop.id}-${item.id}-${JSON.stringify({ formData, farmProfile, recordMeta })}`;
-  if (suggestionCache.has(cacheKey)) return suggestionCache.get(cacheKey);
+async function remembered(request) {
+  const key = JSON.stringify(request);
+  if (suggestionCache.has(key)) return suggestionCache.get(key);
+  const value = (await askAI(request)).trim();
+  if (!value) throw new AiError("The AI returned no text. Please try again.", { code: "empty" });
+  if (suggestionCache.size >= MAX_CACHED) suggestionCache.delete(suggestionCache.keys().next().value);
+  suggestionCache.set(key, value);
+  return value;
+}
 
-  const sopContext = buildSopStandardContext(sop);
-  const systemPrompt = `You are an expert produce safety compliance assistant. Draft concise documentation text for a checklist record item.
-${sopContext}
+/** A suggested value for one SOP form field (never empty). @throws {AiError} */
+export function getFieldSuggestion(field, sop, formData, farmProfile, lang) {
+  return remembered({ mode: "sop_field", lang, context: { sopId: sop.id, fieldId: field.id, form: formData, farm: farmProfile } });
+}
 
-Farm Context:
-${farmProfile ? Object.entries(farmProfile).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join("\n") : "No farm profile available."}
+/** A suggested evidence note for one checklist item of an activity record (never empty). @throws {AiError} */
+export function getRecordItemSuggestion(item, sop, formData, farmProfile, record, lang) {
+  return remembered({ mode: "record_note", lang, context: { sopId: sop.id, itemId: item.id, form: formData, farm: farmProfile, record } });
+}
 
-Record Context:
-- Activity Date: ${recordMeta.activityDate || "N/A"}
-- Performed By: ${recordMeta.performedBy || "N/A"}
-- Verified By: ${recordMeta.verifiedBy || "N/A"}
-- Record Notes: ${recordMeta.notes || "N/A"}
+// ─── Form updates inside a chat answer ───────────────────────────────────────
 
-Checklist Item:
-- Section: ${item.sectionTitle}
-- Item: ${item.label}
-- Expected: ${item.expected}
+const FORM_UPDATE = /<form_update>([\s\S]*?)<\/form_update>/;
 
-Current SOP Form Values:
-${Object.entries(formData).filter(([, v]) => v).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n") || "No fields filled yet."}
-
-INSTRUCTIONS:
-- Return ONLY the suggested evidence note text. No title, no markdown, no quotes.
-- Keep it practical, audit-ready, and specific to this item.
-- Include who/what/where (and when if relevant) in 1-3 short sentences.
-- Do not invent lab values, legal thresholds, or unverifiable facts.`;
-
-  const messages = [{ role: "user", content: `Draft documentation notes for this checklist item: "${item.label}"` }];
-
+/**
+ * The fields the assistant filled in, from the first <form_update> block: only the given field ids,
+ * each with text or a list of text. Null when there is nothing usable.
+ *
+ * @param {string} text
+ * @param {string[]} allowedIds
+ * @returns {Record<string, string | string[]> | null}
+ */
+export function parseFormUpdates(text, allowedIds) {
+  const match = text.match(FORM_UPDATE);
+  if (!match) return null;
+  let parsed;
   try {
-    const suggestion = await callClaude(messages, systemPrompt);
-    suggestionCache.set(cacheKey, suggestion.trim());
-    return suggestion.trim();
-  } catch (e) {
-    console.error("Record item AI suggestion failed:", e);
+    parsed = JSON.parse(match[1].trim());
+  } catch {
     return null;
   }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+  const updates = {};
+  for (const id of allowedIds) {
+    if (!Object.hasOwn(parsed, id)) continue;
+    const value = parsed[id];
+    if (typeof value === "string") updates[id] = value;
+    else if (Array.isArray(value)) updates[id] = value.filter((v) => typeof v === "string");
+  }
+  return Object.keys(updates).length ? updates : null;
+}
+
+/** The answer without its update blocks, including one that is still arriving. */
+export function stripFormUpdate(text) {
+  return text
+    .replace(/<form_update>[\s\S]*?<\/form_update>/g, "")
+    .replace(/<form_update>[\s\S]*$/, "")
+    .trim();
 }

@@ -18,11 +18,19 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
     fontFamily: "inherit", transition: "all .2s",
   });
 
+  const [fieldError, setFieldError] = useState(null); // { id, message } of the last failed suggestion
+
   const handleAISuggest = async (field) => {
     setLoadingField(field.id);
-    const suggestion = await getFieldSuggestion(field, sop, formData, farmProfile);
-    if (suggestion) onChange(field.id, suggestion);
-    setLoadingField(null);
+    setFieldError(null);
+    try {
+      const suggestion = await getFieldSuggestion(field, sop, formData, farmProfile, lang);
+      if (suggestion) onChange(field.id, suggestion);
+    } catch (error) {
+      setFieldError({ id: field.id, message: error.message });
+    } finally {
+      setLoadingField(null);
+    }
   };
 
   const renderCheckboxMultiple = (field) => {
@@ -112,6 +120,9 @@ export default function FormPanel({ sop, formData, onChange, missingFields, farm
                   ) : (
                     <input type={field.type || "text"} value={formData[field.id] || ""} onChange={e => onChange(field.id, e.target.value)}
                       placeholder={field.ph || ""} style={{ ...inputStyle(field.id), height: 38 }} />
+                  )}
+                  {fieldError?.id === field.id && (
+                    <div role="alert" style={{ marginTop: 6, fontSize: 13, color: "var(--red)" }}>{fieldError.message}</div>
                   )}
                 </div>
               ))}

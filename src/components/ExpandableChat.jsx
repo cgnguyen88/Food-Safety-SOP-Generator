@@ -1,14 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { callClaudeStreaming } from "../utils/api.js";
+import { streamAI, toConversation } from "../utils/api.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
-import { SOP_DATA } from "../data/sop-data.js";
-
-function renderMarkdown(text) {
-  return text
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.*?)\*/g, "<em>$1</em>")
-    .replace(/\n/g, "<br/>");
-}
+import AiText from "./AiText.jsx";
 
 export default function ExpandableChat({ farmProfile, incidents, defaultOpen = false }) {
   const { lang } = useLanguage();
@@ -47,22 +40,6 @@ export default function ExpandableChat({ farmProfile, incidents, defaultOpen = f
     setIsAtBottom(atBottom);
   };
 
-  const buildSystemPrompt = () => {
-    const sopList = SOP_DATA.map((s) => `[ID:${s.id}] ${s.short} — ${s.desc.slice(0, 80)}`).join("\n");
-    const farmCtx = farmProfile
-      ? `Farm: ${farmProfile.farm_name || ""}. Crops: ${farmProfile.crops || ""}. Type: ${farmProfile.operation_type || ""}. FSMA status: ${farmProfile.fsma_status || ""}.`
-      : "No farm profile saved yet.";
-    return `Your name is Jimmy. You are a knowledgeable and professional food safety advisor for FarmSafe — a compliance platform for California farms. You assist farmers and producers with FSMA Produce Safety Rule requirements, SOP documentation, and food safety compliance.
-
-Farm context: ${farmCtx}
-Logged incidents so far: ${(incidents || []).length}
-
-Available SOPs in the app:
-${sopList}
-
-Answer questions about food safety regulations, FSMA PSR requirements, produce safety best practices, SOP documentation, and how to use the app. Guide farmers step-by-step on how to conduct risk assessments, establish a traceability/lot code system (e.g. Farm + Field + Date), and perform a mock recall. Be professional, specific, and accurate. Reference FDA FSMA PSR, Cornell PSA, and UC ANR guidance where relevant. Keep responses to 2–4 paragraphs max. Answer in the same language the user writes in (English or Spanish). Do not invent regulatory thresholds — say "verify with current guidance" if uncertain.`;
-  };
-
   const sendMessage = async (text) => {
     if (!text.trim() || loading) return;
     const history = [...messages, { role: "user", content: text }];
@@ -70,30 +47,23 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
     setInput("");
     setIsAtBottom(true);
     setLoading(true);
+    const showAnswer = (answer) => setMessages((prev) => [...prev.slice(0, -1), { role: "assistant", ...answer }]);
     let accumulated = "";
     try {
-      await callClaudeStreaming(
-        history.map((m) => ({ role: m.role, content: m.content })),
-        buildSystemPrompt(),
+      const { truncated } = await streamAI(
+        { mode: "assistant", lang, messages: toConversation(history), context: { farm: farmProfile, incidentCount: (incidents || []).length } },
         (chunk) => {
           accumulated += chunk;
-          setMessages((prev) => [
-            ...prev.slice(0, -1),
-            { role: "assistant", content: accumulated, streaming: true },
-          ]);
+          showAnswer({ content: accumulated, streaming: true });
         }
       );
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content: accumulated, streaming: false },
-      ]);
+      const cutNote = lang === "en" ? "_(The answer was cut short. Ask me to continue.)_" : "_(La respuesta quedó incompleta. Pídeme que continúe.)_";
+      showAnswer({ content: truncated ? `${accumulated}\n\n${cutNote}` : accumulated, streaming: false });
     } catch (e) {
-      setMessages((prev) => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content: `Connection error: ${e.message}`, streaming: false },
-      ]);
+      showAnswer({ content: e.message, streaming: false, error: true });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const quickChips =
@@ -230,8 +200,12 @@ Answer questions about food safety regulations, FSMA PSR requirements, produce s
                   border: msg.role === "assistant" ? "1px solid var(--bdr2)" : "none",
                 }}
               >
-                <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
-                {msg.streaming && (
+                {msg.role === "user" || msg.error ? (
+                  <span role={msg.error ? "alert" : undefined} style={{ whiteSpace: "pre-wrap", color: msg.error ? "var(--red)" : undefined }}>{msg.content}</span>
+                ) : (
+                  <AiText text={msg.content} variant="chat" />
+                )}
+                {msg.streaming && !msg.content && (
                   <span style={{ display: "inline-block", width: 2, height: "1em", background: "currentColor", marginLeft: 2, verticalAlign: "text-bottom", animation: "caretBlink 0.8s step-end infinite" }} />
                 )}
               </div>

@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { GLOBAL_CSS } from "./styles/global.js";
 import { SOP_DATA } from "./data/sop-data.js";
-import { DEFAULT_COST_SETTINGS } from "./data/cost-defaults.js";
-import { loadFromStorage, saveToStorage } from "./utils/storage.js";
 import { decodeShareLink } from "./utils/export.js";
-import { LanguageProvider } from "./i18n/LanguageContext.jsx";
+import { LanguageProvider, useLanguage } from "./i18n/LanguageContext.jsx";
+import useFarmAccount from "./lib/useFarmAccount.js";
 import AuthScreen from "./components/AuthScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import Dashboard from "./components/Dashboard.jsx";
@@ -14,72 +13,60 @@ import ViolationDashboard from "./components/ViolationDashboard.jsx";
 import EconomicReport from "./components/EconomicReport.jsx";
 import ExpandableChat from "./components/ExpandableChat.jsx";
 import PlanGenerator from "./components/PlanGenerator.jsx";
+import { AccountMessage, ImportNotice, ImportOffer, MergedNotice, SaveIndicator } from "./components/AccountStatus.jsx";
+
+const KEYFRAMES = `@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}@keyframes caretBlink{0%,100%{opacity:1}50%{opacity:0}}`;
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [authReady, setAuthReady] = useState(false);
+  return (
+    <LanguageProvider>
+      <style>{GLOBAL_CSS}</style>
+      <style>{KEYFRAMES}</style>
+      <FarmApp />
+    </LanguageProvider>
+  );
+}
+
+function FarmApp() {
+  const { lang } = useLanguage();
+  const farm = useFarmAccount();
   const [activeSOP, setActiveSOP] = useState(null);
   const [activePage, setActivePage] = useState("home");
   const [showProfile, setShowProfile] = useState(false);
-  const [farmProfile, setFarmProfile] = useState(null);
-  const [incidents, setIncidents] = useState([]);
-  const [costSettings, setCostSettings] = useState(DEFAULT_COST_SETTINGS);
-  const [justLoggedIn, setJustLoggedIn] = useState(false);
 
-  // Load all persisted data on mount
+  // A shared SOP link opens that SOP, prefilled, once the person is signed in.
   useEffect(() => {
-    const savedUser = loadFromStorage("current_user");
-    setCurrentUser(savedUser);
-    setAuthReady(true);
-    setFarmProfile(loadFromStorage("farm_profile"));
-    setIncidents(loadFromStorage("incidents", []));
-    setCostSettings(loadFromStorage("cost_settings", DEFAULT_COST_SETTINGS));
-
-    // Handle share link
     const shared = decodeShareLink();
-    if (shared) {
-      const sop = SOP_DATA.find(s => s.id === shared.sopId);
-      if (sop) { setActiveSOP({ ...sop, prefillData: shared.formData }); setActivePage("sop"); }
-    }
+    if (!shared) return;
+    const sop = SOP_DATA.find(s => s.id === shared.sopId);
+    if (sop) { setActiveSOP({ ...sop, prefillData: shared.formData }); setActivePage("sop"); }
   }, []);
 
+  if (farm.status === "checking") return null;
+  if (farm.status === "signed-out") return <AuthScreen />;
+  if (farm.status === "loading") return <AccountMessage kind="loading" />;
+  if (farm.status === "error") {
+    return <AccountMessage kind="error" message={farm.error} onRetry={farm.retryLoad} onSignOut={() => farm.signOut()} />;
+  }
+
+  const { farm_profile: farmProfile, incidents, cost_settings: costSettings, sop_activity_records: activityRecords } = farm.data;
+
   const saveFarmProfile = (profile) => {
-    setFarmProfile(profile);
-    saveToStorage("farm_profile", profile);
+    farm.setValue("farm_profile", profile);
     setShowProfile(false);
   };
-
-  const addIncident = (inc) => {
-    const updated = [...incidents, inc];
-    setIncidents(updated);
-    saveToStorage("incidents", updated);
-  };
-
-  const updateIncident = (id, data) => {
-    const updated = incidents.map(i => i.id === id ? { ...i, ...data } : i);
-    setIncidents(updated);
-    saveToStorage("incidents", updated);
-  };
-
-  const deleteIncident = (id) => {
-    const updated = incidents.filter(i => i.id !== id);
-    setIncidents(updated);
-    saveToStorage("incidents", updated);
-  };
-
-  const saveCostSettings = (settings) => {
-    setCostSettings(settings);
-    saveToStorage("cost_settings", settings);
-  };
-
-  const handleLogin = (user) => {
-    setCurrentUser(user);
-    setJustLoggedIn(true);
-  };
+  // Each change is built on the latest list, so quick changes in a row all count.
+  const addIncident = (inc) => farm.setValue("incidents", list => [...list, inc]);
+  const updateIncident = (id, changes) => farm.setValue("incidents", list => list.map(i => (i.id === id ? { ...i, ...changes } : i)));
+  const deleteIncident = (id) => farm.setValue("incidents", list => list.filter(i => i.id !== id));
+  const saveCostSettings = (settings) => farm.setValue("cost_settings", settings);
+  const saveActivityRecords = (records) => farm.setValue("sop_activity_records", records);
 
   const handleLogout = () => {
-    saveToStorage("current_user", null);
-    setCurrentUser(null);
+    const question = lang === "en"
+      ? "Some changes could not be saved yet. Sign out anyway and lose them?"
+      : "Algunos cambios aún no se pudieron guardar. ¿Cerrar sesión de todos modos y perderlos?";
+    farm.signOut({ confirmUnsaved: () => window.confirm(question) });
   };
 
   const handleSelectSOP = (sop) => {
@@ -92,21 +79,8 @@ export default function App() {
     if (page !== "sop") setActiveSOP(null);
   };
 
-  if (!authReady) return null;
-
-  if (!currentUser) {
-    return (
-      <LanguageProvider>
-        <style>{GLOBAL_CSS}</style>
-        <AuthScreen onLogin={handleLogin} />
-      </LanguageProvider>
-    );
-  }
-
   return (
-    <LanguageProvider>
-      <style>{GLOBAL_CSS}</style>
-      <style>{`@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}@keyframes caretBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
+    <>
       <div style={{ height: "100vh", display: "flex", overflow: "hidden" }}>
         <Sidebar
           activeSOP={activeSOP}
@@ -115,13 +89,22 @@ export default function App() {
           onOpenProfile={() => setShowProfile(true)}
           onNavigate={handleNavigate}
           onLogout={handleLogout}
-          currentUser={currentUser}
+          currentUser={farm.account.user}
           farmProfile={farmProfile}
           incidents={incidents}
         />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--cream)" }}>
+          <ImportOffer offer={farm.importOffer} farmName={farm.account.farm?.name} onAccept={farm.acceptImport} onDecline={farm.declineImport} />
+          <ImportNotice result={farm.importResult} onDismiss={farm.dismissImport} />
+          <MergedNotice show={farm.mergedNotice} onDismiss={farm.dismissMerged} />
           {activePage === "sop" && activeSOP ? (
-            <SOPEditor sop={activeSOP} farmProfile={farmProfile} onBack={() => handleNavigate("home")} />
+            <SOPEditor
+              sop={activeSOP}
+              farmProfile={farmProfile}
+              activityRecords={activityRecords}
+              onSaveActivityRecords={saveActivityRecords}
+              onBack={() => handleNavigate("home")}
+            />
           ) : activePage === "violations" ? (
             <ViolationDashboard
               incidents={incidents}
@@ -152,7 +135,8 @@ export default function App() {
         </div>
       </div>
       {showProfile && <FarmProfileModal profile={farmProfile} onSave={saveFarmProfile} onClose={() => setShowProfile(false)} />}
-      <ExpandableChat farmProfile={farmProfile} incidents={incidents} defaultOpen={justLoggedIn} />
-    </LanguageProvider>
+      <ExpandableChat farmProfile={farmProfile} incidents={incidents} defaultOpen={farm.justSignedIn} />
+      <SaveIndicator status={farm.saveStatus} onRetry={farm.retrySaves} />
+    </>
   );
 }

@@ -1,9 +1,7 @@
 import { useMemo, useState } from "react";
-import { loadFromStorage, saveToStorage } from "../utils/storage.js";
 import { getRecordItemSuggestion } from "../utils/api.js";
+import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { downloadRecordAsDocx } from "../utils/export.js";
-
-const RECORDS_KEY = "sop_activity_records";
 
 function toText(value) {
   if (Array.isArray(value)) return value.join(", ");
@@ -60,8 +58,9 @@ function buildRecord(sop, formData, farmProfile) {
   };
 }
 
-export default function SOPRecordModal({ sop, formData, farmProfile, onClose }) {
-  const [allRecords, setAllRecords] = useState(() => loadFromStorage(RECORDS_KEY, []));
+/** The farm's activity records for one SOP. `allRecords` holds every SOP's records; `onSaveAll` takes a function that turns the latest list into the new one. */
+export default function SOPRecordModal({ sop, formData, farmProfile, allRecords = [], onSaveAll, onClose }) {
+  const { lang } = useLanguage();
   const [activeId, setActiveId] = useState(null);
   const [aiLoadingItemId, setAiLoadingItemId] = useState(null);
   const [aiError, setAiError] = useState("");
@@ -72,40 +71,35 @@ export default function SOPRecordModal({ sop, formData, farmProfile, onClose }) 
   );
   const activeRecord = records.find((r) => r.id === activeId) || records[0] || null;
 
-  const persist = (updatedAll) => {
-    setAllRecords(updatedAll);
-    saveToStorage(RECORDS_KEY, updatedAll);
-  };
+  // Every change is a function of the latest list, so an AI note that arrives after other edits
+  // never undoes them.
+  const persist = (change) => onSaveAll(change);
 
   const createRecord = () => {
     const record = buildRecord(sop, formData, farmProfile);
-    const updated = [record, ...allRecords];
-    persist(updated);
+    persist((all) => [record, ...all]);
     setActiveId(record.id);
   };
 
   const updateActive = (patch) => {
     if (!activeRecord) return;
-    const updated = allRecords.map((r) => (r.id === activeRecord.id ? { ...r, ...patch } : r));
-    persist(updated);
+    const id = activeRecord.id;
+    persist((all) => all.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   };
 
   const updateItem = (itemId, patch) => {
     if (!activeRecord) return;
-    const updated = allRecords.map((r) => {
-      if (r.id !== activeRecord.id) return r;
-      return {
-        ...r,
-        items: r.items.map((item) => (item.id === itemId ? { ...item, ...patch } : item)),
-      };
-    });
-    persist(updated);
+    const id = activeRecord.id;
+    persist((all) => all.map((r) => (r.id !== id ? r : {
+      ...r,
+      items: r.items.map((item) => (item.id === itemId ? { ...item, ...patch } : item)),
+    })));
   };
 
   const deleteActive = () => {
     if (!activeRecord) return;
-    const updated = allRecords.filter((r) => r.id !== activeRecord.id);
-    persist(updated);
+    const id = activeRecord.id;
+    persist((all) => all.filter((r) => r.id !== id));
     setActiveId(null);
   };
 
@@ -119,7 +113,7 @@ export default function SOPRecordModal({ sop, formData, farmProfile, onClose }) 
         performedBy: activeRecord.performedBy,
         verifiedBy: activeRecord.verifiedBy,
         notes: activeRecord.notes,
-      });
+      }, lang);
       if (suggestion) {
         updateItem(item.id, { notes: suggestion });
       }

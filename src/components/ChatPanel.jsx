@@ -1,6 +1,28 @@
-import { useState, useEffect, useRef } from "react";
-import { callClaudeStreaming, parseFormUpdates, stripFormUpdate } from "../utils/api.js";
-import { buildSopStandardContext } from "../utils/sop-standards.js";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { streamAI, parseFormUpdates, stripFormUpdate, toConversation } from "../utils/api.js";
+import AiText from "./AiText.jsx";
+import { getLocalizedSop } from "../i18n/sop-translations.js";
+
+const PROPOSAL_TEXT = {
+  en: {
+    group: "Suggested changes to the form",
+    title: (n) => `Jimmy suggests filling in ${n} field${n === 1 ? "" : "s"}:`,
+    apply: "Apply to form",
+    dismiss: "Dismiss",
+  },
+  es: {
+    group: "Cambios sugeridos al formulario",
+    title: (n) => `Jimmy sugiere llenar ${n} campo${n === 1 ? "" : "s"}:`,
+    apply: "Aplicar al formulario",
+    dismiss: "Descartar",
+  },
+};
+
+const PREVIEW_CHARS = 160;
+const preview = (value) => {
+  const text = Array.isArray(value) ? value.join(", ") : value;
+  return text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS)}…` : text;
+};
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 
@@ -22,37 +44,18 @@ export default function ChatPanel({ sop, formData, onFormUpdate, farmProfile }) 
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-  const buildSystemPrompt = () => {
-    const filledFields = Object.entries(formData).filter(([, v]) => v).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(", ") : v}`).join("\n");
-    const allFields = sop.sections.flatMap(s => s.fields).map(f => `${f.id} (${f.label}${f.required ? " — REQUIRED" : ""})`).join(", ");
-    const sopContext = buildSopStandardContext(sop);
-    return `Your name is Jimmy. You are a professional food safety advisor for FarmSafe — a compliance platform for California farms. You are helping a farm operator complete their "${sop.title}" SOP. Be professional, accurate, and practical in your guidance.
-Reference: ${sop.ref}
-${sopContext}
+  const fieldIds = useMemo(() => sop.sections.flatMap((section) => section.fields.map((field) => field.id)), [sop]);
+  const fieldLabels = useMemo(
+    () => Object.fromEntries(getLocalizedSop(sop, lang).sections.flatMap((section) => section.fields.map((field) => [field.id, field.label]))),
+    [sop, lang]
+  );
+  const p = PROPOSAL_TEXT[lang === "es" ? "es" : "en"];
 
-${farmProfile ? `FARM PROFILE:\nFarm: ${farmProfile.farm_name || ""}\nOwner: ${farmProfile.owner_name || ""}\nAddress: ${farmProfile.address || ""}\nOperation: ${farmProfile.operation_type || ""}\nCrops: ${farmProfile.crops || ""}\nFSMA Status: ${farmProfile.fsma_status || ""}` : "No farm profile saved yet."}
-
-SOP PURPOSE: ${sop.desc}
-
-CURRENT FORM VALUES (already filled):
-${filledFields || "No fields filled yet"}
-
-ALL FORM FIELDS AVAILABLE TO FILL:
-${allFields}
-
-INSTRUCTIONS:
-1. Be professional, specific, and helpful. Answer questions about food safety regulations accurately.
-2. When you have enough info to fill one or more fields, include a form_update block:
-<form_update>
-{"field_id": "value to populate", "another_field": "its value"}
-</form_update>
-Use the exact field IDs listed above. Values should be complete, regulatory-compliant text.
-3. For textarea fields, use \\n for line breaks.
-4. For checkbox-multiple fields, provide values as arrays: ["Option 1", "Option 2"]
-5. When reviewing the form, check all required fields and flag specific compliance gaps.
-6. Reference FDA FSMA PSR, Cornell PSA, UC Davis Post-PSA, and UMD Extension guidance where relevant.
-7. If uncertain about a regulatory detail, say "Verify against current regulator guidance" instead of inventing specifics.
-8. Keep responses concise — 2-4 paragraphs max unless explaining regulations in detail.`;
+  // Form changes the assistant suggests are applied only when the person presses Apply.
+  const resolveProposal = (index, apply) => {
+    const proposal = messages[index]?.proposal;
+    if (apply && proposal) onFormUpdate(proposal);
+    setMessages(prev => prev.map((m, i) => (i === index ? { ...m, proposal: null, applied: apply } : m)));
   };
 
   const sendMessage = async (text) => {
@@ -61,38 +64,25 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
     setMessages([...history, { role: "assistant", content: "", streaming: true }]);
     setInput("");
     setLoading(true);
+    const showAnswer = (answer) => setMessages(prev => [...prev.slice(0, -1), { role: "assistant", ...answer }]);
     let accumulated = "";
     try {
-      await callClaudeStreaming(
-        history.map(m => ({ role: m.role, content: m.content })),
-        buildSystemPrompt(),
+      const { truncated } = await streamAI(
+        { mode: "sop_chat", lang, messages: toConversation(history), context: { sopId: sop.id, farm: farmProfile, form: formData } },
         (chunk) => {
           accumulated += chunk;
-          setMessages(prev => [
-            ...prev.slice(0, -1),
-            { role: "assistant", content: stripFormUpdate(accumulated), streaming: true },
-          ]);
+          showAnswer({ content: stripFormUpdate(accumulated), streaming: true });
         }
       );
-      const formUpdate = parseFormUpdates(accumulated);
-      const cleanResponse = stripFormUpdate(accumulated);
-      if (formUpdate) onFormUpdate(formUpdate);
-      setMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content: cleanResponse + (formUpdate ? `\n\n${c.updatedFields}` : ""), streaming: false },
-      ]);
+      const proposal = parseFormUpdates(accumulated, fieldIds);
+      const cutNote = lang === "en" ? "_(The answer was cut short. Ask me to continue.)_" : "_(La respuesta quedó incompleta. Pídeme que continúe.)_";
+      const content = [stripFormUpdate(accumulated), truncated ? cutNote : null].filter(Boolean).join("\n\n");
+      showAnswer({ content, streaming: false, proposal });
     } catch (e) {
-      const errorMessage = String(e?.message || "Unknown error");
-      const isLegacyModelError = errorMessage.includes("claude-3-7-sonnet-latest");
-      const guidance = isLegacyModelError
-        ? "A legacy model is still being used by deployed assets. Redeploy latest code and clear browser cache."
-        : "Check your API key and model settings.";
-      setMessages(prev => [
-        ...prev.slice(0, -1),
-        { role: "assistant", content: `Connection error: ${errorMessage}\n\n${guidance}`, streaming: false },
-      ]);
+      showAnswer({ content: e.message, streaming: false, error: true });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const quickActions = [
@@ -101,11 +91,6 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
     { label: c.quickExplain, text: c.quickExplainText },
     { label: c.quickExamples, text: c.quickExamplesText },
   ];
-
-  const renderMarkdown = (text) => text
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/g, '<em>$1</em>')
-    .replace(/\n/g, '<br/>');
 
   const senderYou = lang === "en" ? "You" : "Tú";
 
@@ -147,11 +132,30 @@ Use the exact field IDs listed above. Values should be complete, regulatory-comp
               boxShadow: msg.role === "user" ? "0 8px 16px rgba(0,45,84,0.25)" : "0 4px 12px rgba(0,0,0,0.08)",
               border: msg.role === "user" ? "none" : "1px solid var(--glass-bdr)"
             }}>
-              <span dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
-              {msg.streaming && (
+              {msg.role === "user" || msg.error ? (
+                <span role={msg.error ? "alert" : undefined} style={{ whiteSpace: "pre-wrap", color: msg.error ? "var(--red)" : undefined }}>{msg.content}</span>
+              ) : (
+                <AiText text={msg.content} variant="panel" />
+              )}
+              {msg.streaming && !msg.content && (
                 <span style={{ display: "inline-block", width: 2, height: "1em", background: "currentColor", marginLeft: 2, verticalAlign: "text-bottom", animation: "caretBlink 0.8s step-end infinite" }} />
               )}
             </div>
+            {msg.proposal && (
+              <div role="group" aria-label={p.group} style={{ maxWidth: "92%", marginTop: 8, padding: "12px 14px", borderRadius: 14, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 14, color: "var(--u-navy)" }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>{p.title(Object.keys(msg.proposal).length)}</div>
+                <ul style={{ margin: "0 0 10px", paddingLeft: 18 }}>
+                  {Object.entries(msg.proposal).map(([id, value]) => (
+                    <li key={id} style={{ marginBottom: 4, whiteSpace: "pre-wrap" }}><strong>{fieldLabels[id] ?? id}</strong>: {preview(value)}</li>
+                  ))}
+                </ul>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" onClick={() => resolveProposal(i, true)} style={{ padding: "6px 14px", borderRadius: 20, border: "none", background: "var(--u-navy)", color: "white", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{p.apply}</button>
+                  <button type="button" onClick={() => resolveProposal(i, false)} style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid var(--bdr)", background: "white", color: "var(--txt2)", cursor: "pointer", fontFamily: "inherit" }}>{p.dismiss}</button>
+                </div>
+              </div>
+            )}
+            {msg.applied && <div style={{ marginTop: 6, fontSize: 13, color: "var(--g600)" }}>{c.updatedFields}</div>}
           </div>
         ))}
 

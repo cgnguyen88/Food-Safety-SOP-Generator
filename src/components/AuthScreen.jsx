@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Eye, EyeOff, Leaf, ShieldCheck, FlaskConical, Tractor } from "lucide-react";
-import { loadFromStorage, saveToStorage } from "../utils/storage.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
+import { supabase } from "../lib/supabase.js";
+import { buildSignUp, interpretSignUp, authErrorKey } from "../lib/account.js";
+import { captchaConfig, withCaptchaToken } from "../lib/captcha.js";
+import CaptchaWidget from "./CaptchaWidget.jsx";
 
 /* ─── shared style helpers ─── */
 const inputStyle = (focused) => ({
@@ -217,35 +220,22 @@ const ROLE_OPTION_KEYS = [
 /* ════════════════════════════════════════════
    Main AuthScreen component
 ═══════════════════════════════════════════ */
-export default function AuthScreen({ onLogin }) {
-  useEffect(() => {
-    const mockUser = {
-      id: Date.now(),
-      name: "Test User",
-      firstName: "Test",
-      lastName: "User",
-      email: "test@example.com",
-      phone: "",
-      organization: "Test Farm",
-      role: "owner",
-      password: "test",
-      createdAt: new Date().toISOString(),
-    };
-    saveToStorage("current_user", mockUser);
-    onLogin(mockUser);
-  }, [onLogin]);
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f8fafc' }}>
-      <p>Loading testing environment...</p>
-    </div>
-  );
+export default function AuthScreen() {
   const { lang, toggleLang } = useLanguage();
   const a = T[lang].auth;
   const ROLE_OPTIONS = ROLE_OPTION_KEYS.map(r => ({ ...r, label: a[r.key] }));
 
-  const [tab, setTab] = useState("register");
+  const [tab, setTab] = useState("login");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  /* optional CAPTCHA (only when the site is configured for one) */
+  const captcha = useMemo(() => captchaConfig(), []);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const captchaMissing = Boolean(captcha) && !captchaToken;
+  const freshCaptcha = () => { setCaptchaToken(null); setCaptchaReset(n => n + 1); };
 
   /* login state */
   const [loginEmail, setLoginEmail] = useState("");
@@ -262,54 +252,60 @@ export default function AuthScreen({ onLogin }) {
   const [regConfirm, setRegConfirm] = useState("");
   const [agreedTerms, setAgreedTerms] = useState(false);
 
-  const users = () => loadFromStorage("user_accounts", []);
+  // Runs one sign-in or sign-up call. A new session is picked up by the app itself (App.jsx).
+  const run = async (action) => {
+    setError("");
+    setNotice("");
+    if (captchaMissing) { setError(a.captchaFailed); return; }
+    setBusy(true);
+    try {
+      await action();
+    } catch (err) {
+      setError(a[authErrorKey(err)]);
+    } finally {
+      setBusy(false);
+      if (captcha) freshCaptcha(); // a token works once
+    }
+  };
 
   const handleLogin = (e) => {
     e.preventDefault();
-    setError("");
-    const user = users().find(
-      (u) => u.email.toLowerCase() === loginEmail.trim().toLowerCase() && u.password === loginPassword
-    );
-    if (!user) { setError(a.invalidCredentials); return; }
-    saveToStorage("current_user", user);
-    onLogin(user);
+    run(async () => {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail.trim().toLowerCase(),
+        password: loginPassword,
+        ...(captchaToken ? { options: { captchaToken } } : {}),
+      });
+      if (signInError) throw signInError;
+    });
   };
 
   const handleRegister = (e) => {
     e.preventDefault();
-    setError("");
-    if (!firstName.trim() || !lastName.trim() || !regEmail.trim() || !regOrg.trim() || !role) {
-      setError(a.fillRequired); return;
-    }
-    if (!regEmail.includes("@")) { setError(a.invalidEmail); return; }
-    if (regPassword.length < 6) { setError(a.passwordLength); return; }
-    if (regPassword !== regConfirm) { setError(a.passwordMismatch); return; }
-    if (!agreedTerms) { setError(a.acceptTerms); return; }
-
-    const all = users();
-    if (all.find((u) => u.email.toLowerCase() === regEmail.trim().toLowerCase())) {
-      setError(a.emailExists); return;
-    }
-
-    const newUser = {
-      id: Date.now(),
-      name: `${firstName.trim()} ${lastName.trim()}`,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: regEmail.trim().toLowerCase(),
-      phone: regPhone.trim(),
-      organization: regOrg.trim(),
-      role,
-      password: regPassword,
-      createdAt: new Date().toISOString(),
-    };
-
-    saveToStorage("user_accounts", [...all, newUser]);
-    saveToStorage("current_user", newUser);
-    onLogin(newUser);
+    const built = buildSignUp({
+      role, firstName, lastName, email: regEmail, phone: regPhone, organization: regOrg,
+      password: regPassword, confirm: regConfirm, agreedTerms,
+    });
+    if (!built.ok) { setNotice(""); setError(a[built.code]); return; }
+    run(async () => {
+      const options = withCaptchaToken({ ...built.payload.options, emailRedirectTo: window.location.origin }, captchaToken);
+      const { data, error: signUpError } = await supabase.auth.signUp({ ...built.payload, options });
+      if (signUpError) throw signUpError;
+      const outcome = interpretSignUp(data);
+      if (outcome.kind === "confirm-email") {
+        // No session until the emailed link is clicked: do not act signed in.
+        setTab("login");
+        setLoginEmail(built.payload.email);
+        setRegPassword("");
+        setRegConfirm("");
+        setNotice(a.checkEmail(outcome.email));
+      } else if (outcome.kind === "failed") {
+        setError(a.genericError);
+      }
+    });
   };
 
-  const switchTab = (t) => { setTab(t); setError(""); };
+  const switchTab = (t) => { setTab(t); setError(""); setNotice(""); };
 
   /* ─── card container styles ─── */
   const cardStyle = {
@@ -418,8 +414,13 @@ export default function AuthScreen({ onLogin }) {
             {/* Card body */}
             <div style={{ padding:"24px 28px", overflowY:"auto" }}>
               {error && (
-                <div style={{ padding:"10px 14px", background:"var(--red-l)", border:"1.5px solid #fca5a5", borderRadius:8, fontSize:13, color:"var(--red)", marginBottom:16 }}>
+                <div role="alert" style={{ padding:"10px 14px", background:"var(--red-l)", border:"1.5px solid #fca5a5", borderRadius:8, fontSize:13, color:"var(--red)", marginBottom:16 }}>
                   {error}
+                </div>
+              )}
+              {notice && (
+                <div role="status" style={{ padding:"10px 14px", background:"#ecfdf5", border:"1.5px solid #6ee7b7", borderRadius:8, fontSize:13, color:"#065f46", marginBottom:16 }}>
+                  {notice}
                 </div>
               )}
 
@@ -490,7 +491,8 @@ export default function AuthScreen({ onLogin }) {
                   </CheckboxField>
                 </div>
 
-                <PrimaryButton type="submit">{a.createBtn}</PrimaryButton>
+                <CaptchaWidget config={captcha} lang={lang} resetKey={captchaReset} onToken={setCaptchaToken} onExpire={() => setCaptchaToken(null)} />
+                <PrimaryButton type="submit" disabled={busy || captchaMissing}>{busy ? a.pleaseWait : a.createBtn}</PrimaryButton>
               </form>
             </div>
 
@@ -527,8 +529,13 @@ export default function AuthScreen({ onLogin }) {
             {/* Card body */}
             <div style={{ padding:"24px 28px" }}>
               {error && (
-                <div style={{ padding:"10px 14px", background:"var(--red-l)", border:"1.5px solid #fca5a5", borderRadius:8, fontSize:13, color:"var(--red)", marginBottom:16 }}>
+                <div role="alert" style={{ padding:"10px 14px", background:"var(--red-l)", border:"1.5px solid #fca5a5", borderRadius:8, fontSize:13, color:"var(--red)", marginBottom:16 }}>
                   {error}
+                </div>
+              )}
+              {notice && (
+                <div role="status" style={{ padding:"10px 14px", background:"#ecfdf5", border:"1.5px solid #6ee7b7", borderRadius:8, fontSize:13, color:"#065f46", marginBottom:16 }}>
+                  {notice}
                 </div>
               )}
               <form onSubmit={handleLogin}>
@@ -550,7 +557,8 @@ export default function AuthScreen({ onLogin }) {
                   required
                 />
                 <div style={{ marginBottom:20 }} />
-                <PrimaryButton type="submit">{a.signInBtn}</PrimaryButton>
+                <CaptchaWidget config={captcha} lang={lang} resetKey={captchaReset} onToken={setCaptchaToken} onExpire={() => setCaptchaToken(null)} />
+                <PrimaryButton type="submit" disabled={busy || captchaMissing}>{busy ? a.pleaseWait : a.signInBtn}</PrimaryButton>
               </form>
             </div>
 
@@ -575,24 +583,25 @@ export default function AuthScreen({ onLogin }) {
 }
 
 /* ─── full-width primary button ─── */
-function PrimaryButton({ children, type = "button", onClick }) {
+function PrimaryButton({ children, type = "button", onClick, disabled = false }) {
   const [hovered, setHovered] = useState(false);
   return (
     <button
       type={type}
       onClick={onClick}
+      disabled={disabled}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         width: "100%",
         height: 40,
-        background: hovered ? "var(--g800)" : "var(--g900)",
+        background: disabled ? "var(--g600)" : hovered ? "var(--g800)" : "var(--g900)",
         color: "white",
         border: "none",
         borderRadius: 6,
         fontSize: 14,
         fontWeight: 600,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         transition: "background 0.15s",
         display: "flex",
         alignItems: "center",

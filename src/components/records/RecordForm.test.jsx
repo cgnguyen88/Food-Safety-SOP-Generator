@@ -819,6 +819,18 @@ describe('RecordForm: water assessments', () => {
     expect(screen.getByLabelText(/^The measures you will take/).getAttribute('aria-required')).toBe('true');
   });
 
+  it('needs only the source when the decision is that it is not used any more, and says nothing about the ratings', async () => {
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user, onSaved } = assessment();
+    await user.type(screen.getByLabelText(LABEL.source), 'Old well');
+    await user.selectOptions(screen.getByLabelText(LABEL.conclusion), 'retired');
+    expect(screen.queryByText(/Still needed/)).toBeNull();
+    expect(screen.queryByText('Rate every factor to see what your answers add up to.')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save & approve' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(createRecord).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved', payload: expect.objectContaining({ source: 'Old well', conclusion: 'retired', source_concern: '' }) }));
+  });
+
   it('reminds that a public water system may not need an assessment', async () => {
     const { user } = assessment();
     expect(screen.queryByText(/A public water system may not need a written assessment/)).toBeNull();

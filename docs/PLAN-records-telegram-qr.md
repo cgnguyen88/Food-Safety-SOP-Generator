@@ -98,7 +98,12 @@ with its newest approved assessment and when it is next due (a year on); a sourc
 (an approved weather event) came after it was last assessed and hit a field it waters, or named it. Floods are tied in three
 places: the flood form names the assessed sources for its field, a flood's detail lists the water it may have reached with
 one click to assess each again, and an assessment shows floods of the last year on its fields. Home points to sources that
-need an assessment. Owner to do: run `20261021000000_water_assessments.sql` (it adds the kind to the database's list).
+need an assessment. A source that is not used any more is taken off the list with a "Not used any more" assessment (the
+decision, with nothing else to fill in). Fields and sources are matched loosely ("A-2", "a2", "A2 and B1", accents).
+Owner to do: run `20261021000000_water_assessments.sql` (it adds the kind to the database's list).
+Known limit: the database's protection of a field's name (it cannot be renamed or deleted while records use it) looks at
+each record's `field`, not at the list of fields an assessment waters, so a field named only in an assessment can still be
+renamed; the assessment form warns about names that are not in the field list.
 
 ### Phase 3: Telegram capture
 Copy the Organic channel and agent code (two-step linking, review queue, photo reading), with tools for the food safety

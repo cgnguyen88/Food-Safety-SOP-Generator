@@ -358,3 +358,29 @@ describe('naming fields and sources the way people write them', () => {
     expect(recentFloods([flood('b1')], { fields: 'A-2 and B1', today: TODAY })).toHaveLength(1);
   });
 });
+
+describe('a water source that is not used any more', () => {
+  const retired = (source = 'Well 1', date = '2026-05-01') => assessment({ source, conclusion: 'retired' }, { record_date: date, created_at: `${date}T09:00:00Z` });
+
+  it('leaves the list once its newest assessment says so, however overdue or flooded it was', () => {
+    const old = assessment({}, { record_date: '2024-01-01', created_at: '2024-01-01T00:00:00Z' });
+    expect(waterSources([old, flood('A1'), retired()], { today: TODAY })).toEqual([]);
+  });
+
+  it('is not brought back by a flood, only by a newer assessment that says it is in use', () => {
+    expect(waterSources([assessment(), retired(), flood('A1', { record_date: '2026-06-20', created_at: '2026-06-20T09:00:00Z' })], { today: TODAY })).toEqual([]);
+    const again = assessment({}, { record_date: '2026-06-01', created_at: '2026-06-01T09:00:00Z' });
+    expect(waterSources([assessment(), retired(), again], { today: TODAY }).map((r) => [r.name, r.status])).toEqual([['Well 1', 'current']]);
+  });
+
+  it('only takes that source off the list, and an unapproved or future retirement changes nothing', () => {
+    const rows = waterSources([assessment({ source: 'Canal', fields_served: 'B1' }), retired('Well 1'), assessment(), retired('Canal', '2026-08-01')], { today: TODAY });
+    expect(rows.map((r) => r.name)).toEqual(['Canal']);
+    expect(waterSources([assessment(), { ...retired(), status: 'pending_review' }], { today: TODAY })).toHaveLength(1);
+  });
+
+  it('is not tied to floods', () => {
+    const rows = waterSources([retired(), assessment({ source: 'Canal', fields_served: 'B1' })], { today: TODAY });
+    expect(sourcesServing(rows, { field: 'A1' })).toEqual([]);
+  });
+});

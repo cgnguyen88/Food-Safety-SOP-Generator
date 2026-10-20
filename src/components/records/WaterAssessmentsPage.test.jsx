@@ -128,6 +128,27 @@ describe('WaterAssessmentsPage', () => {
     expect(within(dialog).getByLabelText(/^What you decided/).value).toBe('');
   });
 
+  it('retires a source from its row, with nothing to fill in but the date, and it leaves the list once approved', async () => {
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user, onChanged } = setup();
+    await screen.findByText('1 overdue');
+    await user.click(screen.getByRole('button', { name: 'Not used any more: Canal' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add water assessment' });
+    expect(within(dialog).getByLabelText(/^Water source or system/).value).toBe('Canal');
+    expect(within(dialog).getByLabelText(/^What you decided/).value).toBe('retired');
+    expect(within(dialog).queryByText(/Still needed/)).toBeNull();
+    await user.click(within(dialog).getByRole('button', { name: 'Save & approve' }));
+    await waitFor(() => expect(createRecord).toHaveBeenCalledWith(expect.objectContaining({ kind: 'water_assessment', status: 'approved', payload: expect.objectContaining({ source: 'Canal', conclusion: 'retired' }) })));
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('offers retiring to crew too, which waits for review', async () => {
+    const { user } = setup({ role: 'crew' });
+    await screen.findByText('1 overdue');
+    await user.click(screen.getByRole('button', { name: 'Not used any more: Canal' }));
+    expect(await screen.findByRole('button', { name: 'Submit for review' })).toBeTruthy();
+  });
+
   it('reads the records again and tells the parent once an assessment is saved', async () => {
     createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
     const { user, onChanged } = setup();

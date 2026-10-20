@@ -92,7 +92,8 @@ const STANDING = { flood: 0, overdue: 1, due_soon: 2, current: 3 };
 
 /**
  * One row for each water source: its newest approved assessment, when it is next due (a year on), and whether a flood
- * since then means it needs a new one. A source is spelled as its newest assessment spells it. Assessments dated in the
+ * since then means it needs a new one. A source is spelled as its newest assessment spells it, and is left out when that
+ * assessment says it is not used any more. Assessments dated in the
  * future have not happened yet, so they do not count. Most urgent first.
  *
  * @param {object[]} records
@@ -114,6 +115,9 @@ export function waterSources(records, { today }) {
     const current = latest.get(key);
     if (!current || newestFirst(candidate, current) < 0) latest.set(key, candidate);
   }
+
+  // A source whose newest assessment says it is not used any more is off the list, until a newer assessment says it is in use.
+  for (const [key, { record }] of latest) if (record.payload.conclusion === 'retired') latest.delete(key);
 
   const floods = records
     .filter((record) => isApproved(record, 'weather_event') && record.payload.event_type === 'flood')

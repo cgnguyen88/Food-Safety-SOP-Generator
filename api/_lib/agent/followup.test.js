@@ -34,7 +34,7 @@ describe('questionsFor', () => {
   it('has a proper question for every detail a record can be missing, so none falls back on a label that reads badly', () => {
     for (const lang of ['en', 'es']) {
       for (const [kind, fields] of Object.entries(KIND_FIELDS)) {
-        for (const f of fields.filter((x) => x.required || x.requiredWhen)) {
+        for (const f of fields.filter((x) => x.required || x.requiredWhen || x.requiredUnless)) {
           const { text } = questionsFor(kind, [f.key], lang);
           // The fallback question quotes the field's label; a written question does not.
           const fallback = lang === 'es' ? `¿Cuál es ${f.label.es}?` : `What is the ${f.label.en}?`;

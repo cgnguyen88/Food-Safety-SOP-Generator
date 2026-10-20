@@ -55,7 +55,7 @@ const QUESTIONS = {
     crop_concern: 'How worried are you about the crop (low, some or high)?',
     weather_concern: 'How worried are you about the weather, such as heavy rain or flooding (low, some or high)?',
     testing_concern: 'How worried are you about the water test results (low, some or high, or no test results)?',
-    conclusion: 'What did you decide: are measures needed to protect the water, or not?',
+    conclusion: 'What did you decide: are measures needed to protect the water, or not (or is the source not used any more)?',
     mitigation: 'What measures will you take, and by when?',
   },
   es: {
@@ -104,7 +104,7 @@ const QUESTIONS = {
     crop_concern: '¿Qué tanto te preocupa el cultivo (poca, alguna o mucha)?',
     weather_concern: '¿Qué tanto te preocupa el clima, como la lluvia intensa o las inundaciones (poca, alguna o mucha)?',
     testing_concern: '¿Qué tanto te preocupan los resultados de los análisis del agua (poca, alguna o mucha, o sin resultados)?',
-    conclusion: '¿Qué decidiste: se necesitan medidas para proteger el agua, o no?',
+    conclusion: '¿Qué decidiste: se necesitan medidas para proteger el agua, o no (o ya no se usa la fuente)?',
     mitigation: '¿Qué medidas tomarás y para cuándo?',
   },
 };

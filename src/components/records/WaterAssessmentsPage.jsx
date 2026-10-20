@@ -37,7 +37,10 @@ export default function WaterAssessmentsPage({ farm, role, today, onChanged }) {
   const counts = waterCounts(sources);
   const shown = showAll ? sources : sources.filter((source) => source.status !== 'current');
   const canRecord = canSeeKind('water_assessment', role);
-  const assessAgain = (source) => setAdding({ prefill: prefillFromAssessment(records.find((record) => record.id === source.recordId)) });
+  const lastAnswers = (source) => prefillFromAssessment(records.find((record) => record.id === source.recordId));
+  const assessAgain = (source) => setAdding({ prefill: lastAnswers(source) });
+  // Taking a source off the list is one more assessment of it, whose decision is that it is not used any more.
+  const retire = (source) => setAdding({ prefill: { ...lastAnswers(source), conclusion: 'retired' } });
 
   return (
     <div style={ui.page}>
@@ -101,7 +104,12 @@ export default function WaterAssessmentsPage({ farm, role, today, onChanged }) {
                         {source.floods.length > 0 && <div style={{ fontSize: 12, color: '#991b1b', marginTop: 4 }}>{tt.floodOn(source.floods)}</div>}
                       </td>
                       <td className="stack-actions" style={td}>
-                        {canRecord && <button type="button" aria-label={tt.reassessFor(source.name)} onClick={() => assessAgain(source)} style={small}>{tt.reassess}</button>}
+                        {canRecord && (
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <button type="button" aria-label={tt.reassessFor(source.name)} onClick={() => assessAgain(source)} style={small}>{tt.reassess}</button>
+                            <button type="button" aria-label={tt.retireFor(source.name)} onClick={() => retire(source)} style={small}>{tt.retire}</button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

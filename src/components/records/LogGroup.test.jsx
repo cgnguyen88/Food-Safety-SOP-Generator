@@ -67,6 +67,19 @@ describe('LogGroup', () => {
     expect(container.querySelector('.log-group-icon').getAttribute('aria-hidden')).toBe('true');
   });
 
+  it('carries its colour to the guide line that ties its logs to it', () => {
+    const { container } = setup();
+    expect(container.querySelector('.log-group').style.getPropertyValue('--group-accent')).toBe('#0e7490');
+  });
+
+  it('sets its logs in from the group name, with a guide line down the left, so the two levels are easy to tell apart', () => {
+    const rule = (selector) => GLOBAL_CSS.split('}').find((chunk) => chunk.includes(`${selector} {`)) ?? '';
+    const leftPadding = (selector) => Number(/padding:\s*\d+px\s+\d+px\s+\d+px\s+(\d+)px/.exec(rule(selector))?.[1]);
+    // The group's own icon starts 16px in and its name 60px in: the logs start under the name, not under the icon.
+    expect(leftPadding('.log-row-open')).toBeGreaterThanOrEqual(60);
+    expect(rule('.log-group-body::before')).toMatch(/var\(--group-accent/);
+  });
+
   it('is never styled in capitals, and is dark enough to read', () => {
     const rule = (selector) => GLOBAL_CSS.split('}').find((chunk) => chunk.includes(`${selector} {`)) ?? '';
     for (const selector of ['.log-group-header', '.log-group-title', '.log-group-count']) expect(rule(selector), selector).not.toMatch(/uppercase|capitalize/);

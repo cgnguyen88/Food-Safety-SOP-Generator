@@ -266,14 +266,15 @@ export const GLOBAL_CSS = `
   .log-group-title { flex: 1; min-width: 0; }
   .log-group-count { min-width: 24px; padding: 2px 8px; border-radius: 999px; background: #e8eff7; color: var(--u-navy); font: 600 12px/1.5 Inter, sans-serif; text-align: center; }
   .log-group-chevron { flex-shrink: 0; color: #4b6079; }
-  .log-group-body { border-top: 1px solid #e3eaf2; }
-  .log-row { display: flex; align-items: stretch; border-bottom: 1px solid #edf1f6; }
-  .log-row:last-child { border-bottom: 0; }
-  .log-row-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 12px 16px 12px 20px; border: 0; background: transparent; cursor: pointer; text-align: left; color: #0f172a; font: 500 14.5px/1.3 Inter, sans-serif; }
-  .log-row-open:hover, .log-row-add:hover { background: #f3f7fb; }
+  /* The logs sit inside the group, set in from its name, with a guide line (in the group's colour) down the left. */
+  .log-group-body { position: relative; padding: 4px 0 6px; border-top: 1px solid #e3eaf2; background: #f7fafd; }
+  .log-group-body::before { content: ""; position: absolute; left: 31px; top: 10px; bottom: 10px; width: 2px; border-radius: 2px; background: var(--group-accent, #94a3b8); opacity: .45; pointer-events: none; }
+  .log-row { display: flex; align-items: stretch; }
+  .log-row-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 60px; border: 0; background: transparent; cursor: pointer; text-align: left; color: #0f172a; font: 500 14.5px/1.3 Inter, sans-serif; }
+  .log-row-open:hover, .log-row-add:hover { background: #e9f1f9; }
   .log-row-open:focus-visible, .log-row-add:focus-visible { outline: 2px solid var(--u-sky); outline-offset: -2px; }
   .log-row-icon { width: 28px; height: 28px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
-  .log-row-add { width: 54px; display: flex; align-items: center; justify-content: center; border: 0; border-left: 1px solid #edf1f6; background: transparent; cursor: pointer; color: var(--u-navy); }
+  .log-row-add { width: 52px; display: flex; align-items: center; justify-content: center; border: 0; background: transparent; cursor: pointer; color: var(--u-navy); }
 
   /* ── Phones ─────────────────────────────────────────────────────────────────────────────────
      The pages are styled with inline styles, so these rules need !important, and where a page has no

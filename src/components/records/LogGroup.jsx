@@ -18,7 +18,7 @@ export default function LogGroup({ id, label, icon: Icon, accent, count, default
   const Chevron = open ? ChevronDown : ChevronRight;
 
   return (
-    <section className="log-group" aria-label={label}>
+    <section className="log-group" aria-label={label} style={{ '--group-accent': accent }}>
       <button type="button" className="log-group-header" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={listId}>
         <span className="log-group-icon" aria-hidden="true" style={{ background: `${accent}1f` }}>
           <Icon size={17} color={accent} />

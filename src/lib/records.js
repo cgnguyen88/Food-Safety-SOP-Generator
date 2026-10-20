@@ -109,6 +109,26 @@ export async function setRecordStatus(id, status) {
   return fromDb(await supabase.from('records').update({ status }).eq('id', id).select().single(), 'setRecordStatus');
 }
 
+/**
+ * Take a record through several status changes, in order, stopping at the first one that is refused. The database moves
+ * a record one step at a time (a draft is approved by way of review), so one click can mean more than one change.
+ * `data` is the record as it ended up, even when `error` says a later step failed.
+ *
+ * @param {string} id
+ * @param {string[]} steps
+ * @returns {Promise<{ data: object | null, error: { code: string, message?: string } | null }>}
+ */
+export async function advanceRecord(id, steps) {
+  if (steps.length === 0 || !steps.every((status) => RECORD_STATUSES.includes(status))) return fail('invalid', { fields: { status: 'invalid' } });
+  let latest = null;
+  for (const status of steps) {
+    const result = await setRecordStatus(id, status);
+    if (result.error) return { data: latest, error: result.error };
+    latest = result.data;
+  }
+  return done(latest);
+}
+
 const newestFirst = (q) => q.order('record_date', { ascending: false, nullsFirst: false }).order('created_at', { ascending: false });
 
 /**

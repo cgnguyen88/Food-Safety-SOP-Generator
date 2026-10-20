@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { renderWithLang } from './testUtils.jsx';
 
 vi.mock('../../lib/records.js', () => ({
-  listSavedViewRecords: vi.fn(), setRecordStatus: vi.fn(), listRevisions: vi.fn(), updateRecord: vi.fn(), createRecord: vi.fn(),
+  listSavedViewRecords: vi.fn(), setRecordStatus: vi.fn(), advanceRecord: vi.fn(), listRevisions: vi.fn(), updateRecord: vi.fn(), createRecord: vi.fn(),
 }));
 vi.mock('../../lib/reportData.js', () => ({ listSavedViewRecordsForReport: vi.fn() }));
 vi.mock('../../lib/reportCsv.js', () => ({ downloadCsv: vi.fn() }));
@@ -50,13 +50,13 @@ describe('SavedViewResults', () => {
   });
 
   it('removes a record from the view once it is voided', async () => {
-    records.setRecordStatus.mockResolvedValue({ data: { ...rec, status: 'voided' }, error: null });
+    records.advanceRecord.mockResolvedValue({ data: { ...rec, status: 'voided' }, error: null });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const user = userEvent.setup();
     renderWithLang(<SavedViewResults view={view} farm={farm} role="owner" userId="u1" />);
     await user.click(await screen.findByText('Compost · Acme'));
     await user.click(await screen.findByRole('button', { name: 'Void' }));
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await waitFor(() => expect(screen.queryByText('Compost · Acme')).toBeNull());
   });
 

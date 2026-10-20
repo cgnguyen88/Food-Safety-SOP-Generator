@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { KIND_FIELDS, KIND_META, optionLabel } from '../../domain/records/kinds.js';
-import { availableActions, canEditRecord } from '../../domain/records/workflow.js';
+import { canEditRecord, detailActions, finishSteps, isUnfinished } from '../../domain/records/workflow.js';
 import { getAttachmentUrl } from '../../lib/attachments.js';
-import { listRevisions, setRecordStatus } from '../../lib/records.js';
+import { advanceRecord, listRevisions } from '../../lib/records.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
 import Modal from './Modal.jsx';
@@ -22,13 +22,13 @@ function Row({ label, children }) {
   );
 }
 
-/** Action buttons offered for each target status, in display order. */
+/** Action buttons offered for each target status, in display order. (Taking out a record nobody has sent for review is a delete; later it is a void.) */
 const ACTIONS = [
   { to: 'approved', key: 'approve', style: ui.buttonSuccess, text: (tt) => tt.review.approve },
   { to: 'rejected', key: 'reject', style: ui.buttonDanger, text: (tt) => tt.review.reject },
   { to: 'needs_info', key: 'askInfo', style: ui.buttonSecondary, text: (tt) => tt.review.askInfo },
   { to: 'pending_review', key: 'markReady', style: ui.buttonSecondary, text: (tt, from, role) => (role === 'crew' ? tt.form.submit : from === 'rejected' ? tt.detail.reopen : tt.detail.markReady) },
-  { to: 'voided', key: 'void', style: ui.buttonDanger, text: (tt) => tt.detail.void },
+  { to: 'voided', key: 'void', style: ui.buttonDanger, text: (tt, from) => (isUnfinished(from) ? tt.detail.delete : tt.detail.void) },
 ];
 
 /**
@@ -55,20 +55,34 @@ export default function RecordDetail({ record, role, userId, farm, onClose, onCh
   const kind = current.kind;
   const fields = KIND_FIELDS[kind];
   const label = (key) => fields.find((f) => f.key === key)?.label[lang] ?? key;
-  const transitions = availableActions(current, role, userId);
+  const transitions = detailActions(current, role, userId);
+  const finishTo = finishSteps(current, role, userId).at(-1) ?? null;
+  const incomplete = current.missing_fields?.length > 0;
 
-  async function change(status) {
-    if (status === 'voided' && !window.confirm(tt.detail.voidHint)) return;
+  // The steps one click takes: finishing a draft goes through review, because the database moves one step at a time.
+  const stepsTo = (record, status) => {
+    const path = finishSteps(record, role, userId);
+    return path.at(-1) === status ? path : [status];
+  };
+
+  async function move(record, steps) {
     setBusy(true);
     setError(null);
-    const result = await setRecordStatus(current.id, status);
+    const result = await advanceRecord(record.id, steps);
     setBusy(false);
-    if (result.error) {
-      setError(result.error);
-      return;
+    if (result.data) {
+      setCurrent(result.data);
+      onChanged?.(result.data);
     }
-    setCurrent(result.data);
-    onChanged?.(result.data);
+    if (result.error) setError(result.error);
+    return !result.error;
+  }
+
+  async function change(status) {
+    if (status === 'voided' && !window.confirm(isUnfinished(current.status) ? tt.detail.deleteHint : tt.detail.voidHint)) return;
+    const moved = await move(current, stepsTo(current, status));
+    // A voided record has left the log, so there is nothing more to do with it here.
+    if (moved && status === 'voided') onClose?.();
   }
 
   async function openFile(file) {
@@ -88,11 +102,13 @@ export default function RecordDetail({ record, role, userId, farm, onClose, onCh
         role={role}
         farmId={farm.id}
         record={current}
+        advanceTo={finishTo}
         onCancel={() => setEditing(false)}
-        onSaved={(updated) => {
+        onSaved={(updated, advanceTo) => {
           setCurrent(updated);
           setEditing(false);
           onChanged?.(updated);
+          if (advanceTo) move(updated, stepsTo(updated, advanceTo));
         }}
       />
     );
@@ -160,7 +176,7 @@ export default function RecordDetail({ record, role, userId, farm, onClose, onCh
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 18 }}>
         {ACTIONS.filter((a) => transitions.includes(a.to)).map((a) => (
-          <button key={a.key} type="button" disabled={busy} onClick={() => change(a.to)} style={{ ...a.style, ...(busy ? ui.buttonDisabled : {}) }}>
+          <button key={a.key} type="button" disabled={busy || (a.to === 'approved' && incomplete)} onClick={() => change(a.to)} style={{ ...a.style, ...(busy || (a.to === 'approved' && incomplete) ? ui.buttonDisabled : {}) }}>
             {a.text(tt, current.status, role)}
           </button>
         ))}

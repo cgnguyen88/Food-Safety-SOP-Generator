@@ -71,6 +71,47 @@ export function availableActions(record, role, userId) {
   return [];
 }
 
+/** A record nobody has sent for review yet (a draft, or one waiting on details from its author). @param {string} status */
+export const isUnfinished = (status) => status === 'draft' || status === 'needs_info';
+
+/** The database moves a record one step at a time, so getting a draft approved goes through review. */
+const REVIEWER_FINISH = Object.freeze({
+  draft: ['pending_review', 'approved'],
+  needs_info: ['pending_review', 'approved'],
+  pending_review: ['approved'],
+});
+const AUTHOR_FINISH = Object.freeze({ draft: ['pending_review'], needs_info: ['pending_review'] });
+
+/**
+ * How far one click can take this record, as the steps to take in order: an owner or manager can approve a draft (it
+ * goes through review on the way); crew can send their own draft for review. Empty when there is nothing more to do.
+ *
+ * @param {{ status: string, created_by?: string | null }} record
+ * @param {string | null | undefined} role
+ * @param {string | null | undefined} userId
+ * @returns {string[]}
+ */
+export function finishSteps(record, role, userId) {
+  if (canReview(role)) return [...(REVIEWER_FINISH[record.status] ?? [])];
+  if (role === 'crew' && userId && record.created_by === userId) return [...(AUTHOR_FINISH[record.status] ?? [])];
+  return [];
+}
+
+/**
+ * The buttons a record's detail shows. Like availableActions, but an owner or manager looking at a draft (or a record
+ * waiting for details) is offered Approve and Delete, not the half-steps in between.
+ *
+ * @param {{ status: string, created_by?: string | null }} record
+ * @param {string | null | undefined} role
+ * @param {string | null | undefined} userId
+ * @returns {string[]}
+ */
+export function detailActions(record, role, userId) {
+  const offered = availableActions(record, role, userId);
+  if (!canReview(role) || !isUnfinished(record.status)) return offered;
+  return [...finishSteps(record, role, userId).slice(-1), ...offered.filter((status) => status === 'voided')];
+}
+
 /**
  * @param {{ status: string, created_by?: string | null }} record
  * @param {string | null | undefined} role

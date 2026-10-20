@@ -667,3 +667,89 @@ describe('RecordForm: lot codes', () => {
     expect(screen.getByLabelText(/^Código de lote/).value).toBe('GVF-LECHUGA-20261012-A1');
   });
 });
+
+describe('RecordForm: editing a record that can be moved on', () => {
+  const draft = { id: 'h1', kind: 'harvest', status: 'draft', record_date: '2026-10-12', payload: { crop: 'Lettuce', field: 'A1', quantity: 5, unit: 'cartons' } };
+  const FLOOD = { id: 'w1', kind: 'weather_event', status: 'approved', record_date: '2026-10-01', payload: { event_type: 'flood', field: 'B4', crop_contact: 'yes' } };
+  const saveAnd = (name) => screen.getByRole('button', { name });
+
+  it('offers only Save changes when the record cannot be moved on', () => {
+    setup({ record: draft, role: 'owner' });
+    expect(saveAnd('Save changes')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save & approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Submit for review' })).toBeNull();
+  });
+
+  it('offers Save & approve next to Save changes, and saves then hands the approval on', async () => {
+    updateRecord.mockResolvedValue({ data: { ...draft, id: 'h1' }, error: null });
+    const { user, onSaved } = setup({ record: draft, role: 'owner', advanceTo: 'approved' });
+    await user.clear(screen.getByLabelText(/^Quantity/));
+    await user.type(screen.getByLabelText(/^Quantity/), '6');
+    await user.click(saveAnd('Save & approve'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' }), 'approved'));
+    expect(updateRecord).toHaveBeenCalledWith('h1', expect.objectContaining({ payload: expect.objectContaining({ quantity: '6' }) }));
+    expect(createRecord).not.toHaveBeenCalled();
+  });
+
+  it('says Submit for review when the person can send it on but not approve it', async () => {
+    updateRecord.mockResolvedValue({ data: draft, error: null });
+    const { user, onSaved } = setup({ record: draft, role: 'crew', advanceTo: 'pending_review' });
+    expect(screen.queryByRole('button', { name: 'Save & approve' })).toBeNull();
+    await user.click(saveAnd('Submit for review'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.anything(), 'pending_review'));
+  });
+
+  it('keeps Save changes as a plain save that moves nothing', async () => {
+    updateRecord.mockResolvedValue({ data: draft, error: null });
+    const { user, onSaved } = setup({ record: draft, role: 'owner', advanceTo: 'approved' });
+    await user.click(saveAnd('Save changes'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(onSaved.mock.calls[0]).toHaveLength(1);
+  });
+
+  it('cannot approve a record that is still missing something, but can save it', async () => {
+    const { user } = setup({ record: { ...draft, payload: { crop: 'Lettuce', field: 'A1' } }, role: 'owner', advanceTo: 'approved' });
+    expect(saveAnd('Save & approve').disabled).toBe(true);
+    expect(saveAnd('Save changes').disabled).toBe(false);
+    expect(screen.getByText(/Still needed:/).textContent).toMatch(/Quantity/);
+    await user.type(screen.getByLabelText(/^Quantity/), '5');
+    await user.type(screen.getByLabelText(/^Unit/), 'lb');
+    await waitFor(() => expect(saveAnd('Save & approve').disabled).toBe(false));
+  });
+
+  it('does not save the changes when the save fails, and does not move the record on', async () => {
+    updateRecord.mockResolvedValue({ data: null, error: { code: 'forbidden' } });
+    const { user, onSaved } = setup({ record: draft, role: 'owner', advanceTo: 'approved' });
+    await user.click(saveAnd('Save & approve'));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/permission/i);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it('will not approve a harvest with a lot code on a field on hold, but can still save the changes', async () => {
+    farmHas([FLOOD]);
+    const record = { ...draft, payload: { ...draft.payload, field: 'B4', lot_code: 'X-1' } };
+    updateRecord.mockResolvedValue({ data: record, error: null });
+    const { user, onSaved } = setup({ record, role: 'owner', advanceTo: 'approved' });
+    expect(await screen.findByText(/Take out the lot code/)).toBeTruthy();
+    expect(saveAnd('Save & approve').disabled).toBe(true);
+    await user.click(saveAnd('Save changes'));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ id: 'h1' })));
+  });
+
+  it('will not approve a harvest with a lot code while the holds cannot be read', async () => {
+    listRecordsForReport.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+    const record = { ...draft, payload: { ...draft.payload, lot_code: 'X-1' } };
+    setup({ record, role: 'owner', advanceTo: 'approved' });
+    expect((await screen.findAllByText(/could not be checked right now/)).length).toBeGreaterThan(0);
+    expect(saveAnd('Save & approve').disabled).toBe(true);
+    expect(saveAnd('Save changes').disabled).toBe(false);
+  });
+
+  it('approves a harvest with no lot code on a field on hold: only the lot code is the problem', async () => {
+    farmHas([FLOOD]);
+    const record = { ...draft, payload: { ...draft.payload, field: 'B4' } };
+    setup({ record, role: 'owner', advanceTo: 'approved' });
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalled());
+    expect(saveAnd('Save & approve').disabled).toBe(false);
+  });
+});

@@ -16,7 +16,7 @@ const from = vi.fn();
 vi.mock('./supabase.js', () => ({ supabase: { from: (...a) => from(...a) } }));
 
 const {
-  createRecord, updateRecord, setRecordStatus, listRecords, listSavedViewRecords, countNeedsReview,
+  createRecord, updateRecord, setRecordStatus, advanceRecord, listRecords, listSavedViewRecords, countNeedsReview,
   listRevisions, listSavedViews, createSavedView, updateSavedView, deleteSavedView, getMyRole, describeRecordError,
 } = await import('./records.js');
 
@@ -132,6 +132,46 @@ describe('setRecordStatus', () => {
   it('reports "not allowed" when row-level security matched no row (e.g. crew approving)', async () => {
     from.mockReturnValue(chain({ data: null, error: { code: 'PGRST116', message: 'The result contains 0 rows' } }));
     expect((await setRecordStatus('r1', 'approved')).error.code).toBe('forbidden');
+  });
+});
+
+describe('advanceRecord', () => {
+  it('takes each step in order and gives back the record as it ends up', async () => {
+    const first = chain({ data: { id: 'r1', status: 'pending_review' }, error: null });
+    const second = chain({ data: { id: 'r1', status: 'approved' }, error: null });
+    from.mockReturnValueOnce(first).mockReturnValueOnce(second);
+    const result = await advanceRecord('r1', ['pending_review', 'approved']);
+    expect(callArgs(first, 'update')).toEqual([{ status: 'pending_review' }]);
+    expect(callArgs(second, 'update')).toEqual([{ status: 'approved' }]);
+    expect(result).toEqual({ data: { id: 'r1', status: 'approved' }, error: null });
+  });
+
+  it('stops at the first step that is refused, and still gives back how far it got', async () => {
+    const first = chain({ data: { id: 'r1', status: 'pending_review' }, error: null });
+    const second = chain({ data: null, error: { code: '23514', message: 'incomplete record' } });
+    from.mockReturnValueOnce(first).mockReturnValueOnce(second).mockReturnValue(chain({ data: { id: 'r1', status: 'voided' }, error: null }));
+    const result = await advanceRecord('r1', ['pending_review', 'approved', 'voided']);
+    expect(from).toHaveBeenCalledTimes(2);
+    expect(result.error.code).toBe('incomplete');
+    expect(result.data).toEqual({ id: 'r1', status: 'pending_review' });
+  });
+
+  it('gives no record when the very first step is refused', async () => {
+    from.mockReturnValue(chain({ data: null, error: { code: 'PGRST116', message: 'The result contains 0 rows' } }));
+    const result = await advanceRecord('r1', ['approved']);
+    expect(result.error.code).toBe('forbidden');
+    expect(result.data).toBeNull();
+  });
+
+  it('refuses an unknown status before changing anything', async () => {
+    from.mockReturnValue(chain({ data: { id: 'r1' }, error: null }));
+    expect((await advanceRecord('r1', ['pending_review', 'archived'])).error.code).toBe('invalid');
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when there are no steps', async () => {
+    expect((await advanceRecord('r1', [])).error.code).toBe('invalid');
+    expect(from).not.toHaveBeenCalled();
   });
 });
 

@@ -4,7 +4,7 @@ import { screen, cleanup, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithLang } from './testUtils.jsx';
 
-vi.mock('../../lib/records.js', () => ({ listRevisions: vi.fn(), setRecordStatus: vi.fn(), updateRecord: vi.fn(), createRecord: vi.fn() }));
+vi.mock('../../lib/records.js', () => ({ listRevisions: vi.fn(), advanceRecord: vi.fn(), updateRecord: vi.fn(), createRecord: vi.fn() }));
 vi.mock('../../lib/attachments.js', () => ({ getAttachmentUrl: vi.fn() }));
 vi.mock('../../lib/fields.js', () => ({ addFieldsByName: vi.fn() }));
 const db = await import('../../lib/attachments.js');
@@ -112,12 +112,12 @@ describe('RecordDetail: actions follow the role', () => {
   });
 
   it('lets crew send their own draft for review, and only their own', async () => {
-    records.setRecordStatus.mockResolvedValue({ data: { ...base, status: 'pending_review' }, error: null });
+    records.advanceRecord.mockResolvedValue({ data: { ...base, status: 'pending_review' }, error: null });
     const { user, onChanged } = setup({ ...base, status: 'draft' }, { role: 'crew', userId: 'crew-1' });
     expect(buttons()).toContain('Submit for review');
     for (const name of ['Approve', 'Reject', 'Void']) expect(buttons()).not.toContain(name);
     await user.click(screen.getByRole('button', { name: 'Submit for review' }));
-    await waitFor(() => expect(records.setRecordStatus).toHaveBeenCalledWith('r1', 'pending_review'));
+    await waitFor(() => expect(records.advanceRecord).toHaveBeenCalledWith('r1', ['pending_review']));
     expect(onChanged).toHaveBeenCalled();
     cleanup();
     setup({ ...base, status: 'needs_info' }, { role: 'crew', userId: 'crew-9' });
@@ -134,10 +134,10 @@ describe('RecordDetail: actions follow the role', () => {
 
 describe('RecordDetail: acting', () => {
   it('approves and tells the parent, showing the new status', async () => {
-    records.setRecordStatus.mockResolvedValue({ data: { ...base, status: 'approved' }, error: null });
+    records.advanceRecord.mockResolvedValue({ data: { ...base, status: 'approved' }, error: null });
     const { user, onChanged } = setup();
     await user.click(screen.getByRole('button', { name: 'Approve' }));
-    await waitFor(() => expect(records.setRecordStatus).toHaveBeenCalledWith('r1', 'approved'));
+    await waitFor(() => expect(records.advanceRecord).toHaveBeenCalledWith('r1', ['approved']));
     expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved' }));
     await screen.findByText('Created');
   });
@@ -147,17 +147,17 @@ describe('RecordDetail: acting', () => {
     const { user } = setup({ ...base, status: 'approved' });
     await user.click(screen.getByRole('button', { name: 'Void' }));
     expect(confirm).toHaveBeenCalled();
-    expect(records.setRecordStatus).not.toHaveBeenCalled();
+    expect(records.advanceRecord).not.toHaveBeenCalled();
 
     confirm.mockReturnValue(true);
-    records.setRecordStatus.mockResolvedValue({ data: { ...base, status: 'voided' }, error: null });
+    records.advanceRecord.mockResolvedValue({ data: { ...base, status: 'voided' }, error: null });
     await user.click(screen.getByRole('button', { name: 'Void' }));
-    await waitFor(() => expect(records.setRecordStatus).toHaveBeenCalledWith('r1', 'voided'));
+    await waitFor(() => expect(records.advanceRecord).toHaveBeenCalledWith('r1', ['voided']));
     confirm.mockRestore();
   });
 
   it('explains a refused action', async () => {
-    records.setRecordStatus.mockResolvedValue({ data: null, error: { code: 'invalid_transition' } });
+    records.advanceRecord.mockResolvedValue({ data: null, error: { code: 'invalid_transition' } });
     const { user, onChanged } = setup();
     await user.click(screen.getByRole('button', { name: 'Reject' }));
     expect((await screen.findByRole('alert')).textContent).toMatch(/not allowed/i);
@@ -173,6 +173,154 @@ describe('RecordDetail: acting', () => {
     await user.type(screen.getByLabelText(/^Sanitizer used/), 'Peracetic acid');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' })));
+  });
+});
+
+describe('RecordDetail: a draft', () => {
+  const draft = { ...base, kind: 'note', source: 'web_upload', status: 'draft', confidence: null, payload: { text: 'Dry spell', category: 'observation' } };
+  const buttons = () => screen.queryAllByRole('button').map((b) => b.textContent);
+  const draftWithRevisions = () => records.listRevisions.mockResolvedValue({ data: [], error: null });
+
+  it('gives an owner Approve, Delete and Edit, and not the half-steps in between', async () => {
+    draftWithRevisions();
+    setup(draft);
+    expect(buttons()).toEqual(expect.arrayContaining(['Approve', 'Delete', 'Edit', 'Close']));
+    for (const name of ['Mark ready for review', 'Ask for details', 'Void', 'Reject']) expect(buttons()).not.toContain(name);
+    await screen.findByText('No history yet.');
+  });
+
+  it('approves a draft in one click, going through review as the database requires', async () => {
+    draftWithRevisions();
+    records.advanceRecord.mockResolvedValue({ data: { ...draft, status: 'approved' }, error: null });
+    const { user, onChanged } = setup(draft);
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(records.advanceRecord).toHaveBeenCalledWith('r1', ['pending_review', 'approved']));
+    expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved' }));
+    await screen.findByText('No history yet.');
+  });
+
+  it('cannot approve a draft that is missing something, and says what', async () => {
+    draftWithRevisions();
+    setup({ ...draft, missing_fields: ['text'], payload: { category: 'observation' } });
+    expect(screen.getByRole('button', { name: 'Approve' }).disabled).toBe(true);
+    expect(screen.getByText(/Missing:/).textContent).toMatch(/Note/);
+    await screen.findByText('No history yet.');
+  });
+
+  it('asks before deleting, in words that say it leaves the logs, and does nothing if declined', async () => {
+    draftWithRevisions();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    records.advanceRecord.mockResolvedValue({ data: { ...draft, status: 'voided' }, error: null });
+    const { user, onChanged, onClose } = setup(draft);
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/Delete this entry\? It leaves your logs/));
+    expect(records.advanceRecord).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+
+    confirm.mockReturnValue(true);
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(records.advanceRecord).toHaveBeenCalledWith('r1', ['voided']));
+    expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ status: 'voided' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await screen.findByText('No history yet.');
+  });
+
+  it('stays open, with the reason, when a delete is refused', async () => {
+    draftWithRevisions();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    records.advanceRecord.mockResolvedValue({ data: null, error: { code: 'forbidden' } });
+    const { user, onClose } = setup(draft);
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/permission/i);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('closes after voiding an approved record, since it leaves the log', async () => {
+    draftWithRevisions();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    records.advanceRecord.mockResolvedValue({ data: { ...draft, status: 'voided' }, error: null });
+    const { user, onClose } = setup({ ...draft, status: 'approved' });
+    await user.click(screen.getByRole('button', { name: 'Void' }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+  });
+
+  it('keeps the word Void for a record that was already approved, and says Delete only before then', async () => {
+    draftWithRevisions();
+    setup({ ...draft, status: 'approved' });
+    expect(buttons()).toContain('Void');
+    expect(buttons()).not.toContain('Delete');
+    await screen.findByText('No history yet.');
+  });
+
+  it('shows how far it got and says why, when a later step is refused', async () => {
+    draftWithRevisions();
+    records.advanceRecord.mockResolvedValue({ data: { ...draft, status: 'pending_review' }, error: { code: 'incomplete' } });
+    const { user, onChanged } = setup(draft);
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect((await screen.findByRole('alert')).textContent).toMatch(/incomplete|missing|fill/i);
+    expect(onChanged).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending_review' }));
+    expect(screen.getAllByText('Needs review').length).toBeGreaterThan(0);
+  });
+
+  it('leaves the record alone and says why when the very first step is refused', async () => {
+    draftWithRevisions();
+    records.advanceRecord.mockResolvedValue({ data: null, error: { code: 'forbidden' } });
+    const { user, onChanged } = setup(draft);
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(screen.getAllByText('Draft').length).toBeGreaterThan(0);
+  });
+
+  it('says Eliminar in Spanish', async () => {
+    draftWithRevisions();
+    setup(draft, {}, 'es');
+    expect(screen.getByRole('button', { name: 'Eliminar' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Aprobar' })).toBeTruthy();
+    await screen.findByText('Aún no hay historial.');
+  });
+
+  it('lets an owner finish a draft from the edit form: save the changes, then approve', async () => {
+    draftWithRevisions();
+    records.updateRecord.mockResolvedValue({ data: { ...draft, payload: { ...draft.payload, text: 'Dry spell, no rain for 3 weeks' } }, error: null });
+    records.advanceRecord.mockResolvedValue({ data: { ...draft, status: 'approved' }, error: null });
+    const { user, onChanged } = setup(draft);
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await screen.findByRole('dialog', { name: 'Edit note' });
+    await user.type(screen.getByLabelText(/^Note/), ', no rain for 3 weeks');
+    await user.click(screen.getByRole('button', { name: 'Save & approve' }));
+    await waitFor(() => expect(records.advanceRecord).toHaveBeenCalledWith('r1', ['pending_review', 'approved']));
+    expect(records.updateRecord).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onChanged).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'approved' })));
+  });
+
+  it('still lets an owner save an edit to a draft without approving it', async () => {
+    draftWithRevisions();
+    records.updateRecord.mockResolvedValue({ data: draft, error: null });
+    const { user, onChanged } = setup(draft);
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(records.advanceRecord).not.toHaveBeenCalled();
+  });
+
+  it('lets crew send their own draft for review from the edit form, and nothing further', async () => {
+    draftWithRevisions();
+    records.updateRecord.mockResolvedValue({ data: draft, error: null });
+    records.advanceRecord.mockResolvedValue({ data: { ...draft, status: 'pending_review' }, error: null });
+    const { user } = setup(draft, { role: 'crew', userId: 'crew-1' });
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    expect(screen.queryByRole('button', { name: 'Save & approve' })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Submit for review' }));
+    await waitFor(() => expect(records.advanceRecord).toHaveBeenCalledWith('r1', ['pending_review']));
+  });
+
+  it('does not offer to approve from the edit form when the record is already approved', async () => {
+    draftWithRevisions();
+    setup({ ...draft, status: 'approved' });
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Edit' }));
+    expect(await screen.findByRole('button', { name: 'Save changes' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save & approve' })).toBeNull();
   });
 });
 

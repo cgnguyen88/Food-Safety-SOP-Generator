@@ -57,7 +57,7 @@ function Field({ field, lang, value, required, invalid, onChange, id, invalidTex
  * form, validation and storage can never disagree. What is still missing is shown live,
  * and who can submit what depends on the role (crew submit; owners/managers approve).
  */
-export default function RecordForm({ kind, role, farmId, record, prefill, today, onSaved, onCancel }) {
+export default function RecordForm({ kind, role, farmId, record, advanceTo = null, prefill, today, onSaved, onCancel }) {
   const { lang: rawLang } = useLanguage();
   const lang = rawLang === 'es' ? 'es' : 'en';
   const tt = recordsText(lang);
@@ -95,10 +95,12 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
   const hold = kind === 'harvest' ? holdFor(holds.holds, values.field) : null;
   // A hold that began after the day of the harvest does not apply to it.
   const heldField = hold && !(hold.since && date && date < hold.since) ? hold : null;
-  // Produce from a field on hold must not leave the farm with a lot code on it. Editing a harvest already on file is not
-  // blocked (taking its lot code off would break the trail), and while the holds cannot be read, a lot code cannot be vouched for.
-  const lotCodeOnHeldField = !isEdit && Boolean(heldField) && !blank(values.lot_code);
-  const holdsUnreadable = kind === 'harvest' && !isEdit && holds.status !== 'ready' && !blank(values.lot_code);
+  // Produce from a field on hold must not leave the farm with a lot code on it. That is checked when a harvest is approved or
+  // sent for review (a new one, or an edit that also moves it on). Saving changes to one already on file is not blocked (taking
+  // its lot code off would break the trail), and while the holds cannot be read, a lot code cannot be vouched for.
+  const movesForward = !isEdit || advanceTo !== null;
+  const lotCodeOnHeldField = movesForward && Boolean(heldField) && !blank(values.lot_code);
+  const holdsUnreadable = kind === 'harvest' && movesForward && holds.status !== 'ready' && !blank(values.lot_code);
   const submitBlocked = lotCodeOnHeldField || holdsUnreadable;
 
   const evaluation = useMemo(() => evaluateRecord(kind, { record_date: date, payload }), [kind, date, payload]);
@@ -120,7 +122,9 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
       setError(result.error);
       return;
     }
-    onSaved?.(result.data);
+    // An edit that also moves the record on: the one that opened the form takes it from here, as it does for any status change.
+    if (isEdit && status !== record.status) onSaved?.(result.data, status);
+    else onSaved?.(result.data);
   }
 
   const dirty = date !== initial.date || fields.some((f) => values[f.key] !== initial.values[f.key]);
@@ -201,9 +205,21 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
         <button type="button" onClick={requestClose} style={ui.buttonSecondary}>{tt.form.cancel}</button>
         {isEdit ? (
-          <button type="button" disabled={hasErrors || busy} onClick={() => save(record.status)} style={{ ...ui.buttonPrimary, ...(hasErrors || busy ? ui.buttonDisabled : {}) }}>
-            {busy ? tt.form.saving : tt.form.saveChanges}
-          </button>
+          <>
+            <button type="button" disabled={hasErrors || busy} onClick={() => save(record.status)} style={{ ...(advanceTo ? ui.buttonSecondary : ui.buttonPrimary), ...(hasErrors || busy ? ui.buttonDisabled : {}) }}>
+              {submitting === record.status ? tt.form.saving : tt.form.saveChanges}
+            </button>
+            {advanceTo && (
+              <button
+                type="button"
+                disabled={!evaluation.complete || busy || submitBlocked}
+                onClick={() => save(advanceTo)}
+                style={{ ...(advanceTo === 'approved' ? ui.buttonSuccess : ui.buttonPrimary), ...(!evaluation.complete || busy || submitBlocked ? ui.buttonDisabled : {}) }}
+              >
+                {submitting === advanceTo ? tt.form.saving : advanceTo === 'approved' ? tt.form.approve : tt.form.submit}
+              </button>
+            )}
+          </>
         ) : (
           <>
             <button type="button" disabled={hasErrors || busy} onClick={() => save('draft')} style={{ ...ui.buttonSecondary, ...(hasErrors || busy ? ui.buttonDisabled : {}) }}>

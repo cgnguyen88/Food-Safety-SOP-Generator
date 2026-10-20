@@ -33,6 +33,22 @@ copy of the SOPs.
 When an owner or manager signs in on a browser that still holds data from the old browser-only version, the app offers
 to copy it into their farm; nothing is copied unless they agree, and a backup stays in the browser for 30 days.
 
+## Telegram bot
+
+Workers can send a photo (a cleaning sheet, a sanitizer label, a lab report) or a message, in English or Spanish, and the
+bot files it as records in **Needs review**. Nothing the bot files is ever approved, and illness and injury reports can only
+be filed by owners and managers.
+
+1. In Telegram, ask **@BotFather** for a bot (`/newbot`) and keep its token private.
+2. Run the two Telegram migrations in `supabase/migrations/` (`…channels.sql` and `…record_files_bucket.sql`).
+3. Run `npm run setup:env`: it asks for the bot token (hidden) and the bot's username, and makes the webhook secret itself.
+4. **Try it on your own computer:** `npm run dev`, then in a second terminal `npm run telegram:poll -- --yes`.
+5. In the app, open **Home → Connect Telegram**, tap **Open Telegram**, press **Start** and answer **YES**.
+6. **Deployed:** add the same variables in Vercel, then `npm run telegram:webhook -- --url https://YOUR-APP/api/agent/telegram --yes`.
+
+Only connected accounts can use the bot; anyone else gets a fixed "how to connect" reply and costs nothing. Each photo or
+message is one model call, limited per person and per day (`AGENT_RATE_LIMIT_*`).
+
 ## Keeping it safe
 
 - **Rotate old keys.** The old version used `VITE_ANTHROPIC_API_KEY` and `OPENROUTER_KEY` in ways that could expose

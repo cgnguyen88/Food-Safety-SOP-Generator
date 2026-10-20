@@ -7,6 +7,7 @@ import { renderWithLang } from './records/testUtils.jsx';
 vi.mock('../lib/records.js', () => ({ createRecord: vi.fn(), updateRecord: vi.fn() }));
 vi.mock('../lib/reportData.js', () => ({ listRecordsForReport: vi.fn() }));
 vi.mock('../lib/fields.js', () => ({ listFields: vi.fn() }));
+vi.mock('../lib/channels.js', async (importOriginal) => ({ ...(await importOriginal()), listTelegramLinks: vi.fn(async () => ({ data: [], error: null })), createTelegramLinkCode: vi.fn() }));
 const { listRecordsForReport } = await import('../lib/reportData.js');
 const { listFields } = await import('../lib/fields.js');
 const { default: Home } = await import('./Home.jsx');
@@ -137,6 +138,19 @@ describe('Home: adding records', () => {
     const { user, onNavigate } = setup();
     await user.click(screen.getByRole('button', { name: 'All record types' }));
     expect(onNavigate).toHaveBeenCalledWith('farmRecords');
+  });
+});
+
+describe('Home: Telegram', () => {
+  it('offers to connect Telegram once the bot exists', async () => {
+    setup({ botUsername: 'farmsafe_records_bot' });
+    expect(await screen.findByRole('heading', { name: 'Send records from Telegram' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Connect Telegram' })).toBeTruthy();
+  });
+
+  it('says nothing about Telegram while the bot has not been set up', () => {
+    setup({ botUsername: null });
+    expect(screen.queryByText(/Telegram/)).toBeNull();
   });
 });
 

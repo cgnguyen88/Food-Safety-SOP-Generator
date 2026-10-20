@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SETTINGS, mergeEnv, removeNames, namesIn } from './envFile.mjs';
+import { SETTINGS, WEBHOOK_SECRET_NAME, mergeEnv, removeNames, namesIn } from './envFile.mjs';
 
 const setting = (name) => SETTINGS.find((s) => s.name === name);
 
@@ -42,6 +42,34 @@ describe('mergeEnv', () => {
   it('quotes values with spaces or quotes so they read back exactly, and refuses line breaks', () => {
     expect(mergeEnv('', { A: 'two words', B: 'say "hi"' })).toBe('A="two words"\nB="say \\"hi\\""\n');
     expect(() => mergeEnv('', { A: 'line\nbreak' })).toThrow(/line break/);
+  });
+});
+
+describe('the Telegram settings', () => {
+  const token = setting('TELEGRAM_BOT_TOKEN');
+  const username = setting('VITE_TELEGRAM_BOT_USERNAME');
+
+  it('asks for the bot token at a hidden prompt, and checks its shape without ever repeating it', () => {
+    expect(token.secret).toBe(true);
+    expect(token.check('123456789:AAEhBP0av18F7y6mQxLfQ2pT9sKZ_n-2sDk')).toBe(true);
+    for (const bad of ['', 'abc', '123:short', '123456789:has space in it padded to be long enough', 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx']) {
+      const verdict = token.check(bad);
+      expect(typeof verdict, bad).toBe('string');
+      expect(verdict).not.toContain(bad || '\u0000');
+    }
+  });
+
+  it('asks for the bot’s public username in the open, with or without the @', () => {
+    expect(username.secret).toBe(false);
+    expect(username.check('farmsafe_records_bot')).toBe(true);
+    expect(username.check('@farmsafe_records_bot')).toBe(true);
+    for (const bad of ['', 'abc', 'has space bot', 'x'.repeat(33), 'bad-dash_bot']) expect(typeof username.check(bad), bad).toBe('string');
+  });
+
+  it('keeps the bot token out of the browser: only the username is a VITE_ name', () => {
+    expect(SETTINGS.filter((s) => s.name.startsWith('VITE_')).map((s) => s.name)).toEqual(['VITE_TELEGRAM_BOT_USERNAME']);
+    expect(token.name.startsWith('VITE_')).toBe(false);
+    expect(WEBHOOK_SECRET_NAME).toBe('TELEGRAM_WEBHOOK_SECRET');
   });
 });
 

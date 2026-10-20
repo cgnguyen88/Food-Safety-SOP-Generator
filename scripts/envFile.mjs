@@ -32,7 +32,22 @@ export const SETTINGS = Object.freeze([
     secret: true,
     check: (v) => /^sk-ant-[\w-]{20,}$/.test(v) || 'It should start with sk-ant-',
   },
+  {
+    name: 'TELEGRAM_BOT_TOKEN',
+    prompt: 'Telegram bot token from @BotFather (looks like 123456789:ABC…). Server only, never shared',
+    secret: true,
+    check: (v) => /^\d{6,}:[A-Za-z0-9_-]{30,}$/.test(v) || 'It should look like 123456789:ABC… (digits, a colon, then letters and digits)',
+  },
+  {
+    name: 'VITE_TELEGRAM_BOT_USERNAME',
+    prompt: 'The bot’s username, the part ending in bot (public; it is shown to people so they can open the bot)',
+    secret: false,
+    check: (v) => /^@?[A-Za-z0-9_]{5,32}$/.test(v) || 'It should be 5 to 32 letters, digits or underscores (for example farmsafe_records_bot)',
+  },
 ]);
+
+/** Telegram sends this back with every message so the app can tell Telegram's calls from anyone else's. Made here, never typed. */
+export const WEBHOOK_SECRET_NAME = 'TELEGRAM_WEBHOOK_SECRET';
 
 /** Names the browser build may see: the URL and the publishable key are public by design. */
 export const BROWSER_COPIES = Object.freeze({ SUPABASE_URL: 'VITE_SUPABASE_URL', SUPABASE_ANON_KEY: 'VITE_SUPABASE_ANON_KEY' });

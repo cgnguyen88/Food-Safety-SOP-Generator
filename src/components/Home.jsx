@@ -5,12 +5,14 @@ import { KIND_META } from '../domain/records/kinds.js';
 import { todayLocalIso } from '../domain/records/seasons.js';
 import { trainingCounts, trainingDueList } from '../domain/records/training.js';
 import { canSeeKind } from '../domain/records/workflow.js';
+import { telegramBotUsername } from '../lib/channels.js';
 import { ROUTES, logRoute } from '../lib/recordsRoute.js';
 import { homeText } from './homeText.js';
 import { KIND_ICONS } from './records/icons.js';
 import FieldHoldsBanner from './records/FieldHoldsBanner.jsx';
 import RecordForm from './records/RecordForm.jsx';
 import RecordsProviders from './records/RecordsProviders.jsx';
+import TelegramConnect from './records/TelegramConnect.jsx';
 import useFarmRecords from './records/useFarmRecords.js';
 import useFieldHolds from './records/useFieldHolds.js';
 import * as ui from './records/ui.js';
@@ -49,7 +51,7 @@ function Notice({ text, action, onClick }) {
  * The first page: what needs attention (records waiting for review, fields on hold, people overdue for
  * training) and buttons for the records added most often. Everything else is one click away in the menu.
  */
-export default function Home({ farm, farmProfile, role, lotCodeFormat, needsReviewCount = 0, reviewStatus = 'loading', onNavigate, onOpenProfile, onChanged }) {
+export default function Home({ farm, farmProfile, role, lotCodeFormat, needsReviewCount = 0, reviewStatus = 'loading', botUsername = telegramBotUsername(), onNavigate, onOpenProfile, onChanged }) {
   const { lang: rawLang } = useLanguage();
   const lang = rawLang === 'es' ? 'es' : 'en';
   const tt = homeText(lang).home;
@@ -111,6 +113,9 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
         <button type="button" onClick={() => onNavigate(ROUTES.overview)} style={{ ...ui.buttonSecondary, marginBottom: 36 }}>
           <Plus size={14} aria-hidden="true" />{tt.allTypes}
         </button>
+
+        {/* Shown only once the bot exists (its public name is set at build time), so nobody is offered something that cannot work. */}
+        {botUsername && <TelegramConnect botUsername={botUsername} />}
 
         <footer style={{ borderTop: '1px solid #e2e8f0', paddingTop: 18, fontSize: 12, color: '#64748b' }}>
           <div style={{ fontWeight: 700, marginBottom: 8 }}>{tt.resources}</div>

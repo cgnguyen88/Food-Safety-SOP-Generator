@@ -18,6 +18,20 @@ const DEFAULT_RATE_PER_DAY = 200;
 const DEFAULT_GLOBAL_PER_DAY = 5000;
 const DEFAULT_TIMEOUT_MS = 90_000;
 
+// The Telegram records agent: reads a worker's photo or message and proposes records for review.
+const DEFAULT_AGENT_MODEL = 'claude-sonnet-5-5';
+const DEFAULT_AGENT_MAX_TOKENS = 4096;
+const AGENT_EFFORT_LEVELS = Object.freeze(['low', 'medium', 'high', 'xhigh', 'max']);
+const DEFAULT_AGENT_EFFORT = 'medium';
+const DEFAULT_AGENT_MAX_TEXT_CHARS = 8000;
+const DEFAULT_AGENT_MAX_ATTACHMENTS = 3;
+const DEFAULT_AGENT_MAX_ATTACHMENT_CHARS = 3_500_000;
+const DEFAULT_AGENT_MAX_TOTAL_ATTACHMENT_CHARS = 4_000_000;
+const DEFAULT_AGENT_RATE_PER_MINUTE = 6;
+const DEFAULT_AGENT_RATE_PER_DAY = 100;
+const DEFAULT_AGENT_GLOBAL_PER_DAY = 2000;
+const DEFAULT_AGENT_TIME_ZONE = 'America/Los_Angeles';
+
 /**
  * @param {string | undefined} value
  * @param {number} fallback
@@ -26,6 +40,42 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 function positiveInt(value, fallback) {
   const parsed = Number.parseInt(value ?? '', 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/** @param {string | undefined} value @param {boolean} fallback */
+function flag(value, fallback) {
+  const v = (value ?? '').trim().toLowerCase();
+  if (['0', 'false', 'no', 'off'].includes(v)) return false;
+  if (['1', 'true', 'yes', 'on'].includes(v)) return true;
+  return fallback;
+}
+
+/** @param {Record<string, string | undefined>} env */
+function loadAgentConfig(env) {
+  const effort = (env.AGENT_EFFORT ?? '').trim().toLowerCase();
+  return Object.freeze({
+    model: env.AGENT_MODEL || DEFAULT_AGENT_MODEL,
+    maxTokens: Math.min(positiveInt(env.AGENT_MAX_TOKENS, DEFAULT_AGENT_MAX_TOKENS), HARD_MAX_OUTPUT_TOKENS),
+    effort: AGENT_EFFORT_LEVELS.includes(effort) ? effort : DEFAULT_AGENT_EFFORT,
+    // Off by default: the API caps union-typed (nullable) parameters in strict mode and a tool for every
+    // record kind exceeds it. Nothing relies on strictness; sanitize.js re-validates every tool call.
+    strictTools: flag(env.AGENT_STRICT_TOOLS, false),
+    // "Today" for relative dates ("yesterday") is the farm's calendar day, not UTC's.
+    timeZone: env.AGENT_TIME_ZONE || DEFAULT_AGENT_TIME_ZONE,
+    requestTimeoutMs: positiveInt(env.AGENT_REQUEST_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+    limits: Object.freeze({
+      maxTextChars: positiveInt(env.AGENT_MAX_TEXT_CHARS, DEFAULT_AGENT_MAX_TEXT_CHARS),
+      maxAttachments: positiveInt(env.AGENT_MAX_ATTACHMENTS, DEFAULT_AGENT_MAX_ATTACHMENTS),
+      maxAttachmentChars: positiveInt(env.AGENT_MAX_ATTACHMENT_CHARS, DEFAULT_AGENT_MAX_ATTACHMENT_CHARS),
+      maxTotalAttachmentChars: positiveInt(env.AGENT_MAX_TOTAL_ATTACHMENT_CHARS, DEFAULT_AGENT_MAX_TOTAL_ATTACHMENT_CHARS),
+    }),
+    rate: Object.freeze({
+      perMinute: positiveInt(env.AGENT_RATE_LIMIT_PER_MIN, DEFAULT_AGENT_RATE_PER_MINUTE),
+      perDay: positiveInt(env.AGENT_RATE_LIMIT_PER_DAY, DEFAULT_AGENT_RATE_PER_DAY),
+      // Everyone combined: a ceiling on spend if many accounts are used together.
+      globalPerDay: positiveInt(env.AGENT_RATE_LIMIT_GLOBAL_PER_DAY, DEFAULT_AGENT_GLOBAL_PER_DAY),
+    }),
+  });
 }
 
 /**
@@ -52,6 +102,7 @@ export function loadConfig(env = process.env) {
       globalPerDay: positiveInt(env.AI_RATE_LIMIT_GLOBAL_PER_DAY, DEFAULT_GLOBAL_PER_DAY),
     }),
     limits,
+    agent: loadAgentConfig(env),
     // HTTP body cap for servers that parse JSON themselves (the local Express dev server).
     bodyLimitBytes: limits.maxTotalChars + limits.maxContextChars + BODY_OVERHEAD_BYTES,
   });

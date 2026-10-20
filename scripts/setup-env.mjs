@@ -10,7 +10,8 @@
 import { existsSync, readFileSync, writeFileSync, chmodSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SETTINGS, BROWSER_COPIES, UNSAFE_NAMES, mergeEnv, removeNames, namesIn } from './envFile.mjs';
+import { randomBytes } from 'node:crypto';
+import { SETTINGS, BROWSER_COPIES, UNSAFE_NAMES, WEBHOOK_SECRET_NAME, mergeEnv, removeNames, namesIn } from './envFile.mjs';
 import { ask } from './prompt.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,6 +43,12 @@ async function main() {
     }
   }
 
+  // The bot needs a secret that Telegram sends back on every call. It is made here and never shown.
+  if ((updates.TELEGRAM_BOT_TOKEN || known.has('TELEGRAM_BOT_TOKEN')) && !known.has(WEBHOOK_SECRET_NAME)) {
+    updates[WEBHOOK_SECRET_NAME] = randomBytes(24).toString('hex');
+    console.info('\nMade a webhook secret for the Telegram bot (not shown).');
+  }
+
   if (Object.keys(updates).length) {
     // Make an existing file private before the keys go in (the mode option only applies to a new file).
     if (existsSync(ENV_LOCAL)) chmodSync(ENV_LOCAL, 0o600);
@@ -71,6 +78,7 @@ async function main() {
   console.info('  1. In the Supabase dashboard, open SQL Editor and run each file below, in this order:');
   for (const file of migrations) console.info(`       supabase/migrations/${file}`);
   console.info('  2. npm run dev   (opens the app; the API runs alongside it)');
+  console.info('  3. To try the Telegram bot on this computer: npm run telegram:poll -- --yes   (in a second terminal; see README)');
 }
 
 main().catch((error) => {

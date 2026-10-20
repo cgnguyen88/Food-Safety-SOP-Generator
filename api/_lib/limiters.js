@@ -34,3 +34,6 @@ export function createLimiterSet({ rate, prefix, store, shared, logger }) {
     global: build(`${prefix}-global-day`, rate.globalPerDay, ONE_DAY_MS),
   };
 }
+
+/** The records agent's limits (config.agent.rate). */
+export const createAgentLimiters = ({ config, ...rest }) => createLimiterSet({ rate: config.agent.rate, prefix: 'agent', ...rest });

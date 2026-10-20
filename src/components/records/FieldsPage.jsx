@@ -80,7 +80,13 @@ export default function FieldsPage({ farm, role }) {
     reload();
   }
 
-  const remove = (field) => {
+  const remove = ({ field, uses }) => {
+    // A field records use cannot be deleted: say so rather than ask. (The database enforces it too.)
+    if (uses > 0) {
+      setNotice(null);
+      setProblem('in_use_delete');
+      return;
+    }
     if (window.confirm(tt.confirmDelete(field.name))) change(field.id, () => deleteField(field.id), { deleting: true });
   };
   const saved = () => {
@@ -147,7 +153,7 @@ export default function FieldsPage({ farm, role }) {
                   onDetails={() => setDetailId(summary.field.id)}
                   onEdit={() => setForm({ field: summary.field, nameLocked: summary.uses > 0 })}
                   onToggleActive={() => change(summary.field.id, () => setFieldActive(summary.field.id, !summary.field.is_active))}
-                  onDelete={() => remove(summary.field)}
+                  onDelete={() => remove(summary)}
                 />
               ))}
             </tbody>

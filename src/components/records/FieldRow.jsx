@@ -11,6 +11,7 @@ const off = (disabled) => (disabled ? ui.buttonDisabled : {});
 /**
  * One field in the list, from `summarizeFields`. What depends on the farm's records (the counts, and whether the
  * name can change or the field can be deleted) shows as a dash, and its buttons stay off, until they are read.
+ * A field records use shows Delete as unavailable (the page explains when it is pressed).
  */
 export default function FieldRow({ summary, recordsReady, hold = null, canManage, busy, onDetails, onEdit, onToggleActive, onDelete }) {
   const { lang: rawLang } = useLanguage();
@@ -25,6 +26,7 @@ export default function FieldRow({ summary, recordsReady, hold = null, canManage
   const muted = archived ? { color: '#94a3b8' } : null;
   const area = field.area !== null && field.area !== undefined && field.area_unit ? `${formatNumber(field.area, lang)} ${tt.units[field.area_unit] ?? ''}`.trim() : none;
   const waiting = !recordsReady || busy;
+  const inUse = recordsReady && summary.uses > 0;
 
   return (
     <tr>
@@ -54,9 +56,19 @@ export default function FieldRow({ summary, recordsReady, hold = null, canManage
               <button type="button" aria-label={`${archived ? tt.actions.restore : tt.actions.archive} ${field.name}`} disabled={busy} onClick={onToggleActive} style={{ ...small, ...off(busy) }}>
                 {archived ? tt.actions.restore : tt.actions.archive}
               </button>
-              {recordsReady && summary.uses === 0 && (
-                <button type="button" aria-label={`${tt.actions.delete} ${field.name}`} disabled={busy} onClick={onDelete} style={{ ...smallDanger, ...off(busy) }}>{tt.actions.delete}</button>
-              )}
+              {/* Every field has the same buttons. When records use the field it cannot be deleted, so the button looks off and
+                  says why: it stays pressable (a disabled one says nothing on a phone), and pressing it explains. */}
+              <button
+                type="button"
+                aria-label={`${tt.actions.delete} ${field.name}`}
+                aria-disabled={inUse || undefined}
+                title={inUse ? tt.errors.in_use_delete : undefined}
+                disabled={waiting}
+                onClick={onDelete}
+                style={{ ...smallDanger, ...off(waiting || inUse) }}
+              >
+                {tt.actions.delete}
+              </button>
             </>
           )}
         </div>

@@ -183,7 +183,7 @@ describe('FieldsPage: who can change fields', () => {
     setup({ role });
     await screen.findByRole('row', { name: /^B2\b/ });
     expect(screen.getByRole('button', { name: 'Add field' })).toBeTruthy();
-    for (const name of ['Details B2', 'Edit B2', 'Archive B2']) expect(screen.getByRole('button', { name }), name).toBeTruthy();
+    for (const name of ['Details B2', 'Edit B2', 'Archive B2', 'Delete B2']) expect(screen.getByRole('button', { name }), name).toBeTruthy();
     expect(screen.queryByText('Only an owner or manager can change the field list.')).toBeNull();
   });
 
@@ -191,7 +191,7 @@ describe('FieldsPage: who can change fields', () => {
     setup({ role: 'crew' });
     await screen.findByRole('row', { name: /^B2\b/ });
     expect(screen.getByRole('button', { name: 'Details B2' })).toBeTruthy();
-    for (const name of ['Add field', 'Edit B2', 'Archive B2', 'Delete North 40']) expect(screen.queryByRole('button', { name }), name).toBeNull();
+    for (const name of ['Add field', 'Edit B2', 'Archive B2', 'Delete B2', 'Delete North 40']) expect(screen.queryByRole('button', { name }), name).toBeNull();
     expect(screen.getByText('Only an owner or manager can change the field list.')).toBeTruthy();
   });
 
@@ -298,14 +298,34 @@ describe('FieldsPage: archiving and deleting', () => {
     expect(fieldsLib.listFields).toHaveBeenCalledTimes(1);
   });
 
-  it('offers to delete only a field no record uses, after asking', async () => {
+  it('gives every field the same buttons, Delete included', async () => {
+    setup();
+    await screen.findByRole('row', { name: /^B2\b/ });
+    for (const field of ['B2', 'North 40']) {
+      for (const action of ['Details', 'Edit', 'Archive', 'Delete']) expect(screen.getByRole('button', { name: `${action} ${field}` }), `${action} ${field}`).toBeTruthy();
+    }
+  });
+
+  it('deletes a field no record uses, after asking', async () => {
     const { user } = setup();
     await screen.findByRole('row', { name: /^B2\b/ });
-    expect(screen.queryByRole('button', { name: 'Delete B2' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Delete North 40' }).getAttribute('aria-disabled')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Delete North 40' }));
     expect(window.confirm).toHaveBeenCalledWith('Delete the field “North 40”? This cannot be undone.');
     await waitFor(() => expect(fieldsLib.deleteField).toHaveBeenCalledWith('f-n'));
     await waitFor(() => expect(fieldsLib.listFields).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows Delete as unavailable on a field records use, and says why when it is pressed, without asking or deleting', async () => {
+    const { user } = setup();
+    await screen.findByRole('row', { name: /^B2\b/ });
+    const button = screen.getByRole('button', { name: 'Delete B2' });
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.getAttribute('title')).toBe('Records use this field, so it cannot be deleted. Archive it instead.');
+    await user.click(button);
+    expect((await screen.findByRole('alert')).textContent).toBe('Records use this field, so it cannot be deleted. Archive it instead.');
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(fieldsLib.deleteField).not.toHaveBeenCalled();
   });
 
   it('deletes nothing when the person does not confirm', async () => {
@@ -324,11 +344,12 @@ describe('FieldsPage: archiving and deleting', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Records use this field, so it cannot be deleted. Archive it instead.');
   });
 
-  it('offers no Delete while the records are still being read, since it cannot yet tell whether a field is used', async () => {
+  it('keeps Delete off while the records are still being read, since it cannot yet tell whether a field is used', async () => {
     listRecordsForReport.mockReturnValue(new Promise(() => {}));
     setup();
     await screen.findByRole('row', { name: /^North 40\b/ });
-    expect(screen.queryByRole('button', { name: 'Delete North 40' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Delete North 40' }).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Delete B2' }).disabled).toBe(true);
     expect(screen.getByRole('button', { name: 'Edit North 40' })).toBeTruthy();
   });
 

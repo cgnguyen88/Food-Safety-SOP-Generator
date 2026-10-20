@@ -16,7 +16,7 @@ describe('validateClaudeRequest: conversations', () => {
   });
 
   it('accepts text blocks, the Spanish app, a context and stream=true', () => {
-    const context = { farm: { farm_name: 'Sunny Acres' }, incidentCount: 2 };
+    const context = { farm: { farm_name: 'Sunny Acres' } };
     const result = check({ mode: 'assistant', messages: [{ role: 'user', content: [{ type: 'text', text: 'hola' }] }], lang: 'es', context, stream: true });
     expect(result.ok).toBe(true);
     expect(result.value.stream).toBe(true);

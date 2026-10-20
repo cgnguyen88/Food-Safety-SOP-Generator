@@ -6,6 +6,7 @@ import { REPORT_KIND_ORDER } from '../../domain/records/report.js';
 import { DATE_MAX, DATE_MIN, isValidIsoDate } from '../../domain/records/schemas.js';
 import { seasonPeriod, todayLocalIso } from '../../domain/records/seasons.js';
 import { listRecordsForReport } from '../../lib/reportData.js';
+import { ROUTES } from '../../lib/recordsRoute.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
 import ReportOutput from './ReportOutput.jsx';
@@ -86,7 +87,7 @@ function formProblem({ kinds, period, from, to }) {
 }
 
 /** Build a report of the farm's records for a period and a choice of logs, to hand to an auditor or inspector. */
-export default function ReportsPage({ farm, role, operation, needsReviewCount = 0 }) {
+export default function ReportsPage({ farm, role, operation, needsReviewCount = 0, onNavigate }) {
   const { lang: rawLang } = useLanguage();
   const lang = rawLang === 'es' ? 'es' : 'en';
   const tt = recordsText(lang).reports;
@@ -141,7 +142,8 @@ export default function ReportsPage({ farm, role, operation, needsReviewCount = 
   return (
     <div style={ui.page}>
       <h1 style={ui.h1}>{tt.title}</h1>
-      <p style={{ ...ui.subtitle, marginBottom: 22 }}>{tt.subtitle}</p>
+      <p style={{ ...ui.subtitle, marginBottom: 6 }}>{tt.subtitle}</p>
+      {onNavigate && <button type="button" onClick={() => onNavigate(ROUTES.history)} style={{ ...linkButton, fontSize: 13, marginBottom: 22 }}>{tt.historyLink}</button>}
 
       <div style={{ ...ui.card, padding: 22, marginBottom: 22 }}>
         <h2 style={{ fontSize: 15, color: '#0f172a', margin: '0 0 16px' }}>{tt.settings}</h2>

@@ -68,8 +68,14 @@ describe('RecordsPage: overview', () => {
 
   it('lets people start a new record of any kind', async () => {
     const { user } = setup({ type: 'overview' });
-    await user.click(screen.getByRole('button', { name: /Harvest/ }));
+    await user.click(screen.getByRole('button', { name: 'Add harvest' }));
     expect(await screen.findByRole('dialog', { name: 'Add harvest' })).toBeTruthy();
+  });
+
+  it('opens a log from the Records home', async () => {
+    const { user, onNavigate } = setup({ type: 'overview' });
+    await user.click(screen.getByRole('button', { name: 'Harvest Log' }));
+    expect(onNavigate).toHaveBeenCalledWith('log:harvest');
   });
 
   it('lists the saved views and opens one', async () => {
@@ -98,7 +104,7 @@ describe('RecordsPage: fields', () => {
 
   it('reads the fields once for the whole records area, not once per screen', async () => {
     const { user } = setup({ type: 'overview' });
-    await user.click(screen.getByRole('button', { name: /Harvest/ }));
+    await user.click(screen.getByRole('button', { name: 'Add harvest' }));
     await screen.findByRole('dialog', { name: 'Add harvest' });
     expect(fieldsLib.listFields).toHaveBeenCalledTimes(1);
   });
@@ -125,11 +131,10 @@ describe('RecordsPage: reports', () => {
     expect(screen.getByText('Your farm has 5 records waiting for review. Records waiting for review are not included in this report.')).toBeTruthy();
   });
 
-  it('is offered from the Records home, for when something has to be handed to an inspector', async () => {
-    const { user, onNavigate } = setup({ type: 'overview' });
-    expect(screen.getByText('Need to give your records to an auditor or inspector?')).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Open Reports' }));
-    expect(onNavigate).toHaveBeenCalledWith('recordReports');
+  it('links to the change history, which is no longer a menu item of its own', async () => {
+    const { user, onNavigate } = setup({ type: 'reports' });
+    await user.click(screen.getByRole('button', { name: 'See every change made to your records' }));
+    expect(onNavigate).toHaveBeenCalledWith('changeHistory');
   });
 
   it('hands the operation’s details and the review count down to a log’s download', async () => {

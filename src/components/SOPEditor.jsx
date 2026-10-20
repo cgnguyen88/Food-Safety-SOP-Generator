@@ -3,7 +3,6 @@ import ChatPanel from "./ChatPanel.jsx";
 import FormPanel from "./FormPanel.jsx";
 import ExportModal from "./ExportModal.jsx";
 import ReviewPanel from "./ReviewPanel.jsx";
-import SOPRecordModal from "./SOPRecordModal.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
@@ -35,7 +34,7 @@ function buildProfilePrefill(sop, farmProfile) {
   return prefill;
 }
 
-export default function SOPEditor({ sop, farmProfile, activityRecords, onSaveActivityRecords, onBack }) {
+export default function SOPEditor({ sop, farmProfile, onBack }) {
   const { lang } = useLanguage();
   const e = T[lang].editor;
   const localizedSop = getLocalizedSop(sop, lang);
@@ -47,7 +46,6 @@ export default function SOPEditor({ sop, farmProfile, activityRecords, onSaveAct
   const [missingFields, setMissingFields] = useState([]);
   const [showExport, setShowExport] = useState(false);
   const [showReview, setShowReview] = useState(false);
-  const [showRecords, setShowRecords] = useState(false);
 
   // Clear review state when SOP changes
   useEffect(() => {
@@ -138,9 +136,6 @@ export default function SOPEditor({ sop, farmProfile, activityRecords, onSaveAct
             </div>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => setShowRecords(true)} style={{ padding: "12px 24px", background: "linear-gradient(135deg,var(--u-sky),var(--u-navy-l))", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 6px 14px rgba(0,69,128,0.3)" }}>
-              {e.recordsGenerator}
-            </button>
             <button onClick={handleReview} style={{ padding: "12px 24px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(253,189,16,0.3)" }}>{e.review}</button>
             <button onClick={() => setShowExport(true)} style={{ padding: "12px 24px", background: "var(--u-navy)", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,45,84,0.3)" }}>{e.export}</button>
           </div>
@@ -173,7 +168,6 @@ export default function SOPEditor({ sop, farmProfile, activityRecords, onSaveAct
       </div>
 
       {showExport && <ExportModal sop={sop} formData={formData} farmProfile={farmProfile} onClose={() => setShowExport(false)} />}
-      {showRecords && <SOPRecordModal sop={sop} formData={formData} farmProfile={farmProfile} allRecords={activityRecords} onSaveAll={onSaveActivityRecords} onClose={() => setShowRecords(false)} />}
     </div>
   );
 }

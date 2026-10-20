@@ -4,7 +4,7 @@ vi.mock('../lib/apiClient.js', () => ({ authedFetch: vi.fn() }));
 
 const { authedFetch } = await import('../lib/apiClient.js');
 const api = await import('./api.js');
-const { askAI, streamAI, AiError, getFieldSuggestion, getRecordItemSuggestion, parseFormUpdates, stripFormUpdate, toConversation } = api;
+const { askAI, streamAI, AiError, getFieldSuggestion, parseFormUpdates, stripFormUpdate, toConversation } = api;
 
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const sse = (...events) => new Response(events.map((e) => `data: ${typeof e === 'string' ? e : JSON.stringify(e)}\n\n`).join(''), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
@@ -127,16 +127,6 @@ describe('getFieldSuggestion', () => {
     await expect(getFieldSuggestion(field, sop, {}, null, 'en')).rejects.toBeInstanceOf(AiError);
     authedFetch.mockResolvedValueOnce(json(200, { content: [{ type: 'text', text: 'ok' }] }));
     expect(await getFieldSuggestion(field, sop, {}, null, 'en')).toBe('ok');
-  });
-});
-
-describe('getRecordItemSuggestion', () => {
-  it('asks for a note on one checklist item, with the record details', async () => {
-    authedFetch.mockResolvedValue(json(200, { content: [{ type: 'text', text: ' Checked by Ana. ' }] }));
-    const record = { activityDate: '2026-10-18', performedBy: 'Ana', verifiedBy: 'Luis', notes: '' };
-    const note = await getRecordItemSuggestion({ id: 'handwash-hw_station_locations', label: 'x' }, { id: 1 }, { a: 'b' }, { farm_name: 'GV' }, record, 'en');
-    expect(note).toBe('Checked by Ana.');
-    expect(sentBody()).toEqual({ mode: 'record_note', lang: 'en', context: { sopId: 1, itemId: 'handwash-hw_station_locations', form: { a: 'b' }, farm: { farm_name: 'GV' }, record } });
   });
 });
 

@@ -1,8 +1,8 @@
 # FarmSafe: Food Safety SOP Assistant
 
-A bilingual (English/Spanish) web app that helps California farms write their FSMA Produce Safety Rule SOPs, keep
-activity records and incident logs, estimate the cost of violations, and draft a Farm Food Safety Plan, with an AI
-advisor ("Jimmy") built on Claude.
+A bilingual (English/Spanish) web app that helps California farms keep their food safety records (sanitation, field
+and environment, people, harvest and traceability), stay ahead of what needs attention, and write their FSMA Produce
+Safety Rule SOPs and Farm Food Safety Plan, with an AI advisor ("Jimmy") built on Claude.
 
 Plans for records, Telegram capture, traceability and SOP QR codes: [docs/PLAN-records-telegram-qr.md](docs/PLAN-records-telegram-qr.md).
 
@@ -10,13 +10,13 @@ Plans for records, Telegram capture, traceability and SOP QR codes: [docs/PLAN-r
 
 | Part | Where | What it does |
 |---|---|---|
-| Browser app | `src/` (React 18, Vite) | Sign-in, SOP editor, records, incident log, plan generator, chat |
+| Browser app | `src/` (React 19, Vite) | Sign-in, home, records, fields, training due, trace, reports, SOP editor, plan generator, chat |
 | Accounts and data | Supabase (Auth + Postgres with row-level security) | One farm per account; owners, managers and crew; the farm's shared data |
 | AI endpoint | `api/claude.js` (Vercel function), `server/index.js` (the same code locally) | Signed-in users only, rate-limited; the server owns every instruction sent to Claude |
 | Database changes | `supabase/migrations/*.sql` | Tables, policies and functions, tested with PGlite in `supabase/*.test.js` |
 
 The browser never chooses the model or the instructions: it sends a mode (`assistant`, `sop_chat`, `sop_field`,
-`record_note`, `plan_section`) and a little context, and `api/_lib/modes.js` builds the request from the server's own
+`plan_section`) and a little context, and `api/_lib/modes.js` builds the request from the server's own
 copy of the SOPs.
 
 ## First-time setup

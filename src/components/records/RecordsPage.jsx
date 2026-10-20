@@ -2,14 +2,13 @@ import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
 import ChangeHistory from './ChangeHistory.jsx';
-import FarmFieldsProvider from './FarmFieldsProvider.jsx';
+import RecordsProviders from './RecordsProviders.jsx';
 import FieldsPage from './FieldsPage.jsx';
 import NeedsReview from './NeedsReview.jsx';
 import RecordLog from './RecordLog.jsx';
 import RecordsOverview from './RecordsOverview.jsx';
 import ReportsPage from './ReportsPage.jsx';
 import { canSeeKind } from '../../domain/records/workflow.js';
-import { LotCodeSettingsContext, lotCodeSettingsFor } from './lotCodeSettings.js';
 import SavedViewResults from './SavedViewResults.jsx';
 import TrainingDuePage from './TrainingDuePage.jsx';
 
@@ -50,7 +49,7 @@ export default function RecordsPage({ route, farm, role, userId, operation, lotC
       case 'history':
         return <ChangeHistory farm={farm} />;
       case 'reports':
-        return <ReportsPage farm={farm} role={role} operation={reportOperation} needsReviewCount={needsReviewCount} />;
+        return <ReportsPage farm={farm} role={role} operation={reportOperation} needsReviewCount={needsReviewCount} onNavigate={onNavigate} />;
       case 'fields':
         return <FieldsPage farm={farm} role={role} />;
       case 'training':
@@ -67,9 +66,5 @@ export default function RecordsPage({ route, farm, role, userId, operation, lotC
   };
 
   // One field list for the whole records area: the forms, a record's detail and the Fields page all share it.
-  return (
-    <LotCodeSettingsContext.Provider value={lotCodeSettingsFor({ lotCodeFormat, farm })}>
-      <FarmFieldsProvider farmId={farm.id}>{screenFor()}</FarmFieldsProvider>
-    </LotCodeSettingsContext.Provider>
-  );
+  return <RecordsProviders farm={farm} lotCodeFormat={lotCodeFormat}>{screenFor()}</RecordsProviders>;
 }

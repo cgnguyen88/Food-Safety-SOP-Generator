@@ -15,7 +15,7 @@ import { buildSopStandardContext } from '../../src/utils/sop-standards.js';
 /** Conversations: the browser sends the messages. */
 export const CHAT_MODES = Object.freeze(['assistant', 'sop_chat']);
 /** One-off tasks: the server writes the request itself. */
-export const TASK_MODES = Object.freeze(['sop_field', 'record_note', 'plan_section']);
+export const TASK_MODES = Object.freeze(['sop_field', 'plan_section']);
 export const MODE_IDS = Object.freeze([...CHAT_MODES, ...TASK_MODES]);
 
 /** The browser asked for a mode, SOP, field, item or section that does not exist. */
@@ -43,8 +43,6 @@ const CONTROL_CHARS = /[\u0000-\u001F\u007F-\u009F\u2028\u2029]+/g;
 const CONTROL_CHARS_BUT_NEWLINE = /[\u0000-\u0009\u000B-\u001F\u007F-\u009F\u2028\u2029]+/g;
 
 const MAX_PROFILE_VALUE = 300;
-const MAX_RECORD_VALUE = 300;
-const MAX_RECORD_NOTES = 1000;
 const MAX_LIST_ITEMS = 50;
 const MAX_FORM_VALUE = 2000;
 const MAX_FORM_BLOCK = 24_000;
@@ -151,23 +149,10 @@ function formBlock(sop, form) {
   return `CURRENT FORM VALUES (already filled):\n${lines.join('\n') || 'No fields filled yet.'}`;
 }
 
-/** The checklist item of an activity record, worked out the same way the record screen builds it. */
-function findRecordItem(sop, itemId, form) {
-  if (itemId === `log-${sop.id}`) {
-    return { sectionTitle: 'Records', label: `Complete and archive "${sop.log.title}"`, expected: `Document activity using log columns: ${sop.log.cols.join(', ')}` };
-  }
-  const found = allFields(sop).find(({ section, field }) => section.id !== 'meta' && `${section.id}-${field.id}` === itemId);
-  if (!found) throw new ModeContextError('Unknown checklist item for this SOP.');
-  const value = formValue(own(form, found.field.id));
-  return { sectionTitle: found.section.title, label: found.field.label, expected: value || 'Define and verify according to SOP requirements.' };
-}
-
 // ─── The modes ───────────────────────────────────────────────────────────────
 
 function assistant({ lang, context }) {
   const sopList = SOP_DATA.map((s) => `[ID:${s.id}] ${s.short} — ${s.desc.slice(0, 80)}`).join('\n');
-  const count = own(context, 'incidentCount');
-  const incidents = Number.isInteger(count) && count >= 0 ? `Logged incidents so far: ${count}` : '';
   const spanish = lang === 'es' ? '\n\nThe user is using the Spanish interface. Respond in Spanish unless they write in English.' : '';
   const system = `Your name is Jimmy. You are a knowledgeable and professional food safety advisor for FarmSafe — a compliance platform for California farms. You assist farmers and producers with FSMA Produce Safety Rule requirements, SOP documentation, and food safety compliance.
 
@@ -180,7 +165,7 @@ ${SCOPE}
 
 ${CONVERSATIONAL_FORMAT}${spanish}
 
-${farmRecords(profileBlock(own(context, 'farm')), incidents)}`;
+${farmRecords(profileBlock(own(context, 'farm')))}`;
   return { system };
 }
 
@@ -246,36 +231,6 @@ ${farmRecords(profileBlock(own(context, 'farm')), formBlock(sop, own(context, 'f
   return { system, task: `Generate the value for the "${field.label}" field.` };
 }
 
-function recordNote({ language, context }) {
-  const sop = findSop(own(context, 'sopId'));
-  const form = own(context, 'form');
-  const item = findRecordItem(sop, own(context, 'itemId'), form);
-  const record = own(context, 'record');
-  const detail = (key, max = MAX_RECORD_VALUE) => oneLine(own(record, key), max) || 'N/A';
-  const system = `You are an expert produce safety compliance assistant. Draft concise documentation text for a checklist record item.
-${buildSopStandardContext(sop)}
-
-Checklist Item:
-- Section: ${item.sectionTitle}
-- Item: ${item.label}
-- Expected: what the farm wrote for this item in the SOP (in the records below)
-
-INSTRUCTIONS:
-- Return ONLY the suggested evidence note text. No title, no markdown, no quotes.
-- Keep it practical, audit-ready, and specific to this item.
-- Include who/what/where (and when if relevant) in 1-3 short sentences.
-- Do not invent lab values, legal thresholds, or unverifiable facts.
-- Write in ${language}.
-
-${farmRecords(`RECORD:
-- Activity Date: ${detail('activityDate')}
-- Performed By: ${detail('performedBy')}
-- Verified By: ${detail('verifiedBy')}
-- Record Notes: ${detail('notes', MAX_RECORD_NOTES)}
-- Expected: ${item.expected}`, profileBlock(own(context, 'farm')), formBlock(sop, form))}`;
-  return { system, task: `Draft documentation notes for this checklist item: "${item.label}"` };
-}
-
 const PLAN_PROMPTS = {
   lot: 'Generate a concise, practical, and compliant example of a "Lot Code System" for traceability. A lot code should typically include the farm name/location, the specific field/block harvested from, and the date of harvest. Keep it to 1-2 short paragraphs explaining the system format and giving one practical example.',
   recall: 'Generate a concise, practical, and compliant "Mock Recall Procedure". The procedure should outline 3-4 bullet points on how to conduct a dummy recall (tracing one lot forward to the buyer and backward to the field within 2 hours). Keep it brief, action-oriented, and easy to understand.',
@@ -301,7 +256,7 @@ ${farmRecords(profileBlock(own(context, 'farm')))}`;
   return { system, task: `${PLAN_PROMPTS[section]} Return only the suggested text.` };
 }
 
-const BUILDERS = { assistant, sop_chat: sopChat, sop_field: sopField, record_note: recordNote, plan_section: planSection };
+const BUILDERS = { assistant, sop_chat: sopChat, sop_field: sopField, plan_section: planSection };
 
 /**
  * The instructions for one request, and for a one-off task the request itself.

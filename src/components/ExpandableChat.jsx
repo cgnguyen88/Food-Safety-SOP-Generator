@@ -3,7 +3,7 @@ import { streamAI, toConversation } from "../utils/api.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import AiText from "./AiText.jsx";
 
-export default function ExpandableChat({ farmProfile, incidents, defaultOpen = false }) {
+export default function ExpandableChat({ farmProfile, defaultOpen = false }) {
   const { lang } = useLanguage();
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [messages, setMessages] = useState([]);
@@ -51,7 +51,7 @@ export default function ExpandableChat({ farmProfile, incidents, defaultOpen = f
     let accumulated = "";
     try {
       const { truncated } = await streamAI(
-        { mode: "assistant", lang, messages: toConversation(history), context: { farm: farmProfile, incidentCount: (incidents || []).length } },
+        { mode: "assistant", lang, messages: toConversation(history), context: { farm: farmProfile } },
         (chunk) => {
           accumulated += chunk;
           showAnswer({ content: accumulated, streaming: true });

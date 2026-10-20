@@ -167,11 +167,6 @@ export function getFieldSuggestion(field, sop, formData, farmProfile, lang) {
   return remembered({ mode: "sop_field", lang, context: { sopId: sop.id, fieldId: field.id, form: formData, farm: farmProfile } });
 }
 
-/** A suggested evidence note for one checklist item of an activity record (never empty). @throws {AiError} */
-export function getRecordItemSuggestion(item, sop, formData, farmProfile, record, lang) {
-  return remembered({ mode: "record_note", lang, context: { sopId: sop.id, itemId: item.id, form: formData, farm: farmProfile, record } });
-}
-
 // ─── Form updates inside a chat answer ───────────────────────────────────────
 
 const FORM_UPDATE = /<form_update>([\s\S]*?)<\/form_update>/;

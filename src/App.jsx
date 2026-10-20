@@ -6,11 +6,10 @@ import { LanguageProvider, useLanguage } from "./i18n/LanguageContext.jsx";
 import useFarmAccount from "./lib/useFarmAccount.js";
 import AuthScreen from "./components/AuthScreen.jsx";
 import Sidebar from "./components/Sidebar.jsx";
-import Dashboard from "./components/Dashboard.jsx";
+import Home from "./components/Home.jsx";
+import SopLibrary from "./components/SopLibrary.jsx";
 import SOPEditor from "./components/SOPEditor.jsx";
 import FarmProfileModal from "./components/FarmProfileModal.jsx";
-import ViolationDashboard from "./components/ViolationDashboard.jsx";
-import EconomicReport from "./components/EconomicReport.jsx";
 import ExpandableChat from "./components/ExpandableChat.jsx";
 import PlanGenerator from "./components/PlanGenerator.jsx";
 import { AccountMessage, ImportNotice, ImportOffer, MergedNotice, SaveIndicator } from "./components/AccountStatus.jsx";
@@ -54,20 +53,13 @@ function FarmApp() {
     return <AccountMessage kind="error" message={farm.error} onRetry={farm.retryLoad} onSignOut={() => farm.signOut()} />;
   }
 
-  const { farm_profile: farmProfile, incidents, cost_settings: costSettings, sop_activity_records: activityRecords } = farm.data;
+  const { farm_profile: farmProfile } = farm.data;
   const recordsRoute = parseRecordsRoute(activePage);
 
   const saveFarmProfile = (profile) => {
     farm.setValue("farm_profile", profile);
     setShowProfile(false);
   };
-  // Each change is built on the latest list, so quick changes in a row all count.
-  const addIncident = (inc) => farm.setValue("incidents", list => [...list, inc]);
-  const updateIncident = (id, changes) => farm.setValue("incidents", list => list.map(i => (i.id === id ? { ...i, ...changes } : i)));
-  const deleteIncident = (id) => farm.setValue("incidents", list => list.filter(i => i.id !== id));
-  const saveCostSettings = (settings) => farm.setValue("cost_settings", settings);
-  const saveActivityRecords = (records) => farm.setValue("sop_activity_records", records);
-
   const handleLogout = () => {
     const question = lang === "en"
       ? "Some changes could not be saved yet. Sign out anyway and lose them?"
@@ -77,7 +69,7 @@ function FarmApp() {
 
   const handleSelectSOP = (sop) => {
     setActiveSOP(sop);
-    setActivePage(sop ? "sop" : "home");
+    setActivePage(sop ? "sop" : "sops");
   };
 
   const handleNavigate = (page) => {
@@ -89,16 +81,13 @@ function FarmApp() {
     <>
       <div style={{ height: "100vh", display: "flex", overflow: "hidden" }}>
         <Sidebar
-          activeSOP={activeSOP}
           activePage={activePage}
-          onSelectSOP={handleSelectSOP}
-          onOpenProfile={() => setShowProfile(true)}
           onNavigate={handleNavigate}
+          onOpenProfile={() => setShowProfile(true)}
           onLogout={handleLogout}
           currentUser={farm.account.user}
           farmProfile={farmProfile}
-          incidents={incidents}
-          records={{ role: recordsMeta.role ?? farm.account.role, needsReviewCount: recordsMeta.needsReviewCount, savedViews: recordsMeta.savedViews }}
+          needsReviewCount={recordsMeta.needsReviewCount}
         />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--cream)" }}>
           <ImportOffer offer={farm.importOffer} farmName={farm.account.farm?.name} onAccept={farm.acceptImport} onDecline={farm.declineImport} />
@@ -122,44 +111,35 @@ function FarmApp() {
               />
             </div>
           ) : activePage === "sop" && activeSOP ? (
-            <SOPEditor
-              sop={activeSOP}
-              farmProfile={farmProfile}
-              activityRecords={activityRecords}
-              onSaveActivityRecords={saveActivityRecords}
-              onBack={() => handleNavigate("home")}
-            />
-          ) : activePage === "violations" ? (
-            <ViolationDashboard
-              incidents={incidents}
-              onAddIncident={addIncident}
-              onUpdateIncident={updateIncident}
-              onDeleteIncident={deleteIncident}
-              costSettings={costSettings}
-            />
-          ) : activePage === "economic" ? (
-            <EconomicReport
-              incidents={incidents}
-              costSettings={costSettings}
-              onSaveCostSettings={saveCostSettings}
-            />
+            <SOPEditor sop={activeSOP} farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
           ) : activePage === "plan_generator" ? (
-            <PlanGenerator
-              farmProfile={farmProfile}
-              onBack={() => handleNavigate("home")}
-            />
+            <PlanGenerator farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
+          ) : activePage === "sops" ? (
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              <SopLibrary onSelectSOP={handleSelectSOP} onOpenPlan={() => handleNavigate("plan_generator")} />
+            </div>
           ) : (
-            <Dashboard
-              farmProfile={farmProfile}
-              onSelectSOP={handleSelectSOP}
-              onOpenProfile={() => setShowProfile(true)}
-              onNavigate={handleNavigate}
-            />
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {farm.account.farm ? (
+                <Home
+                  farm={farm.account.farm}
+                  farmProfile={farmProfile}
+                  role={recordsMeta.role ?? farm.account.role}
+                  lotCodeFormat={farmProfile?.lot_code_format}
+                  needsReviewCount={recordsMeta.needsReviewCount}
+                  onNavigate={handleNavigate}
+                  onOpenProfile={() => setShowProfile(true)}
+                  onChanged={recordsMeta.refresh}
+                />
+              ) : (
+                <SopLibrary onSelectSOP={handleSelectSOP} onOpenPlan={() => handleNavigate("plan_generator")} />
+              )}
+            </div>
           )}
         </div>
       </div>
       {showProfile && <FarmProfileModal profile={farmProfile} onSave={saveFarmProfile} onClose={() => setShowProfile(false)} />}
-      <ExpandableChat farmProfile={farmProfile} incidents={incidents} defaultOpen={farm.justSignedIn} />
+      <ExpandableChat farmProfile={farmProfile} defaultOpen={farm.justSignedIn} />
       <SaveIndicator status={farm.saveStatus} onRetry={farm.retrySaves} />
     </>
   );

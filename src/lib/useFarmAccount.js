@@ -7,12 +7,11 @@ import {
 } from "./farmData.js";
 import { mergeChanges } from "./merge.js";
 import { clearSuggestionCache } from "../utils/api.js";
-import { DEFAULT_COST_SETTINGS } from "../data/cost-defaults.js";
 
 const EMPTY_DATA = Object.freeze({
   farm_profile: null,
   incidents: [],
-  cost_settings: DEFAULT_COST_SETTINGS,
+  cost_settings: {},
   sop_activity_records: [],
 });
 

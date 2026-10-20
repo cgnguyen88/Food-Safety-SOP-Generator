@@ -4,15 +4,13 @@ import { RULES_TEXT } from './textRules.js';
 export const RECORDS_TEXT = {
   en: {
     ...RULES_TEXT.en,
-    nav: { section: 'Food Safety Records', overview: 'Records', review: 'Needs Review', logs: 'Logs', views: 'Saved Views', history: 'Change History', reports: 'Reports', fields: 'Fields', training: 'Training Due', trace: 'Trace a Lot', recall: 'Mock Recall' },
     overview: {
       title: 'Records',
-      subtitle: 'Everything your team records for food safety, reviewed and kept in one place.',
+      subtitle: 'Open a log to see its records, or tap + to add one.',
       needsReview: (n) => (n === 1 ? '1 record is waiting for review' : `${n} records are waiting for review`),
       openReview: 'Open review queue',
-      addTitle: 'Add a record',
+      addTitle: 'Logs',
       viewsTitle: 'Saved views',
-      noViews: 'No saved views yet.',
     },
     status: { draft: 'Draft', needs_info: 'Needs info', pending_review: 'Needs review', approved: 'Approved', rejected: 'Rejected', voided: 'Voided' },
     source: { manual: 'Entered by hand', web_upload: 'Web upload', telegram: 'Telegram', whatsapp: 'WhatsApp', email: 'Email', import: 'Imported' },
@@ -113,6 +111,7 @@ export const RECORDS_TEXT = {
     reports: {
       title: 'Reports',
       subtitle: 'Download your records as a spreadsheet, or build a report to hand to an auditor, inspector or buyer.',
+      historyLink: 'See every change made to your records',
       settings: 'What to include',
       period: 'Period',
       periods: { current: 'This season', previous: 'Last season', all: 'All dates', custom: 'Choose dates' },
@@ -129,8 +128,6 @@ export const RECORDS_TEXT = {
       creating: 'Gathering records…',
       errors: { dates: 'Check the dates: use real dates, and the start cannot be after the end.', kinds: 'Choose at least one log.', load: 'Could not gather your records. Please try again.' },
       healthNote: 'Illness and injury reports hold health information. They are left out unless you tick them.',
-      overviewHint: 'Need to give your records to an auditor or inspector?',
-      overviewOpen: 'Open Reports',
       output: {
         language: 'Report language',
         word: 'Download Word (.docx)',
@@ -233,15 +230,13 @@ export const RECORDS_TEXT = {
   },
   es: {
     ...RULES_TEXT.es,
-    nav: { section: 'Registros de Inocuidad', overview: 'Registros', review: 'Por Revisar', logs: 'Registros por tipo', views: 'Vistas Guardadas', history: 'Historial de Cambios', reports: 'Informes', fields: 'Campos', training: 'Capacitación Pendiente', trace: 'Rastrear un Lote', recall: 'Simulacro de Retiro' },
     overview: {
       title: 'Registros',
-      subtitle: 'Todo lo que tu equipo registra para la inocuidad, revisado y guardado en un solo lugar.',
+      subtitle: 'Abre un registro para ver sus entradas, o toca + para agregar una.',
       needsReview: (n) => (n === 1 ? '1 registro espera revisión' : `${n} registros esperan revisión`),
       openReview: 'Abrir la lista de revisión',
-      addTitle: 'Agregar un registro',
+      addTitle: 'Registros por tipo',
       viewsTitle: 'Vistas guardadas',
-      noViews: 'Aún no hay vistas guardadas.',
     },
     status: { draft: 'Borrador', needs_info: 'Faltan datos', pending_review: 'Por revisar', approved: 'Aprobado', rejected: 'Rechazado', voided: 'Anulado' },
     source: { manual: 'Ingresado a mano', web_upload: 'Carga web', telegram: 'Telegram', whatsapp: 'WhatsApp', email: 'Correo', import: 'Importado' },
@@ -342,6 +337,7 @@ export const RECORDS_TEXT = {
     reports: {
       title: 'Informes',
       subtitle: 'Descarga tus registros como hoja de cálculo, o prepara un informe para entregar a un auditor, inspector o comprador.',
+      historyLink: 'Ver cada cambio hecho a tus registros',
       settings: 'Qué incluir',
       period: 'Período',
       periods: { current: 'Esta temporada', previous: 'Temporada pasada', all: 'Todas las fechas', custom: 'Elegir fechas' },
@@ -358,8 +354,6 @@ export const RECORDS_TEXT = {
       creating: 'Reuniendo registros…',
       errors: { dates: 'Revisa las fechas: usa fechas reales, y la de inicio no puede ser posterior a la final.', kinds: 'Elige al menos un registro.', load: 'No se pudieron reunir tus registros. Inténtalo de nuevo.' },
       healthNote: 'Los reportes de enfermedad y lesiones contienen información de salud. Quedan fuera a menos que los marques.',
-      overviewHint: '¿Necesitas entregar tus registros a un auditor o inspector?',
-      overviewOpen: 'Abrir Informes',
       output: {
         language: 'Idioma del informe',
         word: 'Descargar Word (.docx)',

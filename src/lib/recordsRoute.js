@@ -4,7 +4,7 @@ import { RECORD_KINDS } from '../domain/records/kinds.js';
  * Navigation ids for the farm-records pages. The app's sidebar and router use plain
  * string ids (activePage); these helpers keep the dynamic ones consistent.
  */
-export const ROUTES = Object.freeze({ overview: 'farmRecords', review: 'needsReview', history: 'changeHistory', reports: 'recordReports', fields: 'recordFields', training: 'recordTraining', trace: 'recordTrace', recall: 'recordRecall' });
+export const ROUTES = Object.freeze({ overview: 'farmRecords', review: 'needsReview', history: 'changeHistory', reports: 'recordReports', fields: 'recordFields', training: 'recordTraining', trace: 'recordTrace' });
 
 export const logRoute = (kind) => `log:${kind}`;
 export const viewRoute = (viewId) => `view:${viewId}`;
@@ -13,7 +13,7 @@ const VIEW_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
  * @param {unknown} page an activePage id
- * @returns {{ type: 'overview' | 'review' | 'history' | 'reports' | 'fields' | 'training' | 'trace' | 'recall' } | { type: 'log', kind: string } | { type: 'view', viewId: string } | null}
+ * @returns {{ type: 'overview' | 'review' | 'history' | 'reports' | 'fields' | 'training' | 'trace' } | { type: 'log', kind: string } | { type: 'view', viewId: string } | null}
  */
 export function parseRecordsRoute(page) {
   if (typeof page !== 'string') return null;
@@ -24,7 +24,6 @@ export function parseRecordsRoute(page) {
   if (page === ROUTES.fields) return { type: 'fields' };
   if (page === ROUTES.training) return { type: 'training' };
   if (page === ROUTES.trace) return { type: 'trace' };
-  if (page === ROUTES.recall) return { type: 'recall' };
 
   const [prefix, rest, ...extra] = page.split(':');
   if (extra.length > 0 || rest === undefined) return null;

@@ -27,17 +27,6 @@ export const GLOBAL_CSS = `
     --txt:#0f172a;--txt2:#334155;--txt3:#64748b;
     --bdr:#cbd5e1;--bdr2:rgba(0,0,0,0.08);
 
-    /* Diced Hero Section Variables */
-    --diced-hero-section-top-text: #e0e7ff;
-    --diced-hero-section-main-gradient-from: #FDBD10;
-    --diced-hero-section-main-gradient-to: #ffffff;
-    --diced-hero-section-separator: #FDBD10;
-    --diced-hero-section-sub-text: #94a3b8;
-    --diced-hero-section-button-bg: #FDBD10;
-    --diced-hero-section-button-fg: #001A31;
-    --diced-hero-section-button-hover-bg: #ffffff;
-    --diced-hero-section-button-hover-fg: #001A31;
-    
     --shadow:0 1px 4px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
     --shadow-md:0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.05);
     --shadow-lg:0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.05);

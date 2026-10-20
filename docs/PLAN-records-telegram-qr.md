@@ -74,10 +74,20 @@ Word, CSV and print, with checks before hand-over; five default saved views; a f
 photo capture and Telegram (Phase 3), the Organic app's stock page and OMRI check. Owner to do: run the two
 `20261019...` migrations.
 
-### Phase 2: rules that connect records (built on `feat/food-safety-records`; the menu was also slimmed to one short list)
+### Phase 2: rules that connect records
 Sanitizer label → sanitation log pass/fail; field holds and their clearing; training due list; lot code generator from the
 farm's own format (SOP #9, tokens such as `{FARM}-{CROP}-{YYYYMMDD}-{FIELD}`, a suffix when a code would repeat);
 trace back (lot → field, crew, inputs, bin sanitation, water tests) and trace forward (lot → customers); timed mock recall report.
+
+Done (2026-10-20): the sanitizer pass/fail comes from the approved label's ppm range (no label: no result, never a guess);
+a flood that reached the crop, or signs of animals, puts a field on hold until an approved corrective action for that field
+says it clears the hold (shown on Home and the Fields list, blocks lot codes and submitting a harvest with one); training
+due list (a year after the last training of each person and topic); lot codes from the farm's format (farm profile, default
+`{FARM}-{CROP}-{YYYYMMDD}-{FIELD}`), numbered when a code repeats; "Trace & recall" shows a lot back to its field and
+forward to its customers, lists what the records do not show, and times a mock recall drill that can be saved as a note.
+The app was also slimmed down the same day: one short menu, a Home page that shows what needs attention, a records index
+with a + on every log, and a phone layout with a top bar and slide-out menu. Removed as not core: the violation dashboard,
+economic report, per-SOP record checklists, menu search and photo hero (they are in commit `b1abc89`).
 
 ### Phase 3: Telegram capture
 Copy the Organic channel and agent code (two-step linking, review queue, photo reading), with tools for the food safety
@@ -88,8 +98,18 @@ SOPs stored per farm with versions; "Publish" makes an AI Spanish draft the mana
 SOP (hard-to-guess, revocable link, always the latest published version, EN/ES switch); printable QR poster per SOP;
 worker "read and understood" sign-off → training record in Needs Review.
 
+Done so far (2026-10-20): each SOP's form is saved with the farm (before, it was lost on leaving the page); owners and
+managers can share a SOP from the editor: a QR code and link (long random token, one working link per SOP, can be turned
+off), a printable poster, and a public page (`/s/<token>`, English or Spanish labels) where a worker reads the SOP and
+signs; the sign-off arrives in Needs Review as a training record. Owner to do: run `20261020000000_sop_forms.sql` and
+`20261020000001_sop_shares.sql`. Not built (kept out to stay lean): SOP version history and the AI Spanish draft with
+manager approval; the page shows the farm's own text as written and translates only the SOP's labels.
+
 ### Phase 5: phone layout, polish, deploy
 Reuse the Organic app's phone layout (top bar, slide-out menu, records as cards), docs, Vercel deploy.
+
+Done so far (2026-10-20): the phone layout (top bar, slide-out menu, tables as cards). Left: Vercel deploy, then enforce
+the CSP after checking the live site.
 
 ## What the owner has to set up (Claude cannot create accounts)
 

@@ -3,8 +3,10 @@ import ChatPanel from "./ChatPanel.jsx";
 import FormPanel from "./FormPanel.jsx";
 import ExportModal from "./ExportModal.jsx";
 import ReviewPanel from "./ReviewPanel.jsx";
+import ShareSopModal from "./ShareSopModal.jsx";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
+import { sharedText } from "./sharedText.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
 
 function buildProfilePrefill(sop, farmProfile) {
@@ -38,9 +40,10 @@ function buildProfilePrefill(sop, farmProfile) {
  * One SOP's form, beside the assistant. `savedForm` is what the farm has saved for this SOP; `onSaveForm` (given only to
  * people who may save) is called with the whole form after each change, and saves it a moment later.
  */
-export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, onBack }) {
+export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, farmId, canShare = false, onBack }) {
   const { lang } = useLanguage();
   const e = T[lang].editor;
+  const share = sharedText(lang).modal;
   const localizedSop = getLocalizedSop(sop, lang);
 
   const [formData, setFormData] = useState(() => ({
@@ -51,6 +54,7 @@ export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, onB
   const [missingFields, setMissingFields] = useState([]);
   const [showExport, setShowExport] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   // Clear review state when SOP changes
   useEffect(() => {
@@ -146,6 +150,9 @@ export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, onB
             </div>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
+            {canShare && farmId && (
+              <button onClick={() => setShowShare(true)} style={{ padding: "12px 24px", background: "white", color: "var(--u-navy)", border: "1.5px solid var(--u-navy)", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700 }}>{share.button}</button>
+            )}
             <button onClick={handleReview} style={{ padding: "12px 24px", background: "var(--u-gold)", color: "var(--u-navy-d)", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(253,189,16,0.3)" }}>{e.review}</button>
             <button onClick={() => setShowExport(true)} style={{ padding: "12px 24px", background: "var(--u-navy)", color: "white", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 14, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,45,84,0.3)" }}>{e.export}</button>
           </div>
@@ -177,6 +184,16 @@ export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, onB
         ))}
       </div>
 
+      {showShare && (
+        <ShareSopModal
+          farmId={farmId}
+          sopId={sop.id}
+          sopTitle={localizedSop.title}
+          farmName={farmProfile?.farm_name}
+          filledIn={Object.values(formData).some((value) => (Array.isArray(value) ? value.length > 0 : Boolean(value)))}
+          onClose={() => setShowShare(false)}
+        />
+      )}
       {showExport && <ExportModal sop={sop} formData={formData} farmProfile={farmProfile} onClose={() => setShowExport(false)} />}
     </div>
   );

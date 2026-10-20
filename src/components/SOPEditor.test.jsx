@@ -19,6 +19,31 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+vi.mock('./ShareSopModal.jsx', () => ({ default: ({ sopId, filledIn, onClose }) => <div role="dialog" aria-label="share">{`share ${sopId} ${filledIn ? 'filled' : 'empty'}`}<button onClick={onClose}>close share</button></div> }));
+
+describe('SOPEditor: sharing with workers', () => {
+  it('offers sharing to people who may share, with the farm', () => {
+    setup({ canShare: true, farmId: 'farm-1' });
+    expect(screen.getByRole('button', { name: 'Share' })).toBeTruthy();
+  });
+
+  it.each([[{ canShare: false, farmId: 'farm-1' }], [{ canShare: true }], [{}]])('does not offer it otherwise (%j)', (props) => {
+    setup(props);
+    expect(screen.queryByRole('button', { name: 'Share' })).toBeNull();
+  });
+
+  it('opens and closes the share window, telling it whether the SOP has anything in it', () => {
+    setup({ canShare: true, farmId: 'farm-1' });
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+    expect(screen.getByRole('dialog', { name: 'share' }).textContent).toContain('share 1 empty');
+    fireEvent.click(screen.getByRole('button', { name: 'close share' }));
+    expect(screen.queryByRole('dialog', { name: 'share' })).toBeNull();
+    fireEvent.change(box('prepared_by'), { target: { value: 'Maria' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+    expect(screen.getByRole('dialog', { name: 'share' }).textContent).toContain('share 1 filled');
+  });
+});
+
 describe('SOPEditor: keeping what was written', () => {
   it('starts from what the farm saved for this SOP', () => {
     setup({ savedForm: { farm_name: 'Green Valley Farm' } });

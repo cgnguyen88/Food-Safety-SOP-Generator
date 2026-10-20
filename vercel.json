@@ -13,5 +13,8 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    { "source": "/s/:token", "destination": "/index.html" }
   ]
 }

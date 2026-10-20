@@ -118,6 +118,8 @@ function FarmApp() {
             sop={activeSOP}
             farmProfile={farmProfile}
             savedForm={farm.data.sop_forms?.[activeSOP.id]}
+            farmId={farm.account.farm?.id}
+            canShare={canSaveSops}
             onSaveForm={canSaveSops ? (form) => farm.setValue("sop_forms", (all) => ({ ...all, [activeSOP.id]: form })) : undefined}
             onBack={() => handleNavigate("sops")}
           />

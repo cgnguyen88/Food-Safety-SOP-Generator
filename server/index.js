@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import dotenv from 'dotenv';
 import { createDefaultHandler } from '../api/_lib/createDefaultHandler.js';
+import { createDefaultShareHandler } from '../api/_lib/createShareHandler.js';
 import { loadConfig } from '../api/_lib/config.js';
 
 // Load .env.local for development. Must run before the handler reads the environment.
@@ -18,6 +19,7 @@ app.use(express.json({ limit: loadConfig(process.env).bodyLimitBytes }));
 
 // The same handler Vercel runs in production (api/claude.js).
 app.all('/api/claude', createDefaultHandler());
+app.all('/api/sop-share', createDefaultShareHandler());
 
 // JSON errors only: no stack traces or HTML error pages.
 app.use((err, _req, res, _next) => {

@@ -82,7 +82,7 @@ describe('TracePage: tracing a lot', () => {
     const { user } = setup();
     await trace(user, 'GVF-KALE-20260710-B2');
     expect(await screen.findByText('No harvest crew is recorded.')).toBeTruthy();
-    expect(screen.getByText('No cleaning is recorded for the harvest or packing day.')).toBeTruthy();
+    expect(screen.getByText('No cleaning is recorded around the harvest or packing day.')).toBeTruthy();
   });
 
   it('says so when no record uses the lot code', async () => {

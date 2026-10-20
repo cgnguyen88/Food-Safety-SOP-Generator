@@ -115,6 +115,16 @@ describe('App', () => {
     expect(account.setValue).not.toHaveBeenCalled();
   });
 
+  it('explains that the farm is not set up yet, with a way to try again, instead of showing the library as home', async () => {
+    const account = signedIn({ account: { user: { id: 'u1', name: 'Ana Diaz' }, farm: null, role: null }, retryLoad: vi.fn() });
+    useFarmAccount.mockReturnValue(account);
+    useRecordsMeta.mockReturnValue({ role: null, savedViews: [], needsReviewCount: 0, reviewKnown: false, ready: true, refresh: vi.fn() });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Try again' }));
+    expect(account.retryLoad).toHaveBeenCalled();
+  });
+
   it('opens the farm food safety plan from the library', async () => {
     const user = userEvent.setup();
     render(<App />);

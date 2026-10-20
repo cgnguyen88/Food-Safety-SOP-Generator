@@ -148,9 +148,68 @@ describe('traceLot: back to the field', () => {
     expect(trace.back.waterTests.map((r) => [r.record_date, r.payload.result])).toEqual([['2026-06-20', 'fail'], ['2026-07-03', 'pass']]);
   });
 
-  it('finds the cleaning logs from the day of the harvest and the day of packing', () => {
-    const trace = traceLot([lot, packing('GVF-1', '2026-07-04'), sanitation('2026-07-03'), sanitation('2026-07-04', 'fail'), sanitation('2026-07-02'), sanitation('2026-07-05')], 'GVF-1');
-    expect(trace.back.sanitation.map((r) => r.record_date)).toEqual(['2026-07-03', '2026-07-04']);
+  it('finds the cleaning logs from the day before the harvest to the day of packing, and no others', () => {
+    const trace = traceLot([lot, packing('GVF-1', '2026-07-04'), sanitation('2026-07-02'), sanitation('2026-07-03'), sanitation('2026-07-04', 'fail'), sanitation('2026-07-01'), sanitation('2026-07-05')], 'GVF-1');
+    expect(trace.back.sanitation.map((r) => r.record_date)).toEqual(['2026-07-02', '2026-07-03', '2026-07-04']);
+  });
+
+  it('does not count a water test more than a year before the harvest', () => {
+    const recent = water('2025-07-03', 'pre_harvest');
+    const stale = water('2025-07-02', 'harvest_postharvest');
+    expect(traceLot([lot, recent, stale], 'GVF-1').back.waterTests.map((r) => r.id)).toEqual([recent.id]);
+    expect(traceLot([lot, stale], 'GVF-1').gaps).toContain('no_water_test');
+  });
+
+  it('counts a water test taken on the day of the harvest, and not one taken the day after', () => {
+    expect(traceLot([lot, water('2026-07-03', 'pre_harvest')], 'GVF-1').back.waterTests).toHaveLength(1);
+    expect(traceLot([lot, water('2026-07-04', 'pre_harvest')], 'GVF-1').back.waterTests).toHaveLength(0);
+  });
+
+  it('takes the later of two water tests of the same use, whichever comes first in the list', () => {
+    const early = water('2026-05-01', 'pre_harvest');
+    const late = water('2026-06-01', 'pre_harvest');
+    expect(traceLot([lot, early, late], 'GVF-1').back.waterTests.map((r) => r.id)).toEqual([late.id]);
+    expect(traceLot([lot, late, early], 'GVF-1').back.waterTests.map((r) => r.id)).toEqual([late.id]);
+  });
+
+  it('counts weather and animal checks from exactly 30 days before the harvest, not 31', () => {
+    const edge = rec('wildlife_check', '2026-06-03', { field: 'A1', evidence: 'no' });
+    const outside = rec('wildlife_check', '2026-06-02', { field: 'A1', evidence: 'no' });
+    const sameDay = rec('wildlife_check', '2026-07-03', { field: 'A1', evidence: 'no' });
+    const after = rec('wildlife_check', '2026-07-04', { field: 'A1', evidence: 'no' });
+    expect(traceLot([lot, edge, outside, sameDay, after], 'GVF-1').back.fieldEvents.map((r) => r.id)).toEqual([edge.id, sameDay.id]);
+  });
+
+  it('counts a soil amendment applied on the day of the harvest', () => {
+    expect(traceLot([lot, amendment('2026-07-03')], 'GVF-1').back.amendments).toHaveLength(1);
+  });
+
+  it('leaves out corrective actions for the field from more than 30 days before the first harvest', () => {
+    const old = rec('corrective_action', '2026-06-02', { problem: 'p', action: 'a', field: 'A1' });
+    const edge = rec('corrective_action', '2026-06-03', { problem: 'p', action: 'a', field: 'A1' });
+    expect(traceLot([lot, old, edge], 'GVF-1').back.correctiveActions.map((r) => r.id)).toEqual([edge.id]);
+  });
+
+  it('says there is no crew only when no harvest of the lot names one', () => {
+    expect(traceLot([harvest('GVF-1', { crew: '' }), harvest('GVF-1', { crew: 'Crew 2' })], 'GVF-1').gaps).not.toContain('no_crew');
+    expect(traceLot([harvest('GVF-1', { crew: '' })], 'GVF-1').gaps).toContain('no_crew');
+  });
+
+  it('keeps the first spelling of a customer, and a crop or crew named twice once', () => {
+    const trace = traceLot([harvest('GVF-1'), harvest('GVF-1'), shipment('GVF-1', 'Fresh Mart', 1), shipment('GVF-1', 'FRESH MART', 1)], 'GVF-1');
+    expect(trace.customers.map((c) => c.name)).toEqual(['Fresh Mart']);
+    expect(trace.crops).toEqual(['Lettuce']);
+    expect(trace.crew).toEqual(['Crew 2']);
+  });
+
+  it('adds up quantities of one unit across harvests, and gives a blank unit its own total', () => {
+    const trace = traceLot([harvest('GVF-1', { quantity: 10, unit: '' }), harvest('GVF-1', { quantity: 5, unit: '' }), harvest('GVF-1', { quantity: 40 })], 'GVF-1');
+    expect(trace.harvested).toEqual([{ unit: '', quantity: 15 }, { unit: 'cartons', quantity: 40 }]);
+  });
+
+  it('shows the newest date and spelling for a lot used on two days', () => {
+    expect(knownLots([harvest('GVF-1', {}, '2026-07-05'), harvest('GVF-1', {}, '2026-07-03')])[0].date).toBe('2026-07-05');
+    expect(knownLots([harvest('GVF-1', {}, '2026-07-03'), harvest('GVF-1', {}, '2026-07-05')])[0].date).toBe('2026-07-05');
   });
 
   it('finds weather events and animal checks on the field in the month before the harvest', () => {

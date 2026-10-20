@@ -125,8 +125,10 @@ function FarmApp() {
           />
         ) : activePage === "plan_generator" ? (
           <PlanGenerator farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
-        ) : activePage === "sops" || !farm.account.farm ? (
+        ) : activePage === "sops" ? (
           <SopLibrary onSelectSOP={handleSelectSOP} onOpenPlan={() => handleNavigate("plan_generator")} />
+        ) : !farm.account.farm ? (
+          <RecordsPage route={{ type: "overview" }} farm={null} onRetryFarm={farm.retryLoad} />
         ) : (
           <Home
             farm={farm.account.farm}

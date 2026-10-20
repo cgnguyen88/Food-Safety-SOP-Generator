@@ -12,6 +12,8 @@ import { fieldKey, tidyFieldName } from './fields.js';
 export const AMENDMENT_LOOKBACK_DAYS = 365;
 /** How far before a harvest a weather event or an animal check is still part of the lot's history. */
 export const EVENT_LOOKBACK_DAYS = 30;
+/** How old a water test may be and still stand for the water a harvest used. */
+export const WATER_TEST_LOOKBACK_DAYS = 365;
 
 const lotKey = (value) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').toUpperCase() : '');
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -88,7 +90,8 @@ function backTrace(records, harvests, packing, lot) {
   const dated = harvests.map((harvest) => ({ day: recordDay(harvest), field: fieldKey(harvest.payload.field) })).filter((h) => h.day !== '');
   const fieldKeys = new Set(harvests.map((harvest) => fieldKey(harvest.payload.field)).filter(Boolean));
   const earliest = dated.map((h) => h.day).sort()[0] ?? '';
-  const workDays = new Set([...harvests, ...packing].map(recordDay).filter(Boolean));
+  // Bins are often cleaned the evening before, so the day before a harvest or packing day counts as well.
+  const workDays = new Set([...harvests, ...packing].map(recordDay).filter(Boolean).flatMap((day) => [day, addDays(day, -1)]));
 
   const onField = (record) => fieldKeys.has(fieldKey(record.payload.field));
   const beforeAHarvest = (record, days, sameField) => {
@@ -104,7 +107,7 @@ function backTrace(records, harvests, packing, lot) {
   const latestByUse = new Map();
   for (const test of records.filter((r) => approved(r, 'water_test'))) {
     const day = recordDay(test);
-    if (day === '' || !dated.some((h) => day <= h.day)) continue;
+    if (day === '' || !dated.some((h) => day <= h.day && day >= addDays(h.day, -WATER_TEST_LOOKBACK_DAYS))) continue;
     const use = test.payload.water_use ?? '';
     const best = latestByUse.get(use);
     if (!best || day > recordDay(best)) latestByUse.set(use, test);

@@ -34,13 +34,18 @@ function buildProfilePrefill(sop, farmProfile) {
   return prefill;
 }
 
-export default function SOPEditor({ sop, farmProfile, onBack }) {
+/**
+ * One SOP's form, beside the assistant. `savedForm` is what the farm has saved for this SOP; `onSaveForm` (given only to
+ * people who may save) is called with the whole form after each change, and saves it a moment later.
+ */
+export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, onBack }) {
   const { lang } = useLanguage();
   const e = T[lang].editor;
   const localizedSop = getLocalizedSop(sop, lang);
 
   const [formData, setFormData] = useState(() => ({
     ...buildProfilePrefill(sop, farmProfile),
+    ...(savedForm || {}),
     ...(sop.prefillData || {}),
   }));
   const [missingFields, setMissingFields] = useState([]);
@@ -71,11 +76,16 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
     });
   }, [sop, farmProfile]);
 
+  const change = (updates) => {
+    const next = { ...formData, ...updates };
+    setFormData(next);
+    onSaveForm?.(next);
+  };
   const handleChange = (id, val) => {
-    setFormData(p => ({ ...p, [id]: val }));
+    change({ [id]: val });
     setMissingFields(prev => prev.filter(f => f !== id));
   };
-  const handleFormUpdate = (updates) => setFormData(p => ({ ...p, ...updates }));
+  const handleFormUpdate = (updates) => change(updates);
 
   const handleReview = () => {
     const required = sop.sections.flatMap(s => s.fields.filter(f => f.required).map(f => f.id));

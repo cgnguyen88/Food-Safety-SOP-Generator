@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, within } from '@testing-library/react';
+import { render, screen, cleanup, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('./lib/useFarmAccount.js', () => ({ default: vi.fn() }));
@@ -85,6 +85,34 @@ describe('App', () => {
     expect(screen.queryByTitle('Chat with Jimmy')).toBeNull();
     await user.click(screen.getByRole('button', { name: /Back/ }));
     expect(await screen.findByTitle('Chat with Jimmy')).toBeTruthy();
+  });
+
+  it('saves what an owner or manager writes in a SOP with the farm, next to the other SOPs', async () => {
+    const account = signedIn({ data: { farm_profile: { farm_name: 'Green Valley Farm' }, sop_forms: { 5: { farm_name: 'Other SOP' } } } });
+    useFarmAccount.mockReturnValue(account);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^SOPs & plan/ }));
+    await user.click((await screen.findAllByRole('button', { name: /Handwashing/i }))[0]);
+    await screen.findByRole('button', { name: /Back/ });
+    fireEvent.change(document.getElementById('field-prepared_by').querySelector('input, textarea'), { target: { value: 'Maria' } });
+    expect(account.setValue).toHaveBeenCalledTimes(1);
+    const [key, update] = account.setValue.mock.calls[0];
+    expect(key).toBe('sop_forms');
+    expect(update({ 5: { farm_name: 'Other SOP' } })).toEqual({ 5: { farm_name: 'Other SOP' }, 1: expect.objectContaining({ prepared_by: 'Maria' }) });
+  });
+
+  it('does not try to save what crew write in a SOP, because only owners and managers can', async () => {
+    const account = signedIn({ account: { user: { id: 'u1', name: 'Crew' }, farm: { id: 'farm-1', name: 'Sunny' }, role: 'crew' } });
+    useFarmAccount.mockReturnValue(account);
+    useRecordsMeta.mockReturnValue({ role: 'crew', savedViews: [], needsReviewCount: 0, ready: true, refresh: vi.fn() });
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: /^SOPs & plan/ }));
+    await user.click((await screen.findAllByRole('button', { name: /Handwashing/i }))[0]);
+    await screen.findByRole('button', { name: /Back/ });
+    fireEvent.change(document.getElementById('field-prepared_by').querySelector('input, textarea'), { target: { value: 'Maria' } });
+    expect(account.setValue).not.toHaveBeenCalled();
   });
 
   it('opens the farm food safety plan from the library', async () => {

@@ -13,6 +13,7 @@ const EMPTY_DATA = Object.freeze({
   incidents: [],
   cost_settings: {},
   sop_activity_records: [],
+  sop_forms: {},
 });
 
 const NO_IMPORT = Object.freeze({ imported: [], kept: [], failed: [] });

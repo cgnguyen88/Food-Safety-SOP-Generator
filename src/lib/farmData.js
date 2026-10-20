@@ -1,5 +1,5 @@
 /**
- * The farm's shared data (farm profile, incidents, cost settings, SOP activity records), kept in the
+ * The farm's shared data (farm profile, SOP forms, and the older incidents, cost settings and SOP activity records), kept in the
  * `farm_data` table so the whole team sees the same thing on every device. Until now each browser
  * kept its own copy in localStorage; the first sign-in copies that copy into the account once.
  *
@@ -12,6 +12,7 @@ export const FARM_DATA_SHAPES = Object.freeze({
   incidents: 'array',
   cost_settings: 'object',
   sop_activity_records: 'array',
+  sop_forms: 'object',
 });
 
 /** Where the browser's own copy is kept after it has been copied into an account. */

@@ -327,13 +327,20 @@ describe('accounts, farms and farm data', () => {
       await expect(asUser(db, owner, () => db.query(`update public.farm_data set key = 'incidents' where farm_id = $1 and key = 'cost_settings'`, [farm]))).rejects.toThrow(DENIED);
     });
 
-    it('accepts only the four known kinds of data, each in its expected shape', async () => {
+    it('accepts only the five known kinds of data, each in its expected shape', async () => {
       await expect(putData(db, owner, farm, 'secrets', { a: 1 })).rejects.toThrow(/check constraint/i);
       await expect(putData(db, owner, farm, 'incidents', { not: 'a list' })).rejects.toThrow(/check constraint/i);
       await expect(putData(db, owner, farm, 'farm_profile', ['not', 'an', 'object'])).rejects.toThrow(/check constraint/i);
       await expect(putData(db, owner, farm, 'cost_settings', 'text')).rejects.toThrow(/check constraint/i);
       await putData(db, owner, farm, 'sop_activity_records', [{ sopId: 'sop1', date: '2026-10-18' }]);
       await expect(putData(db, owner, farm, 'sop_activity_records', {})).rejects.toThrow(/check constraint/i);
+      await putData(db, owner, farm, 'sop_forms', { 1: { farm_name: 'Green Valley Farm' } });
+      await expect(putData(db, owner, farm, 'sop_forms', [{ not: 'an object' }])).rejects.toThrow(/check constraint/i);
+    });
+
+    it('lets owners and managers, but not crew, save SOP forms', async () => {
+      await putData(db, manager, farm, 'sop_forms', { 2: { effective_date: '2026-10-20' } });
+      await expect(asUser(db, crew, () => db.query(`insert into public.farm_data (farm_id, key, value) values ($1, 'sop_forms', '{}')`, [farm]))).rejects.toThrow(DENIED);
     });
 
     it('refuses a value over 5 MB, so one save cannot fill the database', async () => {

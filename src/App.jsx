@@ -54,6 +54,8 @@ function FarmApp() {
   }
 
   const { farm_profile: farmProfile } = farm.data;
+  // Owners and managers save the farm's SOPs; crew can read and fill them in, but what they type stays on their screen.
+  const canSaveSops = ["owner", "manager"].includes(recordsMeta.role ?? farm.account.role);
   const recordsRoute = parseRecordsRoute(activePage);
 
   const saveFarmProfile = (profile) => {
@@ -111,7 +113,14 @@ function FarmApp() {
             onRetryFarm={farm.retryLoad}
           />
         ) : activePage === "sop" && activeSOP ? (
-          <SOPEditor sop={activeSOP} farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
+          <SOPEditor
+            key={activeSOP.id}
+            sop={activeSOP}
+            farmProfile={farmProfile}
+            savedForm={farm.data.sop_forms?.[activeSOP.id]}
+            onSaveForm={canSaveSops ? (form) => farm.setValue("sop_forms", (all) => ({ ...all, [activeSOP.id]: form })) : undefined}
+            onBack={() => handleNavigate("sops")}
+          />
         ) : activePage === "plan_generator" ? (
           <PlanGenerator farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
         ) : activePage === "sops" || !farm.account.farm ? (

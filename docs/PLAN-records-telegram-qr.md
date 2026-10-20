@@ -1,6 +1,6 @@
 # Plan: food safety records, Telegram capture, traceability and SOP QR codes
 
-Status: Phase 0 built on branch `feat/accounts-and-secure-ai` (2026-10-18); Phases 1 to 5 not started. Built on branches, never straight on `main`.
+Status: Phase 0 built on branch `feat/accounts-and-secure-ai` (2026-10-18); Phase 1 built on `feat/food-safety-records` (2026-10-19); Phases 2 to 5 not started. Built on branches, never straight on `main`.
 
 ## Decisions (from the owner)
 
@@ -66,6 +66,13 @@ CAPTCHA, enforce the CSP after checking the live site.
 ### Phase 1: records core
 Copy the Organic records system (records + immutable revisions, Needs Review, logs, change history, CSV/Word reports,
 fields registry such as A2, B2) and swap in the food safety kinds above, in English and Spanish.
+
+Done (2026-10-19): 15 record kinds in four groups plus notes, every field in English and Spanish; records with immutable
+history, review queue, void-not-delete; illness and injury reports (and their history) visible to owners and managers
+only, left out of reports unless ticked; field list (A2, B2, ...) with what happened in each field; reports on screen,
+Word, CSV and print, with checks before hand-over; five default saved views; a farm season start. Not brought over:
+photo capture and Telegram (Phase 3), the Organic app's stock page and OMRI check. Owner to do: run the two
+`20261019...` migrations.
 
 ### Phase 2: rules that connect records
 Sanitizer label → sanitation log pass/fail; field holds and their clearing; training due list; lot code generator from the

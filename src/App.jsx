@@ -1,7 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { GLOBAL_CSS } from "./styles/global.js";
-import { SOP_DATA } from "./data/sop-data.js";
-import { decodeShareLink } from "./utils/export.js";
 import { LanguageProvider, useLanguage } from "./i18n/LanguageContext.jsx";
 import useFarmAccount from "./lib/useFarmAccount.js";
 import AuthScreen from "./components/AuthScreen.jsx";
@@ -37,14 +35,6 @@ function FarmApp() {
   const [activeSOP, setActiveSOP] = useState(null);
   const [activePage, setActivePage] = useState("home");
   const [showProfile, setShowProfile] = useState(false);
-
-  // A shared SOP link opens that SOP, prefilled, once the person is signed in.
-  useEffect(() => {
-    const shared = decodeShareLink();
-    if (!shared) return;
-    const sop = SOP_DATA.find(s => s.id === shared.sopId);
-    if (sop) { setActiveSOP({ ...sop, prefillData: shared.formData }); setActivePage("sop"); }
-  }, []);
 
   if (farm.status === "checking") return null;
   if (farm.status === "signed-out") return <AuthScreen />;

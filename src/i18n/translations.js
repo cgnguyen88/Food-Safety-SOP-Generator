@@ -128,14 +128,11 @@ export const T = {
       missingField: (n) => `${n} required field${n > 1 ? "s" : ""} missing`,
     },
     exportModal: {
-      title: "Export & Share",
+      title: "Export",
       printLabel: "View & Print / Save as PDF",
       printDesc: "Opens browser print dialog — choose 'Save as PDF'",
       wordLabel: "Download as Word (.doc)",
       wordDesc: "Opens in Microsoft Word or Google Docs",
-      linkLabel: "Copy Share Link",
-      linkCopied: "Link Copied!",
-      linkDesc: "Anyone with this link can view your filled template",
       close: "Close",
     },
     farmProfile: {
@@ -304,14 +301,11 @@ export const T = {
       missingField: (n) => `${n} campo${n > 1 ? "s" : ""} requerido${n > 1 ? "s" : ""} faltante${n > 1 ? "s" : ""}`,
     },
     exportModal: {
-      title: "Exportar y Compartir",
+      title: "Exportar",
       printLabel: "Ver e Imprimir / Guardar como PDF",
       printDesc: "Abre el diálogo de impresión del navegador — elija 'Guardar como PDF'",
       wordLabel: "Descargar como Word (.doc)",
       wordDesc: "Abre en Microsoft Word o Google Docs",
-      linkLabel: "Copiar Enlace para Compartir",
-      linkCopied: "¡Enlace Copiado!",
-      linkDesc: "Cualquiera con este enlace puede ver su plantilla completada",
       close: "Cerrar",
     },
     farmProfile: {

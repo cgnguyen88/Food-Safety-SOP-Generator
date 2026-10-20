@@ -49,7 +49,6 @@ export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, far
   const [formData, setFormData] = useState(() => ({
     ...buildProfilePrefill(sop, farmProfile),
     ...(savedForm || {}),
-    ...(sop.prefillData || {}),
   }));
   const [missingFields, setMissingFields] = useState([]);
   const [showExport, setShowExport] = useState(false);
@@ -65,10 +64,9 @@ export default function SOPEditor({ sop, farmProfile, savedForm, onSaveForm, far
   // Rehydrate when profile or selected SOP changes, without overwriting user's manual edits.
   useEffect(() => {
     const profilePrefill = buildProfilePrefill(sop, farmProfile);
-    const sharedPrefill = sop.prefillData || {};
     setFormData((prev) => {
       const next = { ...prev };
-      const merged = { ...profilePrefill, ...sharedPrefill };
+      const merged = { ...profilePrefill };
       Object.entries(merged).forEach(([key, value]) => {
         const current = next[key];
         const hasCurrent = Array.isArray(current) ? current.length > 0 : !!current;

@@ -1,14 +1,12 @@
 import { useState } from "react";
-import { generateShareLink, downloadAsDocx, printAsPdf } from "../utils/export.js";
+import { downloadAsDocx, printAsPdf } from "../utils/export.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 
 export default function ExportModal({ sop, formData, farmProfile, onClose }) {
   const { lang } = useLanguage();
   const em = T[lang].exportModal;
-  const [copied, setCopied] = useState(false);
   const [printError, setPrintError] = useState("");
-  const shareLink = generateShareLink(sop.id, formData);
 
   const handlePrint = () => {
     try {
@@ -19,10 +17,6 @@ export default function ExportModal({ sop, formData, farmProfile, onClose }) {
       setPrintError(e.message || "Unable to open print window.");
     }
   };
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(shareLink).then(() => { setCopied(true); setTimeout(()=>setCopied(false),2000); });
-  };
-
   return (
     <div className="no-print" style={{ position:"fixed",inset:0,background:"rgba(0,0,0,.45)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)" }}>
       <div style={{ background:"var(--cream)",borderRadius:16,width:"min(480px,95vw)",boxShadow:"var(--shadow-lg)" }}>
@@ -34,7 +28,6 @@ export default function ExportModal({ sop, formData, farmProfile, onClose }) {
           {[
             { icon:"🖨️", label: em.printLabel, desc: em.printDesc, action: handlePrint, color:"var(--g800)" },
             { icon:"📄", label: em.wordLabel, desc: em.wordDesc, action:()=>{downloadAsDocx(sop,formData,farmProfile);onClose();}, color:"var(--sky)" },
-            { icon:"🔗", label: copied ? em.linkCopied : em.linkLabel, desc: em.linkDesc, action: handleCopyLink, color: copied ? "var(--g700)" : "var(--gold)" },
           ].map((btn,i) => (
             <button key={i} onClick={btn.action} style={{ display:"flex",alignItems:"center",gap:16,padding:"16px 20px",background:"white",border:"1.5px solid var(--bdr)",borderRadius:12,cursor:"pointer",textAlign:"left",transition:"border-color .15s" }}>
               <span style={{ fontSize:28 }}>{btn.icon}</span>

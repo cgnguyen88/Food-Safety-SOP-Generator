@@ -90,6 +90,51 @@ describe('findSanitizerLabel: uses, dates and short names', () => {
   });
 });
 
+describe('sanitizer names and readings at their limits', () => {
+  it('matches a three-letter name inside a longer product, but not a two-letter one', () => {
+    expect(findSanitizerLabel('ble', [label('Chlorine bleach', 50, 200)])?.payload.product).toBe('Chlorine bleach');
+    expect(findSanitizerLabel('bl', [label('Chlorine bleach', 50, 200)])).toBeNull();
+  });
+
+  it('matches a product name of three letters within a longer name in the log, but not one of two', () => {
+    expect(findSanitizerLabel('Bleach Alpha Bleach', [label('Ble', 1, 2)])?.payload.product).toBe('Ble');
+    expect(findSanitizerLabel('Alpha Bleach', [label('Al', 1, 2)])).toBeNull();
+  });
+
+  it('tells apart names that differ only by a number', () => {
+    const labels = [label('Sanitizer 9', 50, 100), label('Sanitizer 5', 10, 20)];
+    expect(findSanitizerLabel('Sanitizer 9', labels)?.payload.ppm_max).toBe(100);
+    expect(findSanitizerLabel('Sanitizer 5', labels)?.payload.ppm_max).toBe(20);
+  });
+
+  it('counts a reading of zero as a reading (too low), not as no reading', () => {
+    expect(checkSanitizerConcentration({ ppm: 0, sanitizer: 'Peracetic Acid 15%' }, LABELS)).toMatchObject({ result: 'fail', reason: 'too_low' });
+    expect(checkSanitizerConcentration({ ppm: '0', sanitizer: 'Peracetic Acid 15%' }, LABELS).result).toBe('fail');
+  });
+
+  it('is not a reading when the number is infinite or the text is only spaces', () => {
+    expect(checkSanitizerConcentration({ ppm: Infinity, sanitizer: 'Peracetic Acid 15%' }, LABELS).reason).toBe('no_reading');
+    expect(checkSanitizerConcentration({ ppm: '   ', sanitizer: 'Peracetic Acid 15%' }, LABELS).reason).toBe('no_reading');
+    expect(checkSanitizerConcentration({ ppm: NaN, sanitizer: 'Peracetic Acid 15%' }, LABELS).reason).toBe('no_reading');
+  });
+
+  it('allows a label whose minimum and maximum are the same number', () => {
+    expect(labelRange(label('x', 100, 100))).toEqual({ min: 100, max: 100 });
+    expect(checkSanitizerConcentration({ ppm: 100, sanitizer: 'Exact' }, [label('Exact', 100, 100)]).result).toBe('pass');
+    expect(checkSanitizerConcentration({ ppm: 101, sanitizer: 'Exact' }, [label('Exact', 100, 100)]).result).toBe('fail');
+  });
+
+  it('uses the newest label when the log has an empty date', () => {
+    const labels = [label('Wash', 10, 20, { record_date: '2025-01-01' }), label('Wash', 30, 40, { record_date: '2026-01-01' })];
+    expect(findSanitizerLabel('Wash', labels, '')?.payload.ppm_max).toBe(40);
+    expect(findSanitizerLabel('Wash', labels, undefined)?.payload.ppm_max).toBe(40);
+  });
+
+  it('keeps labels with no date in the list, for any log date', () => {
+    expect(findSanitizerLabel('Wash', [{ ...label('Wash', 10, 20), record_date: null }], '2026-01-01')?.payload.ppm_max).toBe(20);
+  });
+});
+
 describe('labelRange', () => {
   it('reads a minimum and a maximum', () => {
     expect(labelRange(label('x', 100, 200))).toEqual({ min: 100, max: 200 });

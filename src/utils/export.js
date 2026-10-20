@@ -1,18 +1,3 @@
-export function generateShareLink(sopId, formData) {
-  const payload = { sopId, formData };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  return `${window.location.href.split("#")[0]}#share=${encoded}`;
-}
-
-export function decodeShareLink() {
-  const hash = window.location.hash;
-  if (!hash.startsWith("#share=")) return null;
-  try {
-    const decoded = decodeURIComponent(escape(atob(hash.slice(7))));
-    return JSON.parse(decoded);
-  } catch { return null; }
-}
-
 function buildSopExportHtml(sop, formData, farmProfile) {
   const esc = (value = "") =>
     String(value)

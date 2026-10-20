@@ -76,3 +76,6 @@ revoke all on function public.take_rate_token(text, text, integer, integer) from
 revoke all on function public.purge_rate_limit_hits() from public, anon, authenticated;
 grant execute on function public.take_rate_token(text, text, integer, integer) to service_role;
 grant execute on function public.purge_rate_limit_hits() to service_role;
+
+-- Tell the Supabase API about the new tables and functions now, not at its next restart.
+notify pgrst, 'reload schema';

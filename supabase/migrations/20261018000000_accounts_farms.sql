@@ -454,3 +454,6 @@ grant execute on function public.ensure_my_farm() to authenticated;
 grant execute on function public.put_farm_data(uuid, text, jsonb, integer) to authenticated;
 
 -- KNOWN GAP (later): removing a farm's last member leaves a farm with no owner.
+
+-- Tell the Supabase API about the new tables and functions now, not at its next restart.
+notify pgrst, 'reload schema';

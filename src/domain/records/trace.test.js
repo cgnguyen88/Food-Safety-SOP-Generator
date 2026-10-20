@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lotCodesIn, knownLots, traceLot } from './trace.js';
+import { mentionsLot, knownLots, traceLot } from './trace.js';
 
 let n = 0;
 const rec = (kind, record_date, payload, extra = {}) => ({ id: `r${(n += 1)}`, kind, status: 'approved', record_date, created_at: `${record_date}T08:00:00Z`, payload, ...extra });
@@ -7,15 +7,32 @@ const harvest = (lot_code, extra = {}, date = '2026-07-03') => rec('harvest', da
 const packing = (lot_code, date = '2026-07-03') => rec('packing_cooling', date, { lot_code, product: 'Lettuce', quantity: 40, unit: 'cartons' });
 const shipment = (lot_codes, customer, quantity, date = '2026-07-04') => rec('shipment', date, { customer, lot_codes, quantity, unit: 'cartons' });
 
-describe('lotCodesIn', () => {
-  it('splits a list of lot codes written with commas, semicolons, spaces or lines, in capitals, once each', () => {
-    expect(lotCodesIn('gvf-1, GVF-2;gvf-3\nGVF-1  gvf-4')).toEqual(['GVF-1', 'GVF-2', 'GVF-3', 'GVF-4']);
+describe('mentionsLot', () => {
+  it('finds a lot code in a list written however the farm writes lists', () => {
+    expect(mentionsLot('GVF-1, GVF-2', 'GVF-2')).toBe(true);
+    expect(mentionsLot('gvf-1;gvf-2', 'GVF-1')).toBe(true);
+    expect(mentionsLot('GVF-1 GVF-2\nGVF-3', 'GVF-3')).toBe(true);
   });
 
-  it('is empty for nothing', () => {
-    expect(lotCodesIn('')).toEqual([]);
-    expect(lotCodesIn(undefined)).toEqual([]);
-    expect(lotCodesIn(7)).toEqual([]);
+  it('finds a lot code that has a space or a slash in it', () => {
+    expect(mentionsLot('Lot 12', 'LOT 12')).toBe(true);
+    expect(mentionsLot('Lot 12, Lot 13', 'LOT 13')).toBe(true);
+    expect(mentionsLot('L1/L2, L3', 'L1/L2')).toBe(true);
+    expect(mentionsLot('lot   12', 'LOT 12')).toBe(true);
+  });
+
+  it('does not take one code for another that only starts the same way, or has a number added', () => {
+    expect(mentionsLot('GVF-10', 'GVF-1')).toBe(false);
+    expect(mentionsLot('GVF-1-2', 'GVF-1')).toBe(false);
+    expect(mentionsLot('XGVF-1', 'GVF-1')).toBe(false);
+    expect(mentionsLot('A.1', 'A')).toBe(false);
+  });
+
+  it('is false for blanks and things that are not text', () => {
+    expect(mentionsLot('', 'GVF-1')).toBe(false);
+    expect(mentionsLot(undefined, 'GVF-1')).toBe(false);
+    expect(mentionsLot('GVF-1', '')).toBe(false);
+    expect(mentionsLot(5, 'GVF-1')).toBe(false);
   });
 });
 
@@ -97,6 +114,21 @@ describe('traceLot: forward and the lot itself', () => {
   it('ignores records that are not approved', () => {
     const trace = traceLot([harvest('GVF-1'), { ...shipment('GVF-1', 'Fresh Mart', 5), status: 'pending_review' }], 'GVF-1');
     expect(trace.shipments).toEqual([]);
+  });
+});
+
+describe('traceLot: lot codes written with spaces and slashes', () => {
+  it('follows a lot whose code has a space in it to its shipments and customers', () => {
+    const trace = traceLot([harvest('Lot 12'), shipment('Lot 12', 'Fresh Mart', 5), shipment('Lot 12, Lot 13', 'Corner Grocer', 9)], 'lot 12');
+    expect(trace.shipments).toHaveLength(2);
+    expect(trace.customers.map((c) => c.name)).toEqual(['Corner Grocer', 'Fresh Mart']);
+    expect(trace.shipped).toEqual([{ unit: 'cartons', quantity: 5 }]);
+    expect(trace.sharedShipments).toBe(1);
+  });
+
+  it('finds corrective actions that name a code with a dot in it', () => {
+    const action = rec('corrective_action', '2026-07-08', { problem: 'p', action: 'a', affected: 'Lot L.1 recalled' });
+    expect(traceLot([harvest('L.1'), action], 'L.1').back.correctiveActions.map((r) => r.id)).toEqual([action.id]);
   });
 });
 

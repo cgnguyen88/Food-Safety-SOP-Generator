@@ -39,6 +39,26 @@ describe('cleanSignerName', () => {
     expect(cleanSignerName(value)).toBeNull();
   });
 
+  it('makes a comma or semicolon a space, so one signature is never two people in the training list', () => {
+    expect(cleanSignerName('Lopez, Maria')).toBe('Lopez Maria');
+    expect(cleanSignerName('Maria Lopez, Juan Perez; Ana Ruiz')).toBe('Maria Lopez Juan Perez Ana Ruiz');
+  });
+
+  it('takes out every kind of invisible character, so a name cannot be disguised or blank', () => {
+    const hidden = [0x2066, 0x2067, 0x2069, 0x061c, 0x3164, 0x115f, 0x2800, 0x206a, 0xfff9, 0xe0041, 0x200d].map((code) => String.fromCodePoint(code));
+    for (const char of hidden) expect(cleanSignerName(`Ana${char}Diaz`), char.codePointAt(0).toString(16)).toBe('Ana Diaz');
+    expect(cleanSignerName(String.fromCodePoint(0x3164).repeat(3))).toBeNull();
+    expect(cleanSignerName(`${String.fromCodePoint(0x2800)}${String.fromCodePoint(0x2800)}`)).toBeNull();
+  });
+
+  it('needs at least two letters, not just two characters', () => {
+    expect(cleanSignerName('12')).toBeNull();
+    expect(cleanSignerName('- -')).toBeNull();
+    expect(cleanSignerName('A 1')).toBeNull();
+    expect(cleanSignerName('Li')).toBe('Li');
+    expect(cleanSignerName('李明')).toBe('李明');
+  });
+
   it('accepts exactly the limits', () => {
     expect(cleanSignerName('Al')).toBe('Al');
     expect(cleanSignerName('x'.repeat(80))).toHaveLength(80);

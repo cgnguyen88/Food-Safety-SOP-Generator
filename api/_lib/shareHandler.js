@@ -1,15 +1,15 @@
+import { clientIp } from './clientIp.js';
 import { sendJson } from './httpUtils.js';
 import { cleanSignerName, findSop, parseShareToken, sharedSopView, signOffRow } from './shareSop.js';
-import { todayLocalIso } from '../../src/domain/records/seasons.js';
 
 const ALREADY_THERE = '23505';
 const GENERIC_ERROR = 'Something went wrong. Please try again.';
 const NOT_VALID = 'This link is not valid any more.';
 const DATA_KEYS = ['farm_profile', 'sop_forms'];
 
-/** The caller's address, for rate limits only. The platform sets these headers; nothing is trusted beyond counting. */
-const clientIp = (req) =>
-  String(req.headers?.['x-real-ip'] ?? '').trim() || String(req.headers?.['x-forwarded-for'] ?? '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+/** California farms: a sign-off made in the evening belongs to that day, whatever the server's own clock says. */
+const FARM_TIME_ZONE = 'America/Los_Angeles';
+const dayInFarmZone = (date) => new Intl.DateTimeFormat('en-CA', { timeZone: FARM_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 
 function tokenFromRequest(req) {
   if (req.query && typeof req.query.token === 'string') return req.query.token;
@@ -61,11 +61,12 @@ export function createShareHandler({ getAdmin, limiters, logger = console, now =
     const perLink = await limiters.signPerLink.check(share.id);
     if (!perLink.allowed) return refuse(res, perLink);
 
-    const made = signOffRow({ share, sop, name, today: todayLocalIso(now()), lang: body?.lang });
+    const made = signOffRow({ share, sop, name, today: dayInFarmZone(now()), lang: body?.lang });
     if (!made.ok) return sendJson(res, 400, { error: 'Type your name and confirm that you read it.' });
     const { error } = await admin.from('records').insert(made.row);
     if (error && error.code !== ALREADY_THERE) throw Object.assign(new Error('sign-off failed'), { code: error.code });
-    return sendJson(res, 201, { ok: true, ...(error ? { duplicate: true } : {}) });
+    // The same answer whether or not this name had already signed today: the link must not tell a stranger who has.
+    return sendJson(res, 201, { ok: true });
   }
 
   return async function handleShareRequest(req, res) {
@@ -85,13 +86,14 @@ export function createShareHandler({ getAdmin, limiters, logger = console, now =
       return;
     }
 
-    const ip = clientIp(req);
-    const limiter = req.method === 'GET' ? limiters.read : limiters.sign;
-    const verdict = await limiter.check(ip);
-    if (!verdict.allowed) return refuse(res, verdict);
-
+    // Text that cannot be a token is answered at once, with no database work. Anything shaped like a token counts against the
+    // caller's address, so tokens cannot be guessed freely.
     const token = parseShareToken(req.method === 'GET' ? tokenFromRequest(req) : req.body?.token);
     if (!token) return sendJson(res, 404, { error: NOT_VALID });
+
+    const limiter = req.method === 'GET' ? limiters.read : limiters.sign;
+    const verdict = await limiter.check(clientIp(req));
+    if (!verdict.allowed) return refuse(res, verdict);
 
     const admin = getAdmin();
     if (!admin) {

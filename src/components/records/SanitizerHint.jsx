@@ -21,13 +21,14 @@ export function describeRange({ min, max }, tt, lang) {
  * What the sanitizer label says about the concentration just typed (see `checkSanitizerConcentration`). A pass or a
  * fail is final and is also written into the record; with no label to compare against it only explains why.
  *
- * @param {{ check: ReturnType<typeof import('../../domain/records/sanitation.js').checkSanitizerConcentration> | null, loading?: boolean }} props
+ * @param {{ check: ReturnType<typeof import('../../domain/records/sanitation.js').checkSanitizerConcentration> | null, loading?: boolean, error?: boolean }} props
  */
-export default function SanitizerHint({ check, loading = false }) {
+export default function SanitizerHint({ check, loading = false, error = false }) {
   const { lang: rawLang } = useLanguage();
   const lang = rawLang === 'es' ? 'es' : 'en';
   const tt = recordsText(lang);
 
+  if (error) return <p role="status" style={{ ...NOTE, ...TONE.fail }}>{tt.sanitizerCheck.labelsError}</p>;
   if (loading) return <p role="status" style={{ ...NOTE, ...TONE.unknown }}>{tt.sanitizerCheck.checking}</p>;
   if (!check || check.reason === 'no_reading') return null;
 

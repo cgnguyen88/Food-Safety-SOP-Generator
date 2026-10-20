@@ -51,7 +51,14 @@ describe('generateLotCode', () => {
 
   it('keeps long names to a length that fits on a label', () => {
     const { code } = generateLotCode(input({ crop: 'Extraordinarily long crop name', field: 'The far north-east corner of the farm' }));
-    expect(code).toBe('GVF-EXTRAORDINAR-20260703-THEFARNORT');
+    expect(code).toBe('GVF-EXTRAORDINAR-20260703-THEFARNORTHEAS');
+  });
+
+  it('keeps two fields that differ only at the end apart (North Field 1 and 2)', () => {
+    const one = generateLotCode(input({ field: 'North Field 1' })).code;
+    const two = generateLotCode(input({ field: 'North Field 2' })).code;
+    expect(one).toBe('GVF-LETTUCE-20260703-NORTHFIELD1');
+    expect(two).toBe('GVF-LETTUCE-20260703-NORTHFIELD2');
   });
 
   it('uses the first letters of the farm name when the farm has no code', () => {

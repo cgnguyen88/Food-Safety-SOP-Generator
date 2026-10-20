@@ -63,6 +63,9 @@ create trigger sop_shares_stamp
   before insert or update on public.sop_shares
   for each row execute function public.sop_shares_stamp();
 
+-- A trigger function is not meant to be called directly.
+revoke all on function public.sop_shares_stamp() from public, anon, authenticated;
+
 revoke all on public.sop_shares from anon, authenticated;
 grant select on public.sop_shares to authenticated;
 grant insert (farm_id, sop_id) on public.sop_shares to authenticated;

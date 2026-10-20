@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { countNeedsReview, getMyRole, listSavedViews } from '../../lib/records.js';
 
-const EMPTY = Object.freeze({ role: null, savedViews: [], needsReviewCount: 0 });
+const EMPTY = Object.freeze({ role: null, savedViews: [], needsReviewCount: 0, reviewKnown: false });
 
 /**
  * What the sidebar and records screens need to know about the signed-in person's farm:
- * their role, the farm's saved views, and how many records await review. `refresh`
+ * their role, the farm's saved views, and how many records await review. `reviewKnown` is false until that
+ * count has really been read, so a failed read is never mistaken for "nothing waiting". `refresh`
  * re-reads the views and the count (call it after anything that changes them).
  *
  * @param {{ farm: { id: string } | null, userId: string | null | undefined }} args
@@ -23,7 +24,7 @@ export default function useRecordsMeta({ farm, userId }) {
     if (!key) return undefined;
     let alive = true;
     Promise.all([getMyRole(farmId, userId), listSavedViews(farmId), countNeedsReview(farmId)]).then(([role, views, count]) => {
-      if (alive) setLoaded({ key, role, savedViews: views.data ?? [], needsReviewCount: count.data ?? 0 });
+      if (alive) setLoaded({ key, role, savedViews: views.data ?? [], needsReviewCount: count.data ?? 0, reviewKnown: !count.error && typeof count.data === 'number' });
     });
     return () => { alive = false; };
   }, [key, farmId, userId]);
@@ -32,8 +33,8 @@ export default function useRecordsMeta({ farm, userId }) {
     if (!key) return;
     const [views, count] = await Promise.all([listSavedViews(farmId), countNeedsReview(farmId)]);
     // Apply only if we are still looking at the farm/user this refresh was for.
-    setLoaded((current) => (current.key !== key ? current : { ...current, savedViews: views.data ?? current.savedViews, needsReviewCount: count.data ?? current.needsReviewCount }));
+    setLoaded((current) => (current.key !== key ? current : { ...current, savedViews: views.data ?? current.savedViews, needsReviewCount: count.data ?? current.needsReviewCount, reviewKnown: current.reviewKnown || (!count.error && typeof count.data === 'number') }));
   }, [key, farmId]);
 
-  return { role: meta.role, savedViews: meta.savedViews, needsReviewCount: meta.needsReviewCount, ready: Boolean(key && loaded.key === key), refresh };
+  return { role: meta.role, savedViews: meta.savedViews, needsReviewCount: meta.needsReviewCount, reviewKnown: meta.reviewKnown, ready: Boolean(key && loaded.key === key), refresh };
 }

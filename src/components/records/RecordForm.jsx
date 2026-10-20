@@ -84,17 +84,22 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
   const sanitizing = kind === 'sanitation_log';
   const labels = useFarmRecords({ farmId: sanitizing ? farmId : undefined, kinds: SANITIZER_LABELS });
   const labelsReady = sanitizing && labels.status === 'ready';
-  const payload = useMemo(() => (labelsReady ? applySanitationCheck(values, labels.records) : values), [labelsReady, values, labels.records]);
+  const payload = useMemo(() => (labelsReady ? applySanitationCheck(values, labels.records, date) : values), [labelsReady, values, labels.records, date]);
   const concentration = useMemo(
-    () => (labelsReady && ['clean_sanitize', 'sanitize_only'].includes(values.method) ? checkSanitizerConcentration({ ppm: values.ppm, sanitizer: values.sanitizer }, labels.records) : null),
-    [labelsReady, values.method, values.ppm, values.sanitizer, labels.records],
+    () => (labelsReady && ['clean_sanitize', 'sanitize_only'].includes(values.method) ? checkSanitizerConcentration({ ppm: values.ppm, sanitizer: values.sanitizer, date }, labels.records) : null),
+    [labelsReady, values.method, values.ppm, values.sanitizer, labels.records, date],
   );
 
   // A harvest from a field that is on hold needs a corrective action first.
   const holds = useFieldHolds({ farmId: kind === 'harvest' ? farmId : undefined });
-  const heldField = kind === 'harvest' ? holdFor(holds.holds, values.field) : null;
-  // Produce from a field on hold must not leave the farm with a lot code on it.
-  const lotCodeOnHeldField = Boolean(heldField) && !blank(values.lot_code);
+  const hold = kind === 'harvest' ? holdFor(holds.holds, values.field) : null;
+  // A hold that began after the day of the harvest does not apply to it.
+  const heldField = hold && !(hold.since && date && date < hold.since) ? hold : null;
+  // Produce from a field on hold must not leave the farm with a lot code on it. Editing a harvest already on file is not
+  // blocked (taking its lot code off would break the trail), and while the holds cannot be read, a lot code cannot be vouched for.
+  const lotCodeOnHeldField = !isEdit && Boolean(heldField) && !blank(values.lot_code);
+  const holdsUnreadable = kind === 'harvest' && !isEdit && holds.status !== 'ready' && !blank(values.lot_code);
+  const submitBlocked = lotCodeOnHeldField || holdsUnreadable;
 
   const evaluation = useMemo(() => evaluateRecord(kind, { record_date: date, payload }), [kind, date, payload]);
   const filled = useMemo(() => Object.fromEntries(Object.entries(values).filter(([, v]) => !blank(v))), [values]);
@@ -165,7 +170,7 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
           field={field}
           lang={lang}
           value={field.key === 'check_result' && concentration?.result ? concentration.result : values[field.key]}
-          disabled={field.key === 'check_result' && Boolean(concentration?.result)}
+          disabled={field.key === 'check_result' && (Boolean(concentration?.result) || (sanitizing && labels.status === 'loading'))}
           required={required.has(field.key)}
           invalid={Boolean(evaluation.errors[field.key])}
           invalidText={tt.field.invalid}
@@ -173,10 +178,10 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
         />
       )).flatMap((node, index) => {
         const key = fields[index].key;
-        if (key === 'ppm' && sanitizing) return [node, <SanitizerHint key="ppm-hint" check={concentration} loading={labels.status === 'loading' && !blank(values.ppm)} />];
+        if (key === 'ppm' && sanitizing) return [node, <SanitizerHint key="ppm-hint" check={concentration} loading={labels.status === 'loading' && !blank(values.ppm)} error={labels.status === 'error'} />];
         if (key === 'field' && heldField) return [node, <p key="hold-warning" role="alert" style={{ fontSize: 12, margin: '-8px 0 14px', padding: '6px 10px', borderRadius: 8, background: '#fee2e2', color: '#991b1b' }}>{lotCodeOnHeldField ? tt.lots.heldWithCode(heldField.name) : tt.holds.harvestWarning(heldField.name)}</p>];
         if (key === 'lot_code' && kind === 'harvest') {
-          return [node, <LotCodeTools key="lot-tools" farmId={farmId} recordId={record?.id} values={values} date={date} holds={holds} heldField={heldField} onMade={(code) => setValues((current) => ({ ...current, lot_code: code }))} />];
+          return [node, ...(holdsUnreadable ? [<p key="holds-unreadable" role="alert" style={{ fontSize: 12, margin: '-8px 0 14px', padding: '6px 10px', borderRadius: 8, background: '#fef3c7', color: '#92400e' }}>{holds.status === 'error' ? tt.holds.unknown : tt.lots.checkingHolds}</p>] : []), <LotCodeTools key="lot-tools" farmId={farmId} recordId={record?.id} values={values} date={date} holds={holds} heldField={heldField} onMade={(code) => setValues((current) => ({ ...current, lot_code: code }))} />];
         }
         return [node];
       })}
@@ -206,9 +211,9 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
             </button>
             <button
               type="button"
-              disabled={!evaluation.complete || busy || lotCodeOnHeldField}
+              disabled={!evaluation.complete || busy || submitBlocked}
               onClick={() => save(reviewer ? 'approved' : 'pending_review')}
-              style={{ ...(reviewer ? ui.buttonSuccess : ui.buttonPrimary), ...(!evaluation.complete || busy || lotCodeOnHeldField ? ui.buttonDisabled : {}) }}
+              style={{ ...(reviewer ? ui.buttonSuccess : ui.buttonPrimary), ...(!evaluation.complete || busy || submitBlocked ? ui.buttonDisabled : {}) }}
             >
               {submitting === 'approved' || submitting === 'pending_review' ? tt.form.saving : reviewer ? tt.form.approve : tt.form.submit}
             </button>

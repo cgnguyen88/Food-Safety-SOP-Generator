@@ -13,9 +13,9 @@ const VALUE_MAX = 4000;
 const LIST_MAX = 50;
 const ITEM_MAX = 200;
 const FARM_NAME_MAX = 120;
-// Control characters, zero-width and bidirectional marks, line and paragraph separators.
-// eslint-disable-next-line no-control-regex -- removing control characters is the point
-const HIDDEN = /[\u0000-\u001F\u007F-\u009F\u200b-\u200f\u2028-\u202e\u2060-\u2064\ufeff]/g;
+// Control and format characters (zero-width, bidirectional marks and isolates, tags), line and paragraph separators, and the blank
+// "filler" characters some scripts have: all invisible, so none of them may make a name look different from what it is.
+const HIDDEN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u115f\u1160\u3164\uffa0\u2800]/gu;
 
 /** The token from a link, or null when it cannot be a token (so nothing is looked up for it). @param {unknown} value */
 export const parseShareToken = (value) => (typeof value === 'string' && SHARE_TOKEN.test(value) ? value : null);
@@ -24,15 +24,19 @@ export const parseShareToken = (value) => (typeof value === 'string' && SHARE_TO
 export const findSop = (id) => (Number.isInteger(id) ? SOP_DATA.find((sop) => sop.id === id) ?? null : null);
 
 const oneLine = (value, max) => (typeof value === 'string' ? value.replace(HIDDEN, ' ').replace(/\s+/g, ' ').trim().slice(0, max) : '');
+const MIN_LETTERS = 2;
 
 /**
- * A signer's name as it will be kept: one line, tidy spacing, two to eighty characters, and nothing that looks like markup.
+ * A signer's name as it will be kept: one line, tidy spacing, two to eighty characters with at least two letters, and nothing
+ * that looks like markup. Commas and semicolons become spaces, because the training list reads them as the break between two
+ * people: one signature must be one person.
  * @param {unknown} value
  * @returns {string | null}
  */
 export function cleanSignerName(value) {
-  const name = oneLine(value, NAME_MAX + 1);
+  const name = oneLine(typeof value === 'string' ? value.replace(/[,;]/g, ' ') : value, NAME_MAX + 1);
   if (name.length < NAME_MIN || name.length > NAME_MAX || /[<>]/.test(name)) return null;
+  if ((name.match(/\p{L}/gu) ?? []).length < MIN_LETTERS) return null;
   return name;
 }
 

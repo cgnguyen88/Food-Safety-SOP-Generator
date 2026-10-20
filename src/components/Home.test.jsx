@@ -19,7 +19,7 @@ const setup = (props = {}, lang = 'en') => {
   const handlers = { onNavigate: vi.fn(), onOpenProfile: vi.fn(), onChanged: vi.fn() };
   const user = userEvent.setup();
   renderWithLang(
-    <Home farm={{ id: 'farm-1', name: 'Sunny' }} farmProfile={{ farm_name: 'Green Valley Farm' }} role="manager" needsReviewCount={0} {...handlers} {...props} />,
+    <Home farm={{ id: 'farm-1', name: 'Sunny' }} farmProfile={{ farm_name: 'Green Valley Farm' }} role="manager" needsReviewCount={0} reviewStatus="ready" {...handlers} {...props} />,
     lang,
   );
   return { user, ...handlers };
@@ -42,6 +42,36 @@ describe('Home: what needs attention', () => {
 
   it('does not say all is well before the holds and training have been checked', () => {
     setup();
+    expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
+  });
+
+  it('does not say all is well when the review queue could not be read, even though its count shows 0', async () => {
+    setup({ reviewStatus: 'error' });
+    expect(await screen.findByText('The review queue could not be checked right now.')).toBeTruthy();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
+  });
+
+  it('does not say all is well while the review queue is still being read', async () => {
+    setup({ reviewStatus: 'loading' });
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
+  });
+
+  it('says so, and offers another try, when the training records could not be read, and does not say all is well', async () => {
+    listRecordsForReport.mockImplementation(async ({ kinds }) => (kinds.includes('training') ? { data: null, error: { code: 'unknown' } } : { data: { records: [], truncated: false }, error: null }));
+    setup();
+    expect(await screen.findByText('Training could not be checked right now.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
+    expect(screen.queryByText('Field holds could not be checked', { exact: false })).toBeNull();
+  });
+
+  it.each([['hold', ['weather_event']], ['training', ['training']]])('does not say all is well when the %s records were cut short', async (_label, truncatedKinds) => {
+    listRecordsForReport.mockImplementation(async ({ kinds }) => ({ data: { records: [], truncated: kinds.some((k) => truncatedKinds.includes(k)) }, error: null }));
+    setup();
+    expect(await screen.findByText(/very large number of records/)).toBeTruthy();
     expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
   });
 

@@ -153,11 +153,30 @@ describe('sop-share: signing', () => {
     expect(admin.inserted[0].row.payload.topic).toBe(SOP.title);
   });
 
-  it('counts a second sign-off by the same person the same day as done, without a second record', async () => {
+  it('answers the same whether or not this name had already signed today, so the link does not tell a stranger who has', async () => {
     deps.getAdmin = () => fakeAdmin({ insertError: { code: '23505' } });
     await run(post(body()));
-    expect(res.statusCode).toBe(201);
-    expect(res.json).toEqual({ ok: true, duplicate: true });
+    const repeat = { status: res.statusCode, body: res.json };
+    res = makeRes();
+    deps.getAdmin = () => fakeAdmin();
+    await run(post(body()));
+    expect(repeat).toEqual({ status: 201, body: { ok: true } });
+    expect({ status: res.statusCode, body: res.json }).toEqual(repeat);
+  });
+
+  it('dates a sign-off by the farm’s day, not the server’s: an evening sign-off in California is still that day', async () => {
+    const admin = fakeAdmin();
+    deps.getAdmin = () => admin;
+    deps.now = () => new Date('2026-10-21T03:30:00Z'); // 8:30 pm on 20 October in California
+    await run(post(body()));
+    expect(admin.inserted[0].row.record_date).toBe('2026-10-20');
+  });
+
+  it('makes a signature with commas one person, not several', async () => {
+    const admin = fakeAdmin();
+    deps.getAdmin = () => admin;
+    await run(post(body({ name: 'Maria Lopez, Juan Perez' })));
+    expect(admin.inserted[0].row.payload.attendees).toBe('Maria Lopez Juan Perez');
   });
 
   it.each([
@@ -192,7 +211,7 @@ describe('sop-share: signing', () => {
 });
 
 describe('sop-share: limits', () => {
-  it('limits readers by address, before looking anything up', async () => {
+  it('limits readers by address, before looking up the token', async () => {
     const admin = fakeAdmin();
     deps.getAdmin = () => admin;
     deps.limiters = limiters({ read: { check: vi.fn(async () => ({ allowed: false, retryAfterSec: 30 })) } });
@@ -218,9 +237,25 @@ describe('sop-share: limits', () => {
     expect(admin.inserted).toEqual([]);
   });
 
-  it('counts a request with a bad token against the address, so tokens cannot be guessed freely', async () => {
-    await run(get('nope'));
+  it('counts a request with a well-formed token against the address, so tokens cannot be guessed freely', async () => {
+    deps.getAdmin = () => fakeAdmin({ shares: [] });
+    await run(get('b'.repeat(64)));
+    expect(res.statusCode).toBe(404);
     expect(deps.limiters.read.check).toHaveBeenCalledTimes(1);
+  });
+
+  it('turns away text that cannot be a token without touching the limits or the database', async () => {
+    const admin = fakeAdmin();
+    deps.getAdmin = () => admin;
+    await run(get('nope'));
+    expect(res.statusCode).toBe(404);
+    expect(deps.limiters.read.check).not.toHaveBeenCalled();
+    expect(admin.lookups).toEqual([]);
+  });
+
+  it('counts an address that cannot be read in one shared bucket, never as an unlimited caller', async () => {
+    await run({ method: 'GET', query: { token: TOKEN }, headers: { 'x-real-ip': 'x'.repeat(500) } });
+    expect(deps.limiters.read.check).toHaveBeenCalledWith('unknown');
   });
 
   it('uses the first forwarded address when there is no real-ip header', async () => {

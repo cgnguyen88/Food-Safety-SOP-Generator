@@ -36,11 +36,20 @@ function AttentionRow({ icon: Icon, text, action, onClick }) {
   );
 }
 
+function Notice({ text, action, onClick }) {
+  return (
+    <div role="alert" style={{ ...ui.card, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c', fontSize: 13 }}>
+      <span style={{ flex: 1, minWidth: 200 }}>{text}</span>
+      {action && <button type="button" onClick={onClick} style={ui.buttonSecondary}>{action}</button>}
+    </div>
+  );
+}
+
 /**
  * The first page: what needs attention (records waiting for review, fields on hold, people overdue for
  * training) and buttons for the records added most often. Everything else is one click away in the menu.
  */
-export default function Home({ farm, farmProfile, role, lotCodeFormat, needsReviewCount = 0, onNavigate, onOpenProfile, onChanged }) {
+export default function Home({ farm, farmProfile, role, lotCodeFormat, needsReviewCount = 0, reviewStatus = 'loading', onNavigate, onOpenProfile, onChanged }) {
   const { lang: rawLang } = useLanguage();
   const lang = rawLang === 'es' ? 'es' : 'en';
   const tt = homeText(lang).home;
@@ -52,7 +61,9 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
   const today = todayLocalIso();
   const overdue = useMemo(() => trainingCounts(trainingDueList(training.records, { today })).overdue, [training.records, today]);
   const quickKinds = QUICK_KINDS.filter((kind) => canSeeKind(kind, role));
-  const allClear = needsReviewCount === 0 && overdue === 0 && holds.status === 'ready' && holds.holds.length === 0 && training.status === 'ready';
+  // "All clear" is said only when everything was really read: a failed or cut-short read is not good news.
+  const incomplete = holds.truncated || training.truncated;
+  const allClear = reviewStatus === 'ready' && needsReviewCount === 0 && overdue === 0 && holds.status === 'ready' && holds.holds.length === 0 && training.status === 'ready' && !incomplete;
   const hasProfile = Boolean(farmProfile?.farm_name);
 
   return (
@@ -77,6 +88,9 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
         <div style={{ display: 'grid', gap: 10, marginBottom: 26 }}>
           {needsReviewCount > 0 && <AttentionRow icon={ClipboardCheck} text={tt.review(needsReviewCount)} action={tt.reviewOpen} onClick={() => onNavigate(ROUTES.review)} />}
           {overdue > 0 && <AttentionRow icon={GraduationCap} text={tt.training(overdue)} action={tt.trainingOpen} onClick={() => onNavigate(ROUTES.training)} />}
+          {reviewStatus === 'error' && <Notice text={tt.reviewError} />}
+          {training.status === 'error' && <Notice text={tt.trainingError} action={tt.retry} onClick={training.reload} />}
+          {incomplete && <Notice text={tt.incomplete} />}
           {allClear && <div style={{ ...ui.card, padding: '14px 18px', color: '#166534', background: '#f0fdf4', borderColor: '#bbf7d0', fontSize: 14 }}>{tt.allClear}</div>}
         </div>
 

@@ -78,40 +78,7 @@ export const GLOBAL_CSS = `
   .nav-item svg { flex-shrink: 0; opacity: .9; transition: opacity .2s ease, color .2s ease; }
   .nav-item:hover svg { opacity: 1; }
   .nav-item[aria-current="page"] svg { opacity: 1; color: #ffd24a; }
-  .nav-section {
-    --section-accent: #9fb4cc; position: relative; margin: 10px 0 0; overflow: hidden; border-radius: 14px;
-    background: rgba(0,6,16,0.34); border: 1px solid rgba(255,255,255,0.10); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-  }
-  .nav-section::before {
-    content: ""; position: absolute; left: 14px; right: 14px; top: 0; height: 1px; pointer-events: none;
-    background: linear-gradient(90deg, rgba(255,255,255,0), var(--section-accent), rgba(255,255,255,0)); opacity: .6;
-  }
-  .nav-section-header {
-    width: 100%; display: flex; align-items: center; gap: 8px; padding: 9px 10px 8px; border: 0; background: transparent; cursor: pointer;
-    color: #fff; font: 600 12.5px/1.2 Inter, sans-serif; text-align: left; transition: background-color .2s ease;
-  }
-  .nav-section-header:hover { background: rgba(255,255,255,0.06); }
-  .nav-section-header:focus-visible { outline: 2px solid #8fd0ff; outline-offset: -2px; }
-  .nav-section-icon {
-    width: 20px; height: 20px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px;
-    background: rgba(255,255,255,0.1); color: var(--section-accent);
-  }
-  @supports (background: color-mix(in srgb, red 20%, transparent)) {
-    .nav-section-icon { background: color-mix(in srgb, var(--section-accent) 20%, transparent); }
-  }
-  .nav-section-title { flex: 1; letter-spacing: .01em; }
-  .nav-section-count { min-width: 18px; padding: 2px 6px; border-radius: 9px; background: rgba(255,255,255,0.14); color: #fff; font-size: 10.5px; font-weight: 600; line-height: 1; text-align: center; }
-  .nav-section-chevron { flex-shrink: 0; color: rgba(255,255,255,0.65); }
-  .nav-section-body { padding: 0 6px 6px; }
-  .nav-group-header {
-    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    padding: 4px 12px; margin: 14px 0 4px; border: 0; background: transparent; cursor: pointer;
-    color: var(--menu-muted); font: 600 10.5px/1.2 Inter, sans-serif; letter-spacing: .09em; text-transform: uppercase;
-    transition: color .2s ease;
-  }
-  .nav-group-header:hover { color: #fff; }
-  .nav-group-header:focus-visible { outline: 2px solid #8fd0ff; outline-offset: -2px; border-radius: 6px; }
-  .nav-subhead { padding: 8px 12px 2px 50px; color: var(--menu-muted); font: 600 10px/1.2 Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+  .nav-subhead { padding: 8px 12px 4px; color: var(--menu-muted); font: 600 10px/1.2 Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
 
 
   /* ── App frame: menu + page; on a phone a top bar and a slide-out menu ───────────────────── */

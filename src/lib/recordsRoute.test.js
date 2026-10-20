@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseRecordsRoute, isRecordsPage, logRoute, viewRoute, ROUTES } from './recordsRoute.js';
+import { parseRecordsRoute, logRoute, viewRoute, ROUTES } from './recordsRoute.js';
 
 describe('recordsRoute', () => {
   it('builds and parses every route type', () => {
@@ -18,17 +18,7 @@ describe('recordsRoute', () => {
     'does not treat %j as a records page',
     (page) => {
       expect(parseRecordsRoute(page)).toBeNull();
-      expect(isRecordsPage(page)).toBe(false);
     },
   );
 
-  it('recognizes records pages', () => {
-    expect(isRecordsPage('log:harvest')).toBe(true);
-    expect(isRecordsPage('needsReview')).toBe(true);
-    expect(isRecordsPage('recordReports')).toBe(true);
-    expect(isRecordsPage('recordFields')).toBe(true);
-    expect(isRecordsPage('recordTraining')).toBe(true);
-    expect(isRecordsPage('recordTrace')).toBe(true);
-
-  });
 });

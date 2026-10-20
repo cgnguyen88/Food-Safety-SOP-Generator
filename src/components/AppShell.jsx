@@ -47,12 +47,22 @@ export default function AppShell({ activePage, onNavigate, sidebar, children }) 
     if (main.current) main.current.scrollTop = 0;
   }, [activePage]);
 
+  // However the menu closes (Escape, the dimmed page, the close button or a choice), focus goes back to the button that opened it.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !drawerOpen) menuButton.current?.focus();
+    wasOpen.current = drawerOpen;
+  }, [drawerOpen]);
+
+  // A phone turned into a wide window (or the reverse) must not bring an open drawer back later.
+  useEffect(() => {
+    if (!isPhone) setMenuOpen(false);
+  }, [isPhone]);
+
   useEffect(() => {
     if (!drawerOpen) return undefined;
     const onKey = (event) => {
-      if (event.key !== 'Escape') return;
-      setMenuOpen(false);
-      menuButton.current?.focus();
+      if (event.key === 'Escape') setMenuOpen(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -66,7 +76,7 @@ export default function AppShell({ activePage, onNavigate, sidebar, children }) 
   return (
     <div className={`app-shell${isPhone ? ' app-shell--phone' : ''}`}>
       {isPhone && (
-        <header className="mobile-topbar no-print">
+        <header className="mobile-topbar no-print" inert={drawerOpen || undefined}>
           <button ref={menuButton} type="button" className="mobile-topbar-button" aria-label={nav.openMenu} aria-expanded={drawerOpen} aria-controls="app-menu" onClick={() => setMenuOpen(true)}>
             <Menu size={22} aria-hidden="true" />
           </button>
@@ -74,7 +84,7 @@ export default function AppShell({ activePage, onNavigate, sidebar, children }) 
         </header>
       )}
       <Sidebar {...sidebar} activePage={activePage} onNavigate={navigate} drawer={isPhone} open={drawerOpen} onClose={() => setMenuOpen(false)} />
-      <main ref={main} className="app-main">
+      <main ref={main} className="app-main" inert={drawerOpen || undefined}>
         {children}
       </main>
     </div>

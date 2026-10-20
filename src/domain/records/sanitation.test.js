@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findSanitizerLabel, labelRange, checkSanitizerConcentration, applySanitationCheck } from './sanitation.js';
+import { findSanitizerLabel, resolveSanitizerLabel, labelRange, checkSanitizerConcentration, applySanitationCheck } from './sanitation.js';
 
 const label = (product, min, max, extra = {}) => ({
   id: `label-${product}`,
@@ -48,6 +48,45 @@ describe('findSanitizerLabel', () => {
     expect(findSanitizerLabel('pending', labels)).toBeNull();
     expect(findSanitizerLabel('voided', labels)).toBeNull();
     expect(findSanitizerLabel('wrong kind', labels)).toBeNull();
+  });
+});
+
+describe('findSanitizerLabel: uses, dates and short names', () => {
+  const use = (product, approved_use, min, max, extra = {}) => ({ ...label(product, min, max, extra), payload: { product, approved_use, ppm_min: min, ppm_max: max } });
+
+  it('does not guess when one product has labels for different uses with different ranges', () => {
+    const labels = [use('ChlorBlast', 'produce_wash', 50, 100, { record_date: '2026-06-01' }), use('ChlorBlast', 'food_contact', 100, 200, { record_date: '2026-03-01' })];
+    expect(resolveSanitizerLabel('ChlorBlast', labels)).toEqual({ label: null, ambiguous: true });
+    expect(checkSanitizerConcentration({ ppm: 60, sanitizer: 'ChlorBlast' }, labels)).toEqual(expect.objectContaining({ result: null, reason: 'ambiguous_label' }));
+  });
+
+  it('is not confused by two uses that agree on the range', () => {
+    const labels = [use('ChlorBlast', 'produce_wash', 100, 200), use('ChlorBlast', 'food_contact', 100, 200, { record_date: '2026-04-01' })];
+    expect(resolveSanitizerLabel('ChlorBlast', labels).ambiguous).toBe(false);
+    expect(findSanitizerLabel('ChlorBlast', labels)).not.toBeNull();
+  });
+
+  it('lets a newer label for the same use replace an older one', () => {
+    const labels = [use('ChlorBlast', 'food_contact', 100, 200, { record_date: '2025-03-01' }), use('ChlorBlast', 'food_contact', 50, 100, { record_date: '2026-03-01' })];
+    expect(findSanitizerLabel('ChlorBlast', labels).payload.ppm_max).toBe(100);
+  });
+
+  it('uses the label that was in force on the day of the log, not one written after it', () => {
+    const labels = [label('Chlorine bleach', 50, 200, { record_date: '2025-01-01' }), label('Chlorine bleach', 25, 100, { record_date: '2026-06-01' })];
+    expect(findSanitizerLabel('Chlorine bleach', labels, '2026-05-31').payload.ppm_max).toBe(200);
+    expect(findSanitizerLabel('Chlorine bleach', labels, '2026-06-01').payload.ppm_max).toBe(100);
+    expect(checkSanitizerConcentration({ ppm: 150, sanitizer: 'Chlorine bleach', date: '2026-05-31' }, labels).result).toBe('pass');
+    expect(checkSanitizerConcentration({ ppm: 150, sanitizer: 'Chlorine bleach', date: '2026-06-02' }, labels).result).toBe('fail');
+  });
+
+  it('uses the newest label when every label is newer than the log', () => {
+    const labels = [label('Wash', 10, 20, { record_date: '2027-01-01' })];
+    expect(findSanitizerLabel('Wash', labels, '2026-01-01').payload.ppm_max).toBe(20);
+  });
+
+  it('does not take a very short product name for part of a longer one in a log', () => {
+    expect(findSanitizerLabel('Bleach Alpha', [label('A', 1, 2)])).toBeNull();
+    expect(findSanitizerLabel('Bleach Alpha', [label('Al', 1, 2)])).toBeNull();
   });
 });
 
@@ -117,6 +156,15 @@ describe('checkSanitizerConcentration', () => {
 
   it('returns the label it used', () => {
     expect(check(150).label.id).toBe('label-Peracetic Acid 15%');
+  });
+});
+
+describe('applySanitationCheck: the day of the log', () => {
+  it('uses the label in force on that day', () => {
+    const labels = [label('Chlorine bleach', 50, 200, { record_date: '2025-01-01' }), label('Chlorine bleach', 25, 100, { record_date: '2026-06-01' })];
+    const payload = { method: 'clean_sanitize', sanitizer: 'Chlorine bleach', ppm: 150 };
+    expect(applySanitationCheck(payload, labels, '2026-01-01').check_result).toBe('pass');
+    expect(applySanitationCheck(payload, labels, '2026-07-01').check_result).toBe('fail');
   });
 });
 

@@ -31,6 +31,7 @@ export default function LotCodeTools({ farmId, recordId, values, date, holds, he
     : holds.status === 'error' ? tt.holds.unknown
     : used.status === 'loading' ? tt.lots.checkingCodes
     : used.status === 'error' ? tt.lots.codesError
+    : used.truncated ? tt.lots.codesTruncated
     : null;
   const empty = values.lot_code === undefined || String(values.lot_code).trim() === '';
 
@@ -52,7 +53,7 @@ export default function LotCodeTools({ farmId, recordId, values, date, holds, he
       <button type="button" disabled={reason !== null} onClick={make} style={{ ...ui.buttonSecondary, padding: '4px 12px', fontSize: 12, ...(reason ? ui.buttonDisabled : {}) }}>
         {empty ? tt.lots.make : tt.lots.makeAgain}
       </button>
-      {reason && <p role="status" style={{ ...NOTE, color: heldField || holds.status === 'error' || used.status === 'error' ? '#991b1b' : '#64748b' }}>{reason}</p>}
+      {reason && <p role="status" style={{ ...NOTE, color: heldField || holds.status === 'error' || used.status === 'error' || used.truncated ? '#991b1b' : '#64748b' }}>{reason}</p>}
       {!reason && problem && <p role="status" style={{ ...NOTE, color: '#92400e' }}>{problem}</p>}
       {!reason && !problem && madeCode && <p role="status" style={{ ...NOTE, color: '#166534' }}>{tt.lots.made(madeCode)}</p>}
     </div>

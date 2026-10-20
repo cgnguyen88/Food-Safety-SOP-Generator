@@ -41,7 +41,8 @@ const STANDING_ORDER = { overdue: 0, due_soon: 1, current: 2 };
 
 /**
  * One row for each person and topic: their latest training and when they are due again, most urgent first. A
- * person and a topic are spelled as the oldest record spells them.
+ * person and a topic are spelled as the first record that names them spells them. Training dated in the future has not
+ * happened yet, so it does not count.
  *
  * @param {object[]} records
  * @param {{ today: string, intervalDays?: number, dueSoonDays?: number }} options `today` is a YYYY-MM-DD date
@@ -53,7 +54,7 @@ export function trainingDueList(records, { today, intervalDays = TRAINING_INTERV
     if (record.kind !== 'training' || record.status !== 'approved') continue;
     const topic = typeof record.payload?.topic === 'string' ? tidy(record.payload.topic) : '';
     const day = recordDay(record);
-    if (topic === '' || day === '') continue;
+    if (topic === '' || day === '' || day > today) continue;
     for (const person of splitPeople(record.payload.attendees)) {
       const key = `${keyOf(person)}|${keyOf(topic)}`;
       const entry = latest.get(key);

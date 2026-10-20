@@ -18,7 +18,7 @@ const setup = (props = {}, lang = 'en') => {
 };
 afterEach(cleanup);
 
-const menuLabels = () => within(screen.getByRole('navigation', { name: 'Main' })).getAllByRole('button').map((b) => b.textContent.replace(/\d+\+?$/, ''));
+const menuLabels = (name = 'Main') => within(screen.getByRole('navigation', { name })).getAllByRole('button').map((b) => b.textContent.replace(/\d+\+?$/, ''));
 
 describe('Sidebar', () => {
   it('is short: eight pages, a farm profile button, the language and sign out, and nothing to open or close', () => {
@@ -77,6 +77,6 @@ describe('Sidebar', () => {
 
   it('speaks Spanish', () => {
     setup({}, 'es');
-    expect(menuLabels()).toEqual(['EN', 'Inicio', 'Todos los registros', 'Por revisar', 'Campos', 'Capacitación pendiente', 'Rastreo y retiro', 'Informes', 'POEs y plan', 'Perfil de la granja', 'Cerrar sesión']);
+    expect(menuLabels('Principal')).toEqual(['EN', 'Inicio', 'Todos los registros', 'Por revisar', 'Campos', 'Capacitación pendiente', 'Rastreo y retiro', 'Informes', 'POEs y plan', 'Perfil de la granja', 'Cerrar sesión']);
   });
 });

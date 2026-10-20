@@ -11,7 +11,7 @@ export const DEFAULT_LOT_FORMAT = '{FARM}-{CROP}-{YYYYMMDD}-{FIELD}';
 export const LOT_FORMAT_MAX = 40;
 
 /** How long each part may be, so a code still fits on a label. */
-const PART_LIMITS = Object.freeze({ FARM: 8, CROP: 12, FIELD: 10 });
+const PART_LIMITS = Object.freeze({ FARM: 8, CROP: 12, FIELD: 14 });
 /** Parts that stand for the date. A format needs one of these, or {SEQ}, to tell one day's lots from another's. */
 const DATE_TOKENS = Object.freeze(['YYYYMMDD', 'YYMMDD', 'YYYY', 'JULIAN']);
 const DAY_TOKENS = Object.freeze(['YYYYMMDD', 'YYMMDD', 'JULIAN']);

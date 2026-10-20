@@ -134,6 +134,7 @@ function FarmApp() {
             role={recordsMeta.role ?? farm.account.role}
             lotCodeFormat={farmProfile?.lot_code_format}
             needsReviewCount={recordsMeta.needsReviewCount}
+            reviewStatus={!recordsMeta.ready ? "loading" : recordsMeta.reviewKnown ? "ready" : "error"}
             onNavigate={handleNavigate}
             onOpenProfile={() => setShowProfile(true)}
             onChanged={recordsMeta.refresh}

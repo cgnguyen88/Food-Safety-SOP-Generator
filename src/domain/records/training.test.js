@@ -88,6 +88,17 @@ describe('trainingDueList', () => {
     expect(rows.map((r) => r.person)).toEqual(['F']);
   });
 
+  it('does not count training dated in the future, which has not happened yet and would hide a real overdue', () => {
+    const rows = list([training('Hygiene', 'Ana', '2025-01-01'), training('Hygiene', 'Ana', '2027-12-01')]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ lastTrained: '2025-01-01', status: 'overdue' });
+    expect(list([training('Hygiene', 'Ana', '2027-12-01')])).toEqual([]);
+  });
+
+  it('counts training dated today', () => {
+    expect(list([training('Hygiene', 'Ana', '2026-10-19')])).toHaveLength(1);
+  });
+
   it('is empty when nobody has been trained', () => {
     expect(list([])).toEqual([]);
   });

@@ -86,13 +86,16 @@ function Drill({ tt, drill, now, trace, role, farmId, onFinish, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [problem, setProblem] = useState(false);
+  const found = Boolean(trace?.found);
   const seconds = Math.max(0, Math.round(((drill.finishedAt ?? now) - drill.startedAt) / 1000));
   const time = tt.drill.time(Math.floor(seconds / 60), seconds % 60);
 
   async function save() {
     setSaving(true);
     setProblem(false);
-    const text = tt.drill.note(trace.code, time, trace.fields.length, trace.customers.length, trace.gaps.length);
+    // What the trace said when the drill was finished, not whatever is in the lot box now.
+    const { code, fields, customers, gaps } = drill.summary;
+    const text = tt.drill.note(code, time, fields, customers, gaps);
     const result = await createRecord({ farmId, kind: 'note', recordDate: todayLocalIso(new Date(drill.startedAt)), payload: { text, category: 'inspection' }, status: canReview(role) ? 'approved' : 'pending_review' });
     setSaving(false);
     if (result.error) setProblem(true);
@@ -104,8 +107,8 @@ function Drill({ tt, drill, now, trace, role, farmId, onFinish, onCancel }) {
       {drill.finishedAt === null ? (
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <strong style={{ color: '#92400e' }}>{tt.drill.running}: <span aria-live="off" style={{ fontVariantNumeric: 'tabular-nums' }}>{time}</span></strong>
-          <span style={{ flex: 1, fontSize: 12, color: '#92400e' }}>{trace ? '' : tt.drill.needsLot}</span>
-          <button type="button" disabled={!trace} onClick={onFinish} style={{ ...ui.buttonPrimary, ...(trace ? {} : ui.buttonDisabled) }}>{tt.drill.finish}</button>
+          <span style={{ flex: 1, fontSize: 12, color: '#92400e' }}>{found ? '' : tt.drill.needsLot}</span>
+          <button type="button" disabled={!found} onClick={onFinish} style={{ ...ui.buttonPrimary, ...(found ? {} : ui.buttonDisabled) }}>{tt.drill.finish}</button>
           <button type="button" onClick={onCancel} style={ui.buttonSecondary}>{tt.drill.cancel}</button>
         </div>
       ) : (
@@ -174,7 +177,7 @@ export default function TracePage({ farm, role, now: clock = Date.now }) {
               trace={trace}
               role={role}
               farmId={farm.id}
-              onFinish={() => setDrill((current) => ({ ...current, finishedAt: clock() }))}
+              onFinish={() => setDrill((current) => ({ ...current, finishedAt: clock(), summary: { code: trace.code, fields: trace.fields.length, customers: trace.customers.length, gaps: trace.gaps.length } }))}
               onCancel={() => setDrill(null)}
             />
           ) : (

@@ -32,7 +32,7 @@ beforeEach(() => {
   localStorage.clear();
   Element.prototype.scrollIntoView = vi.fn();
   useFarmAccount.mockReturnValue(signedIn());
-  useRecordsMeta.mockReturnValue({ role: 'manager', savedViews: [], needsReviewCount: 2, ready: true, refresh: vi.fn() });
+  useRecordsMeta.mockReturnValue({ role: 'manager', savedViews: [], needsReviewCount: 2, reviewKnown: true, ready: true, refresh: vi.fn() });
   listRecordsForReport.mockResolvedValue({ data: { records: [], truncated: false }, error: null });
   listFields.mockResolvedValue({ data: [], error: null });
 });

@@ -11,7 +11,7 @@ const SOPS = 'sops';
 /** The pages that belong to the SOP library, so its menu item stays marked while a SOP or the plan is open. */
 const LIBRARY_PAGES = [SOPS, 'sop', 'plan_generator'];
 /** The records pages that have no menu item of their own, shown under "All records". */
-const isRecordsPage = (page) => page === ROUTES.overview || page.startsWith('log:') || page.startsWith('view:') || page === ROUTES.history;
+const isRecordsHome = (page) => page === ROUTES.overview || page.startsWith('log:') || page.startsWith('view:') || page === ROUTES.history;
 
 /**
  * The side menu: Home, then the records pages, then traceability, then the SOP library. Short enough to see at a
@@ -33,7 +33,7 @@ export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogou
   return (
     <>
     {drawer && open && <div className="menu-scrim no-print" aria-hidden="true" onClick={onClose} />}
-    <nav id="app-menu" aria-label="Main" className={className} inert={hidden || undefined} aria-hidden={hidden || undefined}>
+    <nav id="app-menu" aria-label={tt.nav.label} className={className} inert={hidden || undefined} aria-hidden={hidden || undefined}>
       <div style={{ padding: '20px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div>
           <div style={{ fontFamily: 'Lora,serif', fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>FarmSafe</div>
@@ -59,7 +59,7 @@ export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogou
         <NavItem icon={Home} label={tt.nav.home} active={activePage === HOME} onClick={go(HOME)} />
 
         <div className="nav-subhead" style={{ marginTop: 14 }}>{tt.nav.groups.records}</div>
-        <NavItem icon={ClipboardList} label={tt.nav.records} active={isRecordsPage(activePage)} onClick={go(ROUTES.overview)} />
+        <NavItem icon={ClipboardList} label={tt.nav.records} active={isRecordsHome(activePage)} onClick={go(ROUTES.overview)} />
         <NavItem icon={ClipboardCheck} label={tt.nav.review} badge={needsReviewCount} active={activePage === ROUTES.review} onClick={go(ROUTES.review)} />
         <NavItem icon={MapPin} label={tt.nav.fields} active={activePage === ROUTES.fields} onClick={go(ROUTES.fields)} />
         <NavItem icon={GraduationCap} label={tt.nav.training} active={activePage === ROUTES.training} onClick={go(ROUTES.training)} />

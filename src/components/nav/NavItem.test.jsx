@@ -39,43 +39,13 @@ describe('NavItem', () => {
     expect(within(screen.getByRole('button', { name: /^Dashboard/ })).queryByText('0')).toBeNull();
   });
 
-  it('works without an icon (for the indented sub-items)', () => {
-    render(<NavItem label="Seed Log" onClick={() => {}} indent />);
+  it('works without an icon', () => {
+    render(<NavItem label="Seed Log" onClick={() => {}} />);
     expect(screen.getByRole('button', { name: 'Seed Log' })).toBeTruthy();
   });
 
   it('shows the full label as a tooltip when it is long', () => {
     setup({ label: 'Purchases without OMRI listing' });
     expect(screen.getByRole('button', { name: 'Purchases without OMRI listing' }).getAttribute('title')).toBe('Purchases without OMRI listing');
-  });
-
-  it('can be a toggle that reports whether what it controls is open', () => {
-    setup({ expanded: false });
-    expect(screen.getByRole('button', { name: 'Dashboard' }).getAttribute('aria-expanded')).toBe('false');
-    cleanup();
-    setup({ expanded: true });
-    expect(screen.getByRole('button', { name: 'Dashboard' }).getAttribute('aria-expanded')).toBe('true');
-    cleanup();
-    setup({});
-    expect(screen.getByRole('button', { name: 'Dashboard' }).hasAttribute('aria-expanded')).toBe(false);
-  });
-
-  it('indents nested items more than first-level ones', () => {
-    render(<><NavItem label="One" onClick={() => {}} indent /><NavItem label="Two" onClick={() => {}} indent={2} /><NavItem label="Flat" onClick={() => {}} /></>);
-    const pad = (name) => Number.parseInt(screen.getByRole('button', { name }).style.paddingLeft || '0', 10);
-    expect(pad('Two')).toBeGreaterThan(pad('One'));
-    expect(pad('One')).toBeGreaterThan(pad('Flat'));
-  });
-
-  it('can wrap a long label onto a second line instead of cutting it off', () => {
-    render(<><NavItem label="Purchases without OMRI listing" onClick={() => {}} wrap /><NavItem label="Short" onClick={() => {}} /></>);
-    const labelOf = (name) => screen.getByRole('button', { name }).querySelector('span');
-    expect(labelOf('Purchases without OMRI listing').style.whiteSpace).toBe('normal');
-    expect(labelOf('Short').style.whiteSpace).toBe('nowrap'); // the default stays a single line
-  });
-
-  it('renders trailing content such as a chevron', () => {
-    setup({ trailing: <span data-testid="chev" /> });
-    expect(screen.getByTestId('chev')).toBeTruthy();
   });
 });

@@ -130,7 +130,7 @@ describe('TracePage: the timed drill', () => {
     const { user } = setup();
     await user.click(await screen.findByRole('button', { name: 'Start a timed drill' }));
     expect(screen.getByRole('button', { name: 'Finish drill' }).disabled).toBe(true);
-    expect(screen.getByText('Trace a lot, then finish the drill.')).toBeTruthy();
+    expect(screen.getByText('Trace a lot that is in your records, then finish the drill.')).toBeTruthy();
 
     await trace(user, 'GVF-LETTUCE-20260703-A1');
     await screen.findByText('This lot: GVF-LETTUCE-20260703-A1');
@@ -178,6 +178,29 @@ describe('TracePage: the timed drill', () => {
     await user.click(screen.getByRole('button', { name: 'Save the drill as a record' }));
     expect((await screen.findByRole('alert')).textContent).toBe('The drill could not be saved. Try again.');
     expect(screen.getByRole('button', { name: 'Save the drill as a record' }).disabled).toBe(false);
+  });
+
+  it('cannot be finished on a lot that is not in the records, so no note says nothing was missing', async () => {
+    const { user } = setup();
+    await user.click(await screen.findByRole('button', { name: 'Start a timed drill' }));
+    await trace(user, 'XYZ');
+    expect(await screen.findByText('No approved records use the lot code XYZ.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Finish drill' }).disabled).toBe(true);
+    expect(screen.getByText('Trace a lot that is in your records, then finish the drill.')).toBeTruthy();
+  });
+
+  it('saves what the trace said when the drill was finished, even if the lot box is changed afterwards', async () => {
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user } = setup();
+    await user.click(await screen.findByRole('button', { name: 'Start a timed drill' }));
+    await trace(user, 'GVF-LETTUCE-20260703-A1');
+    await user.click(await screen.findByRole('button', { name: 'Finish drill' }));
+    await user.clear(screen.getByLabelText('Lot code'));
+    await user.click(screen.getByRole('button', { name: 'Trace' }));
+    await user.click(screen.getByRole('button', { name: 'Save the drill as a record' }));
+    await waitFor(() => expect(createRecord).toHaveBeenCalled());
+    expect(createRecord.mock.calls[0][0].payload.text).toContain('lot GVF-LETTUCE-20260703-A1.');
+    expect(await screen.findByText('Saved as a note in your records.')).toBeTruthy();
   });
 
   it('can be cancelled', async () => {

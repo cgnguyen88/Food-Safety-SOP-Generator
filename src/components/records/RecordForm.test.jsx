@@ -447,6 +447,32 @@ describe('RecordForm: the sanitizer check', () => {
     expect(screen.getByLabelText(/^Concentration check/).disabled).toBe(false);
   });
 
+  it('says so when the sanitizer labels could not be read, instead of staying quiet', async () => {
+    listRecordsForReport.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+    const { user } = setup({ kind: 'sanitation_log' });
+    await fillCleaning(user, '150');
+    expect(await screen.findByText(/sanitizer labels could not be read/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Concentration check/).disabled).toBe(false);
+  });
+
+  it('says it cannot tell which label to use when the sanitizer has labels with different ranges', async () => {
+    farmHas([
+      { ...LABEL, payload: { product: 'Peracetic Acid 15%', approved_use: 'produce_wash', ppm_min: 50, ppm_max: 80 } },
+      { ...LABEL, id: 'l2', record_date: '2026-02-01', payload: { product: 'Peracetic Acid 15%', approved_use: 'food_contact', ppm_min: 100, ppm_max: 200 } },
+    ]);
+    const { user } = setup({ kind: 'sanitation_log' });
+    await fillCleaning(user, '60');
+    expect(await screen.findByText(/more than one label with different ranges/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Concentration check/).disabled).toBe(false);
+  });
+
+  it('checks against the label in force on the day of the log', async () => {
+    farmHas([{ ...LABEL, record_date: '2026-09-01', payload: { product: 'Peracetic Acid 15%', ppm_min: 10, ppm_max: 20 } }, { ...LABEL, id: 'old', record_date: '2026-01-01' }]);
+    const { user } = setup({ kind: 'sanitation_log', today: '2026-03-01' });
+    await fillCleaning(user, '150');
+    expect(await screen.findByText('Within the label range (100 to 200 ppm).')).toBeTruthy();
+  });
+
   it('speaks Spanish', async () => {
     farmHas([LABEL]);
     const { user } = setup({ kind: 'sanitation_log' }, 'es');
@@ -575,6 +601,46 @@ describe('RecordForm: lot codes', () => {
     await user.click(screen.getByRole('button', { name: 'Save as draft' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
     expect(createRecord.mock.calls[0][0].status).toBe('draft');
+  });
+
+  it('does not hold a harvest dated before the field’s hold began', async () => {
+    farmHas([FLOOD]);
+    const { user } = setup({ role: 'manager', today: '2026-09-15' });
+    await user.type(screen.getByLabelText(/^Field/), 'B4');
+    await user.type(screen.getByLabelText(/^Lot code/), 'X-1');
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(screen.queryByText(/is on hold/)).toBeNull();
+  });
+
+  it('will not submit a harvest with a lot code while the holds cannot be read, but keeps it as a draft', async () => {
+    listRecordsForReport.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user, onSaved } = setup({ role: 'manager' });
+    await fillHarvest(user);
+    await user.type(screen.getByLabelText(/^Lot code/), 'X-1');
+    expect((await screen.findAllByText(/could not be checked right now/)).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Save & approve' }).disabled).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Save as draft' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+
+  it('does not block saving a change to a harvest that is already on file, whatever its field is doing now', async () => {
+    farmHas([FLOOD]);
+    updateRecord.mockResolvedValue({ data: { id: 'h1' }, error: null });
+    const record = { id: 'h1', kind: 'harvest', status: 'approved', record_date: '2026-10-05', payload: { crop: 'Lettuce', field: 'B4', quantity: 5, unit: 'lb', lot_code: 'GVF-1' } };
+    const { user, onSaved } = setup({ role: 'manager', record });
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+
+  it('will not make a code when there are too many harvests to read all the codes already used', async () => {
+    listRecordsForReport.mockImplementation(async ({ kinds }) => ({ data: { records: [], truncated: kinds.includes('harvest') }, error: null }));
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Crop/), 'Lettuce');
+    await user.type(screen.getByLabelText(/^Field/), 'A1');
+    expect(await screen.findByText(/so many harvests that the lot codes already used could not all be read/)).toBeTruthy();
+    expect(button().disabled).toBe(true);
   });
 
   it('will not make a code when the holds or the used codes could not be read', async () => {

@@ -81,7 +81,8 @@ export default function ShareSopModal({ farmId, sopId, sopTitle, farmName, fille
 
   return (
     <Modal title={tt.title} onClose={onClose} dismissible={!busy}>
-      <p style={{ fontSize: 13, color: '#475569', margin: '0 0 16px' }}>{tt.intro}</p>
+      <p style={{ fontSize: 13, color: '#475569', margin: '0 0 10px' }}>{tt.intro}</p>
+      <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', borderRadius: 8, padding: '8px 12px', margin: '0 0 16px' }}>{tt.warning}</p>
 
       {state.status === 'loading' && <p style={{ color: '#94a3b8' }}>{tt.loading}</p>}
       {state.status === 'error' && <p role="alert" style={{ color: '#b91c1c', fontSize: 13 }}>{tt.error}</p>}
@@ -95,6 +96,7 @@ export default function ShareSopModal({ farmId, sopId, sopTitle, farmName, fille
 
       {state.status === 'ready' && state.share && (
         <>
+          {/* The picture is made by this app from the link alone: nothing a person typed goes into it. */}
           <div style={{ width: 220, maxWidth: '100%', margin: '0 auto 16px' }} role="img" aria-label={`QR: ${sopTitle}`} dangerouslySetInnerHTML={{ __html: qrSvg(url) }} />
           <label htmlFor="share-link" style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>{tt.linkLabel}</label>
           <input id="share-link" readOnly value={url} onFocus={(event) => event.target.select()} style={{ ...ui.input, marginBottom: 12 }} />

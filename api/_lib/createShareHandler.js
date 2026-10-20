@@ -10,8 +10,8 @@ const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 /** People looking at a SOP page: plenty for a crew reading it on their phones. */
 const READS_PER_MINUTE = 60;
-/** People signing: a few a person an hour. */
-const SIGN_OFFS_PER_HOUR = 10;
+/** People signing from one address an hour: a whole crew can sign on the farm's one Wi-Fi after a meeting. */
+const SIGN_OFFS_PER_HOUR = 30;
 /** Sign-offs one link may collect in a day: a large crew, but not a flood. */
 const SIGN_OFFS_PER_LINK_PER_DAY = 100;
 

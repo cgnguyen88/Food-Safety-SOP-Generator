@@ -47,6 +47,30 @@ describe('useRecordsMeta', () => {
     expect(result.current).toMatchObject({ role: null, savedViews: [], needsReviewCount: 0 });
   });
 
+  it('says whether the review count is really known, so a failed read is never taken for "none waiting"', async () => {
+    const { result } = renderHook(() => useRecordsMeta({ farm: FARM, userId: 'u1' }));
+    expect(result.current.reviewKnown).toBe(false);
+    await waitFor(() => expect(result.current.reviewKnown).toBe(true));
+    expect(result.current.needsReviewCount).toBe(4);
+  });
+
+  it('does not know the review count when it could not be read, even though the count shows 0', async () => {
+    records.countNeedsReview.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+    const { result } = renderHook(() => useRecordsMeta({ farm: FARM, userId: 'u1' }));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    expect(result.current.needsReviewCount).toBe(0);
+    expect(result.current.reviewKnown).toBe(false);
+  });
+
+  it('knows the count again once a refresh reads it', async () => {
+    records.countNeedsReview.mockResolvedValueOnce({ data: null, error: { code: 'unknown' } });
+    const { result } = renderHook(() => useRecordsMeta({ farm: FARM, userId: 'u1' }));
+    await waitFor(() => expect(result.current.ready).toBe(true));
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.reviewKnown).toBe(true);
+    expect(result.current.needsReviewCount).toBe(4);
+  });
+
   it('forgets everything when the farm goes away (sign-out)', async () => {
     const { result, rerender } = renderHook(({ farm }) => useRecordsMeta({ farm, userId: 'u1' }), { initialProps: { farm: FARM } });
     await waitFor(() => expect(result.current.role).toBe('manager'));

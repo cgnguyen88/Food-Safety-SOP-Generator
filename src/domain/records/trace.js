@@ -14,12 +14,29 @@ export const AMENDMENT_LOOKBACK_DAYS = 365;
 export const EVENT_LOOKBACK_DAYS = 30;
 
 const lotKey = (value) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').toUpperCase() : '');
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Characters a lot code is made of: another one right beside a code means it is a different code ("GVF-1" is not in "GVF-10"). */
+const CODE_CHARS = 'A-Z0-9_.-';
+
+const mention = (lot) => new RegExp(`(^|[^${CODE_CHARS}])${escapeRegExp(lot)}(?![${CODE_CHARS}])`, 'g');
 const words = (value) => (typeof value === 'string' ? value.trim().replace(/\s+/g, ' ') : '');
 
-/** The lot codes in a box of text: separated by commas, semicolons, spaces or lines, in capitals, once each. */
-export function lotCodesIn(text) {
-  if (typeof text !== 'string') return [];
-  return [...new Set(text.split(/[\s,;]+/).map(lotKey).filter(Boolean))];
+/**
+ * Whether a box of text (a shipment's lot codes, a corrective action's "affected") names a lot code. Lot codes are free
+ * text, so one may have spaces or slashes in it and a list may be separated by anything; the code is looked for as a
+ * whole, not beside another letter or digit of a longer code.
+ *
+ * @param {unknown} text
+ * @param {unknown} code
+ */
+export function mentionsLot(text, code) {
+  const lot = lotKey(code);
+  return lot !== '' && typeof text === 'string' && mention(lot).test(lotKey(text));
+}
+
+/** Whether the text names this lot and nothing else. */
+function namesOnly(text, lot) {
+  return !/[A-Z0-9]/.test(lotKey(text).replace(mention(lot), ' '));
 }
 
 const approved = (record, ...kinds) => record.status === 'approved' && kinds.includes(record.kind) && record.payload && typeof record.payload === 'object';
@@ -98,8 +115,7 @@ function backTrace(records, harvests, packing, lot) {
     if (!approved(r, 'corrective_action')) return false;
     const day = recordDay(r);
     if (earliest !== '' && day !== '' && day < addDays(earliest, -EVENT_LOOKBACK_DAYS)) return false;
-    const names = typeof r.payload.affected === 'string' ? r.payload.affected.split(/[^A-Za-z0-9_-]+/).map(lotKey) : [];
-    return onField(r) || names.includes(lot);
+    return onField(r) || mentionsLot(r.payload.affected, lot);
   }).sort(byDay);
 
   return { amendments, waterTests, sanitation, fieldEvents, correctiveActions };
@@ -125,14 +141,14 @@ export function traceLot(records, code) {
 
   const harvests = records.filter((r) => approved(r, 'harvest') && lotKey(r.payload.lot_code) === lot).sort(byDay);
   const packing = records.filter((r) => approved(r, 'packing_cooling') && lotKey(r.payload.lot_code) === lot).sort(byDay);
-  const shipments = records.filter((r) => approved(r, 'shipment') && lotCodesIn(r.payload.lot_codes).includes(lot)).sort(byDay);
+  const shipments = records.filter((r) => approved(r, 'shipment') && mentionsLot(r.payload.lot_codes, lot)).sort(byDay);
   const found = harvests.length + packing.length + shipments.length > 0;
 
   const pick = (list, value) => unique(list.map((record) => ({ key: value(record).toLowerCase(), value: value(record) })).filter((item) => item.key !== ''));
   const fields = unique(harvests.map((r) => ({ key: fieldKey(r.payload.field), value: tidyFieldName(r.payload.field) })).filter((item) => item.key !== ''));
   const crops = pick(harvests, (r) => words(r.payload.crop));
   const crew = pick(harvests, (r) => words(r.payload.crew));
-  const onlyThisLot = shipments.filter((r) => lotCodesIn(r.payload.lot_codes).length === 1);
+  const onlyThisLot = shipments.filter((r) => namesOnly(r.payload.lot_codes, lot));
 
   const back = found ? backTrace(records, harvests, packing, lot) : { amendments: [], waterTests: [], sanitation: [], fieldEvents: [], correctiveActions: [] };
   const gaps = !found ? [] : [

@@ -32,4 +32,3 @@ export function parseRecordsRoute(page) {
   return null;
 }
 
-export const isRecordsPage = (page) => parseRecordsRoute(page) !== null;

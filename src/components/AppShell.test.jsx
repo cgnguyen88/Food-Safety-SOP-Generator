@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, cleanup } from '@testing-library/react';
+import { screen, cleanup, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithLang } from './records/testUtils.jsx';
 import AppShell from './AppShell.jsx';
@@ -92,6 +92,45 @@ describe('AppShell on a phone', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open menu' }));
   });
 
+  it('puts the page and the top bar out of reach while the menu is open, and back when it closes', async () => {
+    const user = userEvent.setup();
+    renderShell();
+    expect(screen.getByRole('main').hasAttribute('inert')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(screen.getByRole('main').hasAttribute('inert')).toBe(true);
+    expect(document.querySelector('.mobile-topbar').hasAttribute('inert')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Close menu' }));
+    expect(screen.getByRole('main').hasAttribute('inert')).toBe(false);
+    expect(document.querySelector('.mobile-topbar').hasAttribute('inert')).toBe(false);
+  });
+
+  it.each([
+    ['the close button', async (user) => user.click(screen.getByRole('button', { name: 'Close menu' }))],
+    ['the dimmed page', async (user) => user.click(document.querySelector('.menu-scrim'))],
+    ['choosing a page', async (user) => user.click(screen.getByRole('button', { name: 'Fields' }))],
+  ])('puts the focus back on the menu button when the menu is closed with %s', async (_label, close) => {
+    const user = userEvent.setup();
+    renderShell();
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await close(user);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open menu' }));
+  });
+
+  it('does not bring an open menu back when the window goes wide and then narrow again', async () => {
+    const user = userEvent.setup();
+    let listener = () => {};
+    let phone = true;
+    vi.stubGlobal('matchMedia', (query) => ({ media: query, get matches() { return phone; }, addEventListener: (_t, fn) => { listener = fn; }, removeEventListener: () => {} }));
+    renderShell();
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    expect(mainMenu()).toBeTruthy();
+    phone = false;
+    act(() => listener());
+    phone = true;
+    act(() => listener());
+    expect(mainMenu()).toBeNull();
+  });
+
   it('closes the menu when the dimmed page behind it is tapped', async () => {
     const user = userEvent.setup();
     renderShell();
@@ -104,6 +143,13 @@ describe('AppShell on a phone', () => {
     renderShell({ lang: 'es' });
     expect(screen.getByRole('button', { name: 'Abrir menú' })).toBeTruthy();
     expect(screen.getByRole('banner').textContent).toContain('Inicio');
+  });
+
+  it('names the menu in Spanish too', async () => {
+    const user = userEvent.setup();
+    renderShell({ lang: 'es' });
+    await user.click(screen.getByRole('button', { name: 'Abrir menú' }));
+    expect(screen.getByRole('navigation', { name: 'Principal' })).toBeTruthy();
   });
 });
 

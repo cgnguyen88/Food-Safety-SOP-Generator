@@ -11,6 +11,8 @@ export default defineConfig({
     environment: 'node',
     include: ['api/**/*.test.js', 'server/**/*.test.js', 'supabase/**/*.test.js', 'scripts/**/*.test.js', 'src/**/*.test.{js,jsx}'],
     restoreMocks: true,
+    // The database tests build a real Postgres and run every migration (some twice), which takes a few seconds.
+    testTimeout: 30_000,
   },
   server: {
     proxy: {

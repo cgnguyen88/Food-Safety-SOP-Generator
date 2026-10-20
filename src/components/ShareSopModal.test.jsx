@@ -29,6 +29,11 @@ afterEach(() => {
 });
 
 describe('ShareSopModal: making a link', () => {
+  it('warns that anyone with the link can read everything in the SOP, including names and phone numbers', async () => {
+    setup();
+    expect(await screen.findByText(/Anyone who has this link can read everything written in this SOP/)).toBeTruthy();
+  });
+
   it('offers to create a link when the SOP has none', async () => {
     setup();
     expect(await screen.findByRole('button', { name: 'Create a link' })).toBeTruthy();

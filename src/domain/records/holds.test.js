@@ -31,8 +31,19 @@ describe('computeFieldHolds: what puts a field on hold', () => {
     expect(computeFieldHolds([flood('A2', 'no'), animals('B1', 'no')])).toEqual([]);
   });
 
-  it('does not hold a field when it is not known whether the crop was reached (the reviewer decides)', () => {
-    expect(computeFieldHolds([flood('A2', 'unknown')])).toEqual([]);
+  it('holds a field when it is not known whether the crop was reached: not knowing is not a reason to harvest', () => {
+    const [hold] = computeFieldHolds([flood('A2', 'unknown')]);
+    expect(hold.triggers[0]).toMatchObject({ kind: 'weather_event', reason: 'crop_contact_unknown' });
+  });
+
+  it('holds each field of a record that names several, and a corrective action clears each one it names', () => {
+    const records = [flood('A1, A2; B3'), clearing('A1', { record_date: '2026-06-15' })];
+    expect(computeFieldHolds(records).map((h) => h.name)).toEqual(['A2', 'B3']);
+    expect(computeFieldHolds([flood('A1, A2'), clearing('a1,\nA2', { record_date: '2026-06-15' })])).toEqual([]);
+  });
+
+  it('does not make a field name out of blanks and separators', () => {
+    expect(computeFieldHolds([flood(' , ;'), flood('\n')])).toEqual([]);
   });
 
   it('only counts approved records', () => {
@@ -93,6 +104,12 @@ describe('computeFieldHolds: what lifts a hold', () => {
     expect(hold.triggers.map((t) => t.date)).toEqual(['2026-06-18']);
   });
 
+  it('does not let an action clear an event that was recorded after the action, however it is dated', () => {
+    const action = clearing('A2', { record_date: '2026-06-18', created_at: '2026-06-18T09:00:00Z' });
+    const lateFlood = flood('A2', 'yes', { record_date: '2026-06-16', created_at: '2026-06-19T09:00:00Z' });
+    expect(computeFieldHolds([lateFlood, action])).toHaveLength(1);
+  });
+
   it('on the same day, the action lifts the event only when it was recorded after it', () => {
     const after = [flood('A2'), clearing('A2', { created_at: '2026-06-10T16:00:00Z' })];
     const before = [flood('A2'), clearing('A2', { created_at: '2026-06-10T06:00:00Z' })];
@@ -120,6 +137,11 @@ describe('holdFor', () => {
 
   it('finds the hold on a field however the field is spelled', () => {
     expect(holdFor(holds, ' a2 ')?.name).toBe('A2');
+  });
+
+  it('finds the hold when a record names several fields and one of them is held', () => {
+    expect(holdFor(holds, 'B1, A2')?.name).toBe('A2');
+    expect(holdFor(holds, 'B1; C3')).toBeNull();
   });
 
   it('is null for a field that is not on hold, or for no field', () => {

@@ -282,9 +282,13 @@ export const T = {
     },
     farmProfile: {
       title: "My Farm Profile",
-      subtitle: "Saved locally — auto-fills all SOP templates",
+      subtitle: "Saved to your farm — auto-fills all SOP templates",
       cancel: "Cancel",
       save: "Save Profile",
+      lotFormat: {
+        help: "Parts you can use: {FARM} {CROP} {FIELD} {YYYYMMDD} {YYMMDD} {JULIAN} {SEQ}. Leave blank for {FARM}-{CROP}-{YYYYMMDD}-{FIELD}.",
+        invalid: "This lot code format can't be used. Use the parts listed above in curly brackets, with letters, numbers, dashes or dots between them, and include a date part or {SEQ}.",
+      },
       fields: {
         farm_name: "Farm / Operation Name",
         owner_name: "Owner / Operator Name",
@@ -304,6 +308,7 @@ export const T = {
         training_provider: "Standard Training Provider",
         training_language: "Training Language(s)",
         training_record_location: "Where Records are Kept",
+        lot_code_format: "Lot Code Format",
         notes: "Additional AI Context",
       },
     },
@@ -601,9 +606,13 @@ export const T = {
     },
     farmProfile: {
       title: "Mi Perfil de Granja",
-      subtitle: "Guardado localmente — auto-completa todas las plantillas de POE",
+      subtitle: "Guardado en tu granja — auto-completa todas las plantillas de POE",
       cancel: "Cancelar",
       save: "Guardar Perfil",
+      lotFormat: {
+        help: "Partes que puedes usar: {FARM} {CROP} {FIELD} {YYYYMMDD} {YYMMDD} {JULIAN} {SEQ}. Déjalo en blanco para usar {FARM}-{CROP}-{YYYYMMDD}-{FIELD}.",
+        invalid: "Este formato de código de lote no se puede usar. Usa las partes de arriba entre llaves, con letras, números, guiones o puntos entre ellas, e incluye una parte de fecha o {SEQ}.",
+      },
       fields: {
         farm_name: "Nombre de la Granja / Operación",
         owner_name: "Nombre del Propietario / Operador",
@@ -623,6 +632,7 @@ export const T = {
         training_provider: "Proveedor de Capacitación Estándar",
         training_language: "Idioma(s) de Capacitación",
         training_record_location: "Dónde se Guardan los Registros",
+        lot_code_format: "Formato del Código de Lote",
         notes: "Contexto Adicional para IA",
       },
     },

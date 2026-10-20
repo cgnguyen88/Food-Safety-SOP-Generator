@@ -112,6 +112,7 @@ function FarmApp() {
                 role={recordsMeta.role ?? farm.account.role}
                 userId={farm.account.user.id}
                 operation={operationFromFarmProfile(farmProfile)}
+                lotCodeFormat={farmProfile?.lot_code_format}
                 savedViews={recordsMeta.savedViews}
                 metaReady={recordsMeta.ready}
                 needsReviewCount={recordsMeta.needsReviewCount}

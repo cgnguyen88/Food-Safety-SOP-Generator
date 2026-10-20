@@ -12,16 +12,16 @@ const LOADING = { key: null, status: 'loading', records: [], truncated: false };
  * "loading" with no records while it does, and ignores an answer that arrives late for something it is no
  * longer asking about. A farm that does not exist yet has no records and nothing to read.
  *
- * @param {{ farmId?: string, kinds?: string[], from?: string }} options
+ * @param {{ farmId?: string, kinds?: string[], from?: string, includeUnapproved?: boolean }} options `includeUnapproved` adds the records still being worked on (drafts and those waiting for review)
  * @returns {{ status: 'loading' | 'ready' | 'error', records: object[], truncated: boolean, reload: () => void }}
  */
-export default function useFarmRecords({ farmId, kinds, from }) {
+export default function useFarmRecords({ farmId, kinds, from, includeUnapproved = false }) {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState(LOADING);
   // What is asked for. Reading again (`attempt`) is not a different question, so a read that worked keeps its records on screen meanwhile.
-  const key = `${farmId ?? ''}|${(kinds ?? []).join(',')}|${from ?? ''}`;
+  const key = `${farmId ?? ''}|${(kinds ?? []).join(',')}|${from ?? ''}|${includeUnapproved ? 'all' : 'approved'}`;
 
-  const read = useEffectEvent(() => listRecordsForReport({ farmId, kinds, from, includeUnapproved: false }));
+  const read = useEffectEvent(() => listRecordsForReport({ farmId, kinds, from, includeUnapproved }));
   useEffect(() => {
     if (!farmId) return undefined;
     let alive = true;

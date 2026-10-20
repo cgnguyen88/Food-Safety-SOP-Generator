@@ -9,6 +9,7 @@ import RecordLog from './RecordLog.jsx';
 import RecordsOverview from './RecordsOverview.jsx';
 import ReportsPage from './ReportsPage.jsx';
 import { canSeeKind } from '../../domain/records/workflow.js';
+import { LotCodeSettingsContext, lotCodeSettingsFor } from './lotCodeSettings.js';
 import SavedViewResults from './SavedViewResults.jsx';
 import TrainingDuePage from './TrainingDuePage.jsx';
 
@@ -17,7 +18,7 @@ import TrainingDuePage from './TrainingDuePage.jsx';
  * provisioning not finished, or the database not set up) it explains and offers a retry
  * instead of failing silently.
  */
-export default function RecordsPage({ route, farm, role, userId, operation, savedViews = [], metaReady = true, needsReviewCount = 0, onNavigate, onChanged, onRetryFarm }) {
+export default function RecordsPage({ route, farm, role, userId, operation, lotCodeFormat, savedViews = [], metaReady = true, needsReviewCount = 0, onNavigate, onChanged, onRetryFarm }) {
   const { lang } = useLanguage();
   const tt = recordsText(lang);
 
@@ -66,5 +67,9 @@ export default function RecordsPage({ route, farm, role, userId, operation, save
   };
 
   // One field list for the whole records area: the forms, a record's detail and the Fields page all share it.
-  return <FarmFieldsProvider farmId={farm.id}>{screenFor()}</FarmFieldsProvider>;
+  return (
+    <LotCodeSettingsContext.Provider value={lotCodeSettingsFor({ lotCodeFormat, farm })}>
+      <FarmFieldsProvider farmId={farm.id}>{screenFor()}</FarmFieldsProvider>
+    </LotCodeSettingsContext.Provider>
+  );
 }

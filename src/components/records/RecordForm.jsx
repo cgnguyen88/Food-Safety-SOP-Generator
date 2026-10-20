@@ -11,6 +11,7 @@ import { recordsText } from './text.js';
 import * as ui from './ui.js';
 import { useFarmFields } from './farmFields.js';
 import FieldPicker from './FieldPicker.jsx';
+import LotCodeTools from './LotCodeTools.jsx';
 import Modal from './Modal.jsx';
 import SanitizerHint from './SanitizerHint.jsx';
 import useFarmRecords from './useFarmRecords.js';
@@ -92,6 +93,8 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
   // A harvest from a field that is on hold needs a corrective action first.
   const holds = useFieldHolds({ farmId: kind === 'harvest' ? farmId : undefined });
   const heldField = kind === 'harvest' ? holdFor(holds.holds, values.field) : null;
+  // Produce from a field on hold must not leave the farm with a lot code on it.
+  const lotCodeOnHeldField = Boolean(heldField) && !blank(values.lot_code);
 
   const evaluation = useMemo(() => evaluateRecord(kind, { record_date: date, payload }), [kind, date, payload]);
   const filled = useMemo(() => Object.fromEntries(Object.entries(values).filter(([, v]) => !blank(v))), [values]);
@@ -171,7 +174,10 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
       )).flatMap((node, index) => {
         const key = fields[index].key;
         if (key === 'ppm' && sanitizing) return [node, <SanitizerHint key="ppm-hint" check={concentration} loading={labels.status === 'loading' && !blank(values.ppm)} />];
-        if (key === 'field' && heldField) return [node, <p key="hold-warning" role="alert" style={{ fontSize: 12, margin: '-8px 0 14px', padding: '6px 10px', borderRadius: 8, background: '#fee2e2', color: '#991b1b' }}>{tt.holds.harvestWarning(heldField.name)}</p>];
+        if (key === 'field' && heldField) return [node, <p key="hold-warning" role="alert" style={{ fontSize: 12, margin: '-8px 0 14px', padding: '6px 10px', borderRadius: 8, background: '#fee2e2', color: '#991b1b' }}>{lotCodeOnHeldField ? tt.lots.heldWithCode(heldField.name) : tt.holds.harvestWarning(heldField.name)}</p>];
+        if (key === 'lot_code' && kind === 'harvest') {
+          return [node, <LotCodeTools key="lot-tools" farmId={farmId} recordId={record?.id} values={values} date={date} holds={holds} heldField={heldField} onMade={(code) => setValues((current) => ({ ...current, lot_code: code }))} />];
+        }
         return [node];
       })}
 
@@ -200,9 +206,9 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
             </button>
             <button
               type="button"
-              disabled={!evaluation.complete || busy}
+              disabled={!evaluation.complete || busy || lotCodeOnHeldField}
               onClick={() => save(reviewer ? 'approved' : 'pending_review')}
-              style={{ ...(reviewer ? ui.buttonSuccess : ui.buttonPrimary), ...(!evaluation.complete || busy ? ui.buttonDisabled : {}) }}
+              style={{ ...(reviewer ? ui.buttonSuccess : ui.buttonPrimary), ...(!evaluation.complete || busy || lotCodeOnHeldField ? ui.buttonDisabled : {}) }}
             >
               {submitting === 'approved' || submitting === 'pending_review' ? tt.form.saving : reviewer ? tt.form.approve : tt.form.submit}
             </button>

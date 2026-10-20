@@ -30,6 +30,19 @@ describe('useFarmRecords', () => {
     expect(listRecordsForReport).toHaveBeenCalledWith({ farmId: 'farm-1', kinds: ['purchase', 'input'], from: '2026-01-01', includeUnapproved: false });
   });
 
+  it('can include the records that are still being worked on', async () => {
+    run({ farmId: 'farm-1', kinds: ['harvest'], includeUnapproved: true });
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalledTimes(1));
+    expect(listRecordsForReport).toHaveBeenCalledWith(expect.objectContaining({ includeUnapproved: true }));
+  });
+
+  it('reads again when asked to include them later', async () => {
+    const { rerender } = run({ farmId: 'farm-1', kinds: ['harvest'] });
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalledTimes(1));
+    rerender({ farmId: 'farm-1', kinds: ['harvest'], includeUnapproved: true });
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalledTimes(2));
+  });
+
   it('passes on that the list was cut short', async () => {
     listRecordsForReport.mockResolvedValue(ok([{ id: 'a' }], true));
     const { result } = run({ farmId: 'farm-1' });

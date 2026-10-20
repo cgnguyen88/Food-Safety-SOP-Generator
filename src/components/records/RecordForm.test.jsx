@@ -10,13 +10,20 @@ const { createRecord, updateRecord } = await import('../../lib/records.js');
 const { listRecordsForReport } = await import('../../lib/reportData.js');
 const { default: RecordForm } = await import('./RecordForm.jsx');
 const { FarmFieldsContext } = await import('./farmFields.js');
+const { LotCodeSettingsContext } = await import('./lotCodeSettings.js');
 
 const FARM = 'farm-1';
-const setup = (props = {}, lang = 'en') => {
+const LOTS = { format: '{FARM}-{CROP}-{YYYYMMDD}-{FIELD}', farmCode: 'GVF', farmName: 'Green Valley Farm' };
+const setup = ({ lots = LOTS, ...props } = {}, lang = 'en') => {
   const onSaved = vi.fn();
   const onCancel = vi.fn();
   const user = userEvent.setup();
-  renderWithLang(<RecordForm kind="harvest" role="crew" farmId={FARM} today="2026-10-12" onSaved={onSaved} onCancel={onCancel} {...props} />, lang);
+  renderWithLang(
+    <LotCodeSettingsContext.Provider value={lots}>
+      <RecordForm kind="harvest" role="crew" farmId={FARM} today="2026-10-12" onSaved={onSaved} onCancel={onCancel} {...props} />
+    </LotCodeSettingsContext.Provider>,
+    lang,
+  );
   return { user, onSaved, onCancel };
 };
 
@@ -478,5 +485,119 @@ describe('RecordForm: a field on hold', () => {
     await user.type(screen.getByLabelText(/^Field/), 'B4');
     await user.click(screen.getByRole('button', { name: 'Save & approve' }));
     await waitFor(() => expect(onSaved).toHaveBeenCalled());
+  });
+});
+
+describe('RecordForm: lot codes', () => {
+  const FLOOD = { id: 'w1', kind: 'weather_event', status: 'approved', record_date: '2026-10-01', payload: { event_type: 'flood', field: 'B4', crop_contact: 'yes' } };
+  const harvest = (id, lot_code, status = 'approved') => ({ id, kind: 'harvest', status, record_date: '2026-10-12', payload: { crop: 'Lettuce', field: 'A1', quantity: 1, unit: 'lb', lot_code } });
+  const button = () => screen.getByRole('button', { name: /lot code$/ });
+
+  it('makes a lot code from the harvest in the farm’s format', async () => {
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Crop/), 'Lettuce');
+    await user.type(screen.getByLabelText(/^Field/), 'A1');
+    await waitFor(() => expect(button().disabled).toBe(false));
+    await user.click(button());
+    expect(screen.getByLabelText(/^Lot code/).value).toBe('GVF-LETTUCE-20261012-A1');
+    expect(screen.getByText('Lot code GVF-LETTUCE-20261012-A1 made.')).toBeTruthy();
+  });
+
+  it('uses the date of the harvest, not today’s', async () => {
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Crop/), 'Kale');
+    await user.type(screen.getByLabelText(/^Field/), 'B2');
+    await user.clear(screen.getByLabelText(/^Date/));
+    await user.type(screen.getByLabelText(/^Date/), '2026-09-30');
+    await waitFor(() => expect(button().disabled).toBe(false));
+    await user.click(button());
+    expect(screen.getByLabelText(/^Lot code/).value).toBe('GVF-KALE-20260930-B2');
+  });
+
+  it('adds a number to a code that is already used, even by a harvest that is not approved yet', async () => {
+    farmHas([harvest('h1', 'GVF-LETTUCE-20261012-A1', 'pending_review')]);
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Crop/), 'Lettuce');
+    await user.type(screen.getByLabelText(/^Field/), 'A1');
+    await waitFor(() => expect(button().disabled).toBe(false));
+    await user.click(button());
+    expect(screen.getByLabelText(/^Lot code/).value).toBe('GVF-LETTUCE-20261012-A1-2');
+    expect(listRecordsForReport).toHaveBeenCalledWith(expect.objectContaining({ kinds: ['harvest'], includeUnapproved: true }));
+  });
+
+  it('does not count the harvest being edited against itself', async () => {
+    const own = harvest('h1', 'GVF-LETTUCE-20261012-A1');
+    farmHas([own]);
+    const { user } = setup({ role: 'manager', record: { ...own, payload: { ...own.payload } } });
+    await waitFor(() => expect(button().disabled).toBe(false));
+    await user.click(button());
+    expect(screen.getByLabelText(/^Lot code/).value).toBe('GVF-LETTUCE-20261012-A1');
+  });
+
+  it('says what to fill in first', async () => {
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Crop/), 'Lettuce');
+    await waitFor(() => expect(button().disabled).toBe(false));
+    await user.click(button());
+    expect(screen.getByText('Fill in the field first.')).toBeTruthy();
+    expect(screen.getByLabelText(/^Lot code/).value).toBe('');
+  });
+
+  it('offers a new code when the box already has one', async () => {
+    const { user } = setup({ role: 'manager', prefill: { lot_code: 'OLD-1' } });
+    expect(screen.getByRole('button', { name: 'Make a new lot code' })).toBeTruthy();
+    await user.type(screen.getByLabelText(/^Crop/), 'Lettuce');
+    await user.type(screen.getByLabelText(/^Field/), 'A1');
+    await waitFor(() => expect(button().disabled).toBe(false));
+    await user.click(button());
+    expect(screen.getByLabelText(/^Lot code/).value).toBe('GVF-LETTUCE-20261012-A1');
+  });
+
+  it('will not make a code for a field on hold, and says why', async () => {
+    farmHas([FLOOD]);
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Crop/), 'Lettuce');
+    await user.type(screen.getByLabelText(/^Field/), 'B4');
+    expect(await screen.findByText(/can’t get a lot code until the corrective action/)).toBeTruthy();
+    expect(button().disabled).toBe(true);
+  });
+
+  it('will not submit a harvest that has a lot code on a field on hold, but keeps it as a draft', async () => {
+    farmHas([FLOOD]);
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user, onSaved } = setup({ role: 'manager' });
+    await fillHarvest(user);
+    await user.clear(screen.getByLabelText(/^Field/));
+    await user.type(screen.getByLabelText(/^Field/), 'B4');
+    await user.type(screen.getByLabelText(/^Lot code/), 'X-1');
+    expect(await screen.findByText(/Take out the lot code/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save & approve' }).disabled).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Save as draft' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(createRecord.mock.calls[0][0].status).toBe('draft');
+  });
+
+  it('will not make a code when the holds or the used codes could not be read', async () => {
+    listRecordsForReport.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Crop/), 'Lettuce');
+    await user.type(screen.getByLabelText(/^Field/), 'A1');
+    expect(await screen.findByText(/could not be checked right now/)).toBeTruthy();
+    expect(button().disabled).toBe(true);
+  });
+
+  it('is only on a harvest', () => {
+    setup({ kind: 'packing_cooling' });
+    expect(screen.queryByRole('button', { name: /lot code$/ })).toBeNull();
+  });
+
+  it('speaks Spanish', async () => {
+    const { user } = setup({ role: 'manager' }, 'es');
+    await user.type(screen.getByLabelText(/^Cultivo/), 'Lechuga');
+    await user.type(screen.getByLabelText(/^Campo/), 'A1');
+    const make = screen.getByRole('button', { name: 'Crear código de lote' });
+    await waitFor(() => expect(make.disabled).toBe(false));
+    await user.click(make);
+    expect(screen.getByLabelText(/^Código de lote/).value).toBe('GVF-LECHUGA-20261012-A1');
   });
 });

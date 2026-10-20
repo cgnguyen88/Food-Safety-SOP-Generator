@@ -3,7 +3,7 @@ import { buildCaptureRows, CAPTURE_SOURCE, captureHashOf } from './captureRows.j
 import { readFieldNames } from './fieldNames.js';
 import { RESTRICTED_KINDS } from '../../../src/domain/records/kinds.js';
 import { canSeeKind } from '../../../src/domain/records/workflow.js';
-import { applySanitationCheck } from '../../../src/domain/records/sanitation.js';
+import { checkedByLabelOnly } from '../../../src/domain/records/sanitation.js';
 
 const UNIQUE_VIOLATION = '23505';
 /** A rejected or voided capture no longer counts as "already filed". */
@@ -27,15 +27,17 @@ export class PipelineError extends Error {
  */
 async function checkSanitation(proposals, ports, logger) {
   const logs = proposals.filter((proposal) => proposal.kind === 'sanitation_log');
-  if (logs.length === 0 || !ports.listSanitizerLabels) return proposals;
-  let labels;
-  try {
-    labels = await ports.listSanitizerLabels();
-  } catch (err) {
-    logger.warn('[capture] could not read the sanitizer labels; filing cleaning logs without a result', { reason: redact(err?.message ?? err) });
-    return proposals;
+  if (logs.length === 0) return proposals;
+  let labels = null;
+  if (ports.listSanitizerLabels) {
+    try {
+      labels = await ports.listSanitizerLabels();
+    } catch (err) {
+      logger.warn('[capture] could not read the sanitizer labels; filing cleaning logs without a result', { reason: redact(err?.message ?? err) });
+    }
   }
-  return proposals.map((proposal) => (proposal.kind === 'sanitation_log' ? { ...proposal, payload: applySanitationCheck(proposal.payload, labels, proposal.record_date ?? undefined) } : proposal));
+  // Whatever result the model wrote is dropped: only an approved label may set one.
+  return proposals.map((proposal) => (proposal.kind === 'sanitation_log' ? { ...proposal, payload: checkedByLabelOnly(proposal.payload, labels, proposal.record_date ?? undefined) } : proposal));
 }
 
 /**
@@ -105,8 +107,9 @@ export async function runCapture({ ports, extract, anthropic, config, userId, fa
   let storedFiles = [];
   if (attachments.length > 0) {
     try {
-      // A photo that goes with a restricted record is kept where only owners and managers can open it.
-      const restricted = proposals.some((proposal) => RESTRICTED_KINDS.includes(proposal.kind));
+      // A photo that goes with a restricted record, or with one that was held back from this sender, is kept where only
+      // owners and managers can open it: other records from the same photo would otherwise show it to everyone.
+      const restricted = restrictedSkipped > 0 || proposals.some((proposal) => RESTRICTED_KINDS.includes(proposal.kind));
       storedFiles = await ports.uploadAttachments({ captureHash, attachments, restricted });
     } catch (err) {
       logger.error('[capture] storing the source files failed', { userId, farmId, reason: redact(err?.message ?? err) });

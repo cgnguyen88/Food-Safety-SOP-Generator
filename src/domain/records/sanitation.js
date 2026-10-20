@@ -35,9 +35,10 @@ const inForce = (labels, date) => {
  * @param {unknown} name
  * @param {object[]} labels sanitizer label records
  * @param {string} [date] the day of the log (YYYY-MM-DD): a newer label does not apply to an older log
+ * @param {{ exact?: boolean }} [options] `exact` accepts only the same product name (no part-of-a-name matching)
  * @returns {{ label: object | null, ambiguous: boolean }}
  */
-export function resolveSanitizerLabel(name, labels, date) {
+export function resolveSanitizerLabel(name, labels, date, { exact = false } = {}) {
   const none = { label: null, ambiguous: false };
   const wanted = nameKey(name);
   if (wanted === '') return none;
@@ -45,7 +46,7 @@ export function resolveSanitizerLabel(name, labels, date) {
   const usable = labels.filter(isApprovedLabel);
   let matches = usable.filter((l) => nameKey(l.payload.product) === wanted);
   if (matches.length === 0) {
-    if (wanted.length < MIN_PARTIAL_LENGTH) return none;
+    if (exact || wanted.length < MIN_PARTIAL_LENGTH) return none;
     const partial = usable.filter((l) => {
       const product = nameKey(l.payload.product);
       return product.length >= MIN_PARTIAL_LENGTH && (product.includes(wanted) || wanted.includes(product));
@@ -64,7 +65,7 @@ export function resolveSanitizerLabel(name, labels, date) {
 }
 
 /** The label a log is about, or null when there is none or it cannot be told which. */
-export const findSanitizerLabel = (name, labels, date) => resolveSanitizerLabel(name, labels, date).label;
+export const findSanitizerLabel = (name, labels, date, options) => resolveSanitizerLabel(name, labels, date, options).label;
 
 const isBlank = (value) => value === undefined || value === null || (typeof value === 'string' && value.trim() === '');
 
@@ -92,18 +93,18 @@ export function labelRange(label) {
 /**
  * Compare a measured concentration with the label of the sanitizer used.
  *
- * @param {{ ppm?: unknown, sanitizer?: unknown, date?: string }} reading
+ * @param {{ ppm?: unknown, sanitizer?: unknown, date?: string, exact?: boolean }} reading
  * @param {object[]} labels sanitizer label records
  * @returns {{ result: 'pass' | 'fail' | null, reason: 'too_low' | 'too_high' | 'no_reading' | 'no_label' | 'ambiguous_label' | 'no_range' | null,
  *   min: number | null, max: number | null, label: object | null }}
  */
-export function checkSanitizerConcentration({ ppm, sanitizer, date }, labels) {
+export function checkSanitizerConcentration({ ppm, sanitizer, date, exact = false }, labels) {
   const none = (reason, label = null) => ({ result: null, reason, min: null, max: null, label });
 
   const reading = parsePpm(ppm);
   if (reading === null || reading === undefined) return none('no_reading');
 
-  const { label, ambiguous } = resolveSanitizerLabel(sanitizer, labels, date);
+  const { label, ambiguous } = resolveSanitizerLabel(sanitizer, labels, date, { exact });
   if (ambiguous) return none('ambiguous_label');
   if (!label) return none('no_label');
 
@@ -126,10 +127,25 @@ const SANITIZING = ['clean_sanitize', 'sanitize_only'];
  * @param {Record<string, unknown>} payload
  * @param {object[]} labels
  * @param {string} [date] the day of the log
+ * @param {{ exact?: boolean }} [options]
  * @returns {Record<string, unknown>} a new payload
  */
-export function applySanitationCheck(payload, labels, date) {
+export function applySanitationCheck(payload, labels, date, options) {
   if (payload?.method && !SANITIZING.includes(payload.method)) return { ...payload };
-  const { result } = checkSanitizerConcentration({ ppm: payload?.ppm, sanitizer: payload?.sanitizer, date }, labels);
+  const { result } = checkSanitizerConcentration({ ppm: payload?.ppm, sanitizer: payload?.sanitizer, date, exact: options?.exact }, labels);
   return result ? { ...payload, check_result: result } : { ...payload };
+}
+
+/**
+ * A cleaning log read by a model (or typed into a chat): its result is set by the approved label and by nothing else.
+ * Whatever result came with it is dropped first, and a product is matched by its exact name, so a misread name finds no
+ * label and leaves no result, never another product's range. Without labels (they could not be read) there is no result.
+ *
+ * @param {Record<string, unknown>} payload
+ * @param {object[] | null | undefined} labels
+ * @param {string} [date]
+ */
+export function checkedByLabelOnly(payload, labels, date) {
+  const { check_result: _unchecked, ...rest } = payload ?? {};
+  return Array.isArray(labels) ? applySanitationCheck(rest, labels, date, { exact: true }) : rest;
 }

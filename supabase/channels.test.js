@@ -323,8 +323,82 @@ describe('migration: chat channels (Telegram)', () => {
     });
   });
 
+  describe('hardening', () => {
+    it('shows a plain, short farm name to the person who opens a link: no line breaks, links, @mentions or quotes', async () => {
+      const founder = await signUp(db, { email: 'ch-name@example.com' });
+      const founderFarm = await farmIdOf(db, founder);
+      await db.query(`update public.farms set name = $2 where id = $1`, [founderFarm, 'Acme"?\n\nreply YES at evil.example/x @evilbot and then some more words']);
+      const { code } = await makeCode(founder);
+      const stored = (await db.query('select farm_name from public.channel_link_codes where code_hash = $1', [await sha256(code)])).rows[0].farm_name;
+      expect(stored.length).toBeLessThanOrEqual(40);
+      expect(stored).not.toMatch(/[\n\r"/@:<>]/);
+      expect(stored.startsWith('Acme')).toBe(true);
+    });
+
+    it('keeps counting used codes toward the hourly limit, so redeeming one by one does not get round it', async () => {
+      const maker = await signUp(db, { email: 'ch-limit@example.com' });
+      let made = 0;
+      for (; made < 12; made += 1) {
+        try {
+          const { code } = await makeCode(maker);
+          await consume(code, `tg-limit-${made}`);
+        } catch {
+          break;
+        }
+      }
+      expect(made).toBe(5);
+    });
+
+    it('keeps the cleanup function (a trigger) from being called by clients', async () => {
+      await expect(asUser(db, owner, () => db.query('select public.channel_identity_cleanup()'))).rejects.toThrow(/permission denied/i);
+      await expect(asAnon(db, () => db.query('select public.channel_identity_cleanup()'))).rejects.toThrow(/permission denied/i);
+    });
+
+    it('ends a chat link when the person leaves the farm, so being added back later does not switch the bot on again', async () => {
+      const visitor = await signUp(db, { email: 'ch-leaves@example.com' });
+      await db.query('delete from public.farm_members where user_id = $1', [visitor]);
+      await db.query(`insert into public.farm_members (farm_id, user_id, role) values ($1, $2, 'crew')`, [farm, visitor]);
+      expect(await link(visitor, 'tg-leaves')).toBe(true);
+      await db.query('delete from public.farm_members where user_id = $1 and farm_id = $2', [visitor, farm]);
+      expect(await identityFor('tg-leaves')).toBeUndefined();
+      await db.query(`insert into public.farm_members (farm_id, user_id, role) values ($1, $2, 'crew')`, [farm, visitor]);
+      expect(await identityFor('tg-leaves')).toBeUndefined();
+    });
+
+    it('keeps a chat link to another farm when a person leaves a different one', async () => {
+      const both = await signUp(db, { email: 'ch-both@example.com' });
+      await db.query(`insert into public.farm_members (farm_id, user_id, role) values ($1, $2, 'crew')`, [outsiderFarm, both]);
+      const own = await farmIdOf(db, both);
+      expect(await link(both, 'tg-both')).toBe(true);
+      const linkedTo = (await identityFor('tg-both')).farm_id;
+      const other = linkedTo === own ? outsiderFarm : own;
+      await db.query('delete from public.farm_members where user_id = $1 and farm_id = $2', [both, other]);
+      expect(await identityFor('tg-both')).toBeDefined();
+    });
+  });
+
+  describe('health information in replies (channel_update_record)', () => {
+    const newIllness = async (by) => (await db.query(
+      `insert into public.records (farm_id, kind, status, payload, missing_fields, created_by, source, source_ref)
+       values ($1, 'illness_injury', 'needs_info', '{"person":"Ana","type":"illness"}'::jsonb, array['description'], $2, 'telegram', $3) returning id, version`,
+      [farm, by, `tg-${Math.random()}`],
+    )).rows[0];
+    const patch = JSON.stringify({ record_date: '2026-10-11', payload: { person: 'Ana', type: 'illness', description: 'Vomiting', removed_from_contact: 'yes' }, status: 'pending_review', missing_fields: [], fingerprint: 'x' });
+    const update = (actor, r) => asServiceRole(db, async () => (await db.query('select * from public.channel_update_record($1, $2, $3, $4, $5::jsonb)', [actor, farm, r.id, r.version, patch])).rows);
+
+    it('lets an owner finish their own illness report', async () => {
+      const r = await newIllness(owner);
+      expect(await update(owner, r)).toHaveLength(1);
+    });
+
+    it('changes nothing for someone who is crew now, even if the report is their own (they could not see it any more)', async () => {
+      const r = await newIllness(crew);
+      expect(await update(crew, r)).toHaveLength(0);
+    });
+  });
+
   it('is safe to re-run', async () => {
-    const sql = (await import('./harness.js')).migrationSql().at(-1);
+    const sql = (await import('./harness.js')).migrationSql().find((text) => text.includes('create_channel_link_code'));
     await db.exec(sql);
     const { code } = await makeCode(owner);
     expect((await consume(code, 'tg-rerun')).length).toBe(1);

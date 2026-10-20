@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import { summarizeRecord } from '../../../src/domain/records/schemas.js';
+import { evaluateRecord, summarizeRecord } from '../../../src/domain/records/schemas.js';
+import { KIND_META, RESTRICTED_KINDS } from '../../../src/domain/records/kinds.js';
+import { canSeeKind } from '../../../src/domain/records/workflow.js';
+import { checkedByLabelOnly } from '../../../src/domain/records/sanitation.js';
 import { fieldLabel } from '../../../src/domain/records/labels.js';
 import { RECORDS_TEXT } from '../../../src/components/records/text.js';
 import { checkRateLimits, describeUpstreamError, redact } from '../httpUtils.js';
@@ -22,6 +25,16 @@ const MAX_MODEL_TEXT_CHARS = 400;
 const EDITABLE_STATUSES = ['draft', 'needs_info'];
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
+/** The first bytes of each kind of file we accept: what a sender says a file is must match what it is. */
+const SIGNATURES = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) => b[0] === 0x89 && b.subarray(1, 4).toString('latin1') === 'PNG',
+  'image/gif': (b) => b.subarray(0, 4).toString('latin1') === 'GIF8',
+  'image/webp': (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP',
+  'application/pdf': (b) => b.subarray(0, 5).toString('latin1') === '%PDF-',
+};
+const looksLike = (bytes, mimeType) => Boolean(SIGNATURES[mimeType]?.(bytes));
+
 /** "Sí." -> "si": lowercase, accents and trailing punctuation removed. */
 const answerWord = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s.!¡?¿,;:]+$/g, '').trim();
 
@@ -30,15 +43,26 @@ const answerWord = (text) => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '
  * hostile photo could otherwise make the bot show a phishing link or a tappable /stop), and the length
  * is bounded. Telegram would still make a bare domain tappable, so those go too.
  */
+const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b);
+/**
+ * Telegram turns links, @mentions and /commands in plain text into tappable ones. Text that came from a photo or a
+ * message (a product name, a note) must never become one, so an invisible space is put after each dot, slash, colon
+ * and @ that is followed by a letter or slash: the text reads the same and links nothing. Decimals and times are untouched.
+ */
+const defuse = (text) => String(text ?? '').replace(/([.@/:])(?=[A-Za-z/])/g, `$1${ZERO_WIDTH_SPACE}`);
+
+/** One line about a record for the chat. Health information is never spelled out in a chat: only that a report was filed. */
+const summaryOf = (record, lang) => (RESTRICTED_KINDS.includes(record.kind) ? KIND_META[record.kind].label[lang === 'es' ? 'es' : 'en'] : defuse(summarizeRecord(record, lang)));
+
 function plainModelText(text) {
-  return String(text ?? '')
+  return defuse(String(text ?? '')
     .replace(/\b(?:https?:\/\/|www\.|t\.me\/)\S*/gi, '')
     .replace(/\b[\w-]+(?:\.[\w-]+)*\.(?:com|org|net|io|me|co|app|dev|ly|gl|xyz|info|biz|ru|cn|tk)\b\S*/gi, '')
     .replace(/@\w+/g, '')
     .replace(/(^|\s)\/\w+/g, '$1')
     .replace(/[ \t]{2,}/g, ' ')
     .trim()
-    .slice(0, MAX_MODEL_TEXT_CHARS);
+    .slice(0, MAX_MODEL_TEXT_CHARS));
 }
 
 const languageOf = (code) => (typeof code === 'string' && code.toLowerCase().startsWith('es') ? 'es' : 'en');
@@ -67,6 +91,17 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
   /** The linked farm's field names, to help the model spell a field the way the farm does (none if they cannot be read). */
   const fieldNamesOf = (farmId) => readFieldNames(store.listFieldNames ? () => store.listFieldNames({ farmId }) : undefined, logger);
 
+  /** The farm's approved sanitizer labels, or null when they cannot be read (then no result is set). */
+  async function readSanitizerLabels(farmId) {
+    if (!store.listSanitizerLabels) return null;
+    try {
+      return await store.listSanitizerLabels({ farmId });
+    } catch (err) {
+      logger.warn('[telegram] could not read the sanitizer labels', { reason: redact(err?.message ?? err) });
+      return null;
+    }
+  }
+
   async function say(chatId, text, { recordId } = {}) {
     try {
       const { messageId } = await telegram.sendMessage({ chatId, text });
@@ -79,13 +114,15 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
   }
 
   /** The lines describing filed records, and a separate question message for each one still incomplete. */
-  async function describeRecords(chatId, rows, lang, headline, notices = []) {
+  async function describeRecords(chatId, allRows, lang, headline, notices = [], role) {
     const t = channelText(lang);
-    const lines = rows.map((row) => t.recordLine(summarizeRecord(row, lang), row.record_date));
+    // Only records this person may see are described (health information is for owners and managers).
+    const rows = allRows.filter((row) => canSeeKind(row.kind, role));
+    const lines = rows.map((row) => t.recordLine(summaryOf(row, lang), row.record_date));
     await say(chatId, [headline, lines.join('\n'), ...notices].filter(Boolean).join('\n\n'));
     for (const row of rows.filter((r) => r.status === 'needs_info')) {
       const { questions } = presentRecord(row, lang);
-      if (questions.text) await say(chatId, t.needsDetails(summarizeRecord(row, lang), questions.text), { recordId: row.id });
+      if (questions.text) await say(chatId, t.needsDetails(summaryOf(row, lang), questions.text), { recordId: row.id });
     }
   }
 
@@ -181,6 +218,13 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
     target ??= await store.latestOpenRecord({ userId: identity.userId, farmId: identity.farmId, since: new Date(now() - OPEN_QUESTION_WINDOW_MS).toISOString() });
     if (!target) return null;
 
+    // A person who may no longer see this kind of record (for example, after a change of role) cannot read or change it from a chat.
+    if (!canSeeKind(target.kind, identity.role)) {
+      if (!explicit) return null;
+      await say(update.chatId, t.recordNotEditable);
+      return { action: 'record-not-editable' };
+    }
+
     if (!EDITABLE_STATUSES.includes(target.status)) {
       if (!explicit) return null;
       await say(update.chatId, t.recordNotEditable);
@@ -207,18 +251,30 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
       return { action: 'error' };
     }
 
-    const outcome = await store.updateRecord(identity.userId, identity.farmId, target.id, target.version, buildReplyPatch(target.kind, result.evaluation));
+    // A cleaning log's result is set by the approved label whenever its details change, never by anything said in a reply.
+    let evaluation = result.evaluation;
+    if (target.kind === 'sanitation_log') {
+      const labels = await readSanitizerLabels(identity.farmId);
+      const date = evaluation.value.record_date ?? undefined;
+      evaluation = evaluateRecord(target.kind, { record_date: date, payload: checkedByLabelOnly(evaluation.value.payload, labels, date) });
+      if (!evaluation.ok) {
+        await say(update.chatId, t.error);
+        return { action: 'error' };
+      }
+    }
+
+    const outcome = await store.updateRecord(identity.userId, identity.farmId, target.id, target.version, buildReplyPatch(target.kind, evaluation));
     if (!outcome.ok) {
       await say(update.chatId, outcome.reason === 'conflict' ? t.recordChanged : t.error);
       return { action: 'answer-conflict' };
     }
 
-    const summary = summarizeRecord({ kind: target.kind, payload: result.evaluation.value.payload }, identity.lang);
+    const summary = summaryOf({ kind: target.kind, payload: evaluation.value.payload }, identity.lang);
     const label = (key) => fieldLabel(target.kind, key, identity.lang, RECORDS_TEXT[identity.lang].form.date);
     // Say exactly what changed, so an answer matched to the wrong record is noticed at once.
     const changed = `\n${t.updated(result.applied.map(label).join(', '))}`;
     const ignored = result.rejected.length > 0 ? `\n\n${t.replyIgnored(result.rejected.map(label).join(', '))}` : '';
-    if (result.evaluation.complete) {
+    if (evaluation.complete) {
       await say(update.chatId, `${t.replyDone(summary)}${changed}${ignored}`);
     } else {
       const { questions } = presentRecord(outcome.row, identity.lang);
@@ -234,6 +290,10 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
     for (const file of update.files) {
       try {
         const bytes = await telegram.downloadFile(file.fileId, { maxBytes: MAX_FILE_BYTES });
+        if (!looksLike(bytes, file.mimeType)) {
+          await say(update.chatId, t.notAFile);
+          return null;
+        }
         attachments.push({ type: IMAGE_TYPES.includes(file.mimeType) ? 'image' : 'document', source: { type: 'base64', media_type: file.mimeType, data: bytes.toString('base64') } });
       } catch (err) {
         await say(update.chatId, err instanceof TelegramApiError && err.code === 'too_large' ? t.fileTooLarge : t.downloadFailed);
@@ -277,7 +337,7 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
     }
 
     if (outcome.outcome === 'duplicate') {
-      await describeRecords(update.chatId, outcome.rows, lang, t.duplicate);
+      await describeRecords(update.chatId, outcome.rows, lang, t.duplicate, [], identity.role);
       return { action: 'duplicate' };
     }
     if (outcome.outcome === 'empty') {
@@ -293,7 +353,7 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
       flags.restrictedSkipped > 0 && t.restrictedSkipped,
       warnings.includes('files_not_saved') && t.filesNotSaved,
     ].filter(Boolean);
-    await describeRecords(update.chatId, outcome.rows, lang, t.filedHeader(outcome.rows.length), notices);
+    await describeRecords(update.chatId, outcome.rows, lang, t.filedHeader(outcome.rows.length), notices, identity.role);
     return { action: 'captured' };
   }
 

@@ -20,6 +20,9 @@ export function createAgentHandlers(env = process.env, logger = console) {
   if (env.VITE_SUPABASE_SERVICE_ROLE_KEY) {
     logger.warn('[agent] VITE_SUPABASE_SERVICE_ROLE_KEY is set. Variables with the VITE_ prefix are bundled into the browser build and are public, and the service-role key bypasses every row-level security policy. Rotate that key in the Supabase dashboard now and store the replacement as SUPABASE_SERVICE_ROLE_KEY (no VITE_ prefix).');
   }
+  for (const name of ['VITE_TELEGRAM_BOT_TOKEN', 'VITE_TELEGRAM_WEBHOOK_SECRET']) {
+    if (env[name]) logger.warn(`[agent] ${name} is set. Variables with the VITE_ prefix are bundled into the browser build and are public. Revoke the bot token with @BotFather (/revoke) and store the new one as ${name.replace('VITE_', '')} (no VITE_ prefix).`);
+  }
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
     logger.warn('[agent] SUPABASE_SERVICE_ROLE_KEY is not set: the Telegram bot cannot find linked accounts or save records until it is (server-side only, never VITE_).');
   }

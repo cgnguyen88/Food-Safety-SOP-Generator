@@ -84,6 +84,13 @@ describe('runCapture: health information stays with owners and managers', () => 
     expect(result.message).toBe('');
   });
 
+  it('keeps a crew member’s photo in the restricted folder when an illness report in it was held back, so the records filed from it do not show it to everyone', async () => {
+    const photo = { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } };
+    const { run, portSet } = setup({ proposals: [illness(), cleaning()], role: 'crew' });
+    await run({ attachments: [photo] });
+    expect(portSet.uploadAttachments).toHaveBeenCalledWith(expect.objectContaining({ restricted: true }));
+  });
+
   it('keeps photos that go with an illness report in the restricted folder, and other photos in the ordinary one', async () => {
     const photo = { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA' } };
     const sick = setup({ proposals: [illness()], role: 'manager' });
@@ -136,7 +143,34 @@ describe('runCapture: a cleaning log’s result comes from the sanitizer label',
     expect(log.warn).toHaveBeenCalled();
   });
 
-  it('works when the caller gives no way to read labels', async () => {
+  it('drops a result the model wrote when there is no label to decide it', async () => {
+    const { run, inserted } = setup({ proposals: [cleaning({ sanitizer: 'Vinegar', ppm: 900, check_result: 'pass' })] });
+    await run();
+    expect(inserted[0].payload).not.toHaveProperty('check_result');
+  });
+
+  it('drops a result the model wrote when the labels cannot be read, or the caller gives no way to read them', async () => {
+    const unreadable = setup({ proposals: [cleaning({ ppm: 900, check_result: 'pass' })], ports: { listSanitizerLabels: vi.fn(async () => { throw new Error('db down'); }) } });
+    await unreadable.run();
+    expect(unreadable.inserted[0].payload).not.toHaveProperty('check_result');
+    const none = setup({ proposals: [cleaning({ ppm: 900, check_result: 'pass' })], ports: { listSanitizerLabels: undefined } });
+    await none.run();
+    expect(none.inserted[0].payload).not.toHaveProperty('check_result');
+  });
+
+  it('drops a result the model wrote on a cleaning-only step', async () => {
+    const { run, inserted } = setup({ proposals: [cleaning({ method: 'clean_only', check_result: 'pass' })] });
+    await run();
+    expect(inserted[0].payload).not.toHaveProperty('check_result');
+  });
+
+  it('matches the product by its exact name, so a part of a name never borrows another product’s range', async () => {
+    const { run, inserted } = setup({ proposals: [cleaning({ sanitizer: 'acid', ppm: 150 })] });
+    await run();
+    expect(inserted[0].payload).not.toHaveProperty('check_result');
+  });
+
+  it('files the log when the caller gives no way to read labels', async () => {
     const { run, inserted } = setup({ ports: { listSanitizerLabels: undefined } });
     await run();
     expect(inserted).toHaveLength(1);

@@ -63,7 +63,7 @@ function build() {
   const telegram = {
     sendMessage: vi.fn(async ({ chatId, text, replyToMessageId }) => { sent.push({ chatId, text, replyToMessageId }); return { messageId: 2000 + sent.length }; }),
     sendChatAction: vi.fn(async () => {}),
-    downloadFile: vi.fn(async () => Buffer.from('JPEGBYTES')),
+    downloadFile: vi.fn(async () => Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10])),
   };
   const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn() };
   const limiters = createLimiterSet({ rate: config.agent.rate, prefix: 'agent', store: {}, shared: false, logger });

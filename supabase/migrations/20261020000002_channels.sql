@@ -102,14 +102,17 @@ begin
     raise exception 'Too many codes requested. Try again later.' using errcode = '54000';
   end if;
 
-  delete from public.channel_link_codes c where c.user_id = me and (c.expires_at < now() - interval '1 day' or c.used_at is not null);
+  -- Used codes stay for an hour so they still count against the hourly limit above.
+  delete from public.channel_link_codes c where c.user_id = me and (c.expires_at < now() - interval '1 day' or (c.used_at is not null and c.created_at < now() - interval '1 hour'));
 
   select u.email into my_email from auth.users u where u.id = me;
   hint := case when my_email like '_%@_%' then left(my_email, 1) || '***' || substring(my_email from position('@' in my_email)) end;
 
   fresh := replace(gen_random_uuid()::text, '-', '');
+  -- The farm name is shown to the person who opens the link, so it is cut down to a plain short name: no line
+  -- breaks or other control characters, and no characters that make a link, an @mention or a command.
   insert into public.channel_link_codes (code_hash, user_id, farm_id, lang, farm_name, owner_hint, expires_at)
-  values (encode(sha256(convert_to(fresh, 'utf8')), 'hex'), me, my_farm, p_lang, left(my_farm_name, 80), hint, expires);
+  values (encode(sha256(convert_to(fresh, 'utf8')), 'hex'), me, my_farm, p_lang, left(btrim(regexp_replace(my_farm_name, '[[:cntrl:]/@:"<>\\]+', ' ', 'g')), 40), hint, expires);
 
   return query select fresh, expires;
 end;
@@ -233,6 +236,9 @@ alter table public.channel_messages enable row level security;
 revoke all on public.channel_messages from public, anon, authenticated;
 grant select, insert, delete on public.channel_messages to service_role;
 
+-- A trigger function is not meant to be called directly.
+revoke all on function public.channel_identity_cleanup() from public, anon, authenticated;
+
 drop trigger if exists channel_identity_cleanup on public.channel_identities;
 create trigger channel_identity_cleanup
   after delete on public.channel_identities
@@ -318,6 +324,8 @@ begin
       and r.created_by = p_actor
       and r.status in ('draft', 'needs_info')
       and exists (select 1 from public.farm_members m where m.user_id = p_actor and m.farm_id = p_farm_id)
+      -- Health information stays with owners and managers: someone who no longer is one cannot change it, even their own.
+      and (r.kind <> 'illness_injury' or exists (select 1 from public.farm_members m where m.user_id = p_actor and m.farm_id = p_farm_id and m.role in ('owner', 'manager')))
     returning r.*;
 end;
 $$;
@@ -326,5 +334,26 @@ revoke all on function public.channel_update_record(uuid, uuid, uuid, integer, j
 grant execute on function public.channel_update_record(uuid, uuid, uuid, integer, jsonb) to service_role;
 grant select, update on public.records to service_role;
 grant select on public.farm_members, public.farms to service_role;
+
+-- ─── A person who leaves a farm loses their chat link to it ─────────────────
+-- Otherwise being added back later, in any role, would quietly switch the bot on again without a new confirmation.
+create or replace function public.farm_member_removed_unlink_chats()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from public.channel_identities where user_id = old.user_id and farm_id = old.farm_id;
+  return old;
+end;
+$$;
+
+revoke all on function public.farm_member_removed_unlink_chats() from public, anon, authenticated;
+
+drop trigger if exists farm_member_removed_unlink_chats on public.farm_members;
+create trigger farm_member_removed_unlink_chats
+  after delete on public.farm_members
+  for each row execute function public.farm_member_removed_unlink_chats();
 
 notify pgrst, 'reload schema';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findSanitizerLabel, resolveSanitizerLabel, labelRange, checkSanitizerConcentration, applySanitationCheck } from './sanitation.js';
+import { findSanitizerLabel, resolveSanitizerLabel, labelRange, checkSanitizerConcentration, applySanitationCheck, checkedByLabelOnly } from './sanitation.js';
 
 const label = (product, min, max, extra = {}) => ({
   id: `label-${product}`,
@@ -234,5 +234,49 @@ describe('applySanitationCheck', () => {
   it('does not call a cleaning-only step a pass or a fail', () => {
     const payload = { method: 'clean_only', sanitizer: 'Chlorine bleach', ppm: 500, check_result: 'pass' };
     expect(applySanitationCheck(payload, LABELS)).toEqual(payload);
+  });
+});
+
+describe('exact matching and results set only by the label', () => {
+  it('accepts only the same product name when asked for an exact match, never part of a name', () => {
+    expect(findSanitizerLabel('acid', LABELS, undefined, { exact: true })).toBeNull();
+    expect(findSanitizerLabel('bleach', LABELS, undefined, { exact: true })).toBeNull();
+    expect(findSanitizerLabel('  PERACETIC acid 15 % ', LABELS, undefined, { exact: true })?.id).toBe('label-Peracetic Acid 15%');
+    expect(checkSanitizerConcentration({ ppm: 150, sanitizer: 'acid', exact: true }, LABELS).reason).toBe('no_label');
+    expect(checkSanitizerConcentration({ ppm: 150, sanitizer: 'acid' }, LABELS).result).toBe('pass'); // the form still helps with part of a name
+  });
+
+  describe('checkedByLabelOnly', () => {
+    const base = { item: 'Bins', method: 'clean_sanitize', sanitizer: 'Peracetic Acid 15%' };
+
+    it('sets pass or fail from the label', () => {
+      expect(checkedByLabelOnly({ ...base, ppm: 150 }, LABELS).check_result).toBe('pass');
+      expect(checkedByLabelOnly({ ...base, ppm: 900 }, LABELS).check_result).toBe('fail');
+    });
+
+    it('drops a result that came with the log when the label cannot decide', () => {
+      expect(checkedByLabelOnly({ ...base, sanitizer: 'Vinegar', ppm: 900, check_result: 'pass' }, LABELS)).not.toHaveProperty('check_result');
+      expect(checkedByLabelOnly({ ...base, ppm: undefined, check_result: 'pass' }, LABELS)).not.toHaveProperty('check_result');
+      expect(checkedByLabelOnly({ ...base, method: 'clean_only', ppm: 900, check_result: 'pass' }, LABELS)).not.toHaveProperty('check_result');
+    });
+
+    it('drops it, and sets none, when the labels could not be read', () => {
+      expect(checkedByLabelOnly({ ...base, ppm: 900, check_result: 'pass' }, null)).not.toHaveProperty('check_result');
+      expect(checkedByLabelOnly({ ...base, ppm: 900, check_result: 'pass' }, undefined)).not.toHaveProperty('check_result');
+    });
+
+    it('replaces a wrong result with the label’s', () => {
+      expect(checkedByLabelOnly({ ...base, ppm: 900, check_result: 'pass' }, LABELS).check_result).toBe('fail');
+    });
+
+    it('does not guess from part of a product name', () => {
+      expect(checkedByLabelOnly({ ...base, sanitizer: 'acid', ppm: 150, check_result: 'pass' }, LABELS)).not.toHaveProperty('check_result');
+    });
+
+    it('does not change the payload it was given', () => {
+      const payload = { ...base, ppm: 900, check_result: 'pass' };
+      checkedByLabelOnly(payload, LABELS);
+      expect(payload.check_result).toBe('pass');
+    });
   });
 });

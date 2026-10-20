@@ -13,6 +13,8 @@ const IDENTITY = { identityId: 'i1', userId: 'u1', farmId: FARM, lang: 'en', rol
 const CODE = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
 const hashOf = (code) => createHash('sha256').update(code).digest('hex');
 const T = CHANNEL_TEXT;
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+const PDF = Buffer.from('%PDF-1.7 test');
 
 const config = { agent: { model: 'm', maxTokens: 100, effort: 'medium', strictTools: false, requestTimeoutMs: 1000, timeZone: 'America/Los_Angeles', limits: { maxTextChars: 8000 } } };
 
@@ -51,7 +53,7 @@ beforeEach(() => {
   telegram = {
     sendMessage: vi.fn(async (m) => { sent.push(m); nextId += 1; return { messageId: nextId }; }),
     sendChatAction: vi.fn(async () => {}),
-    downloadFile: vi.fn(async () => Buffer.from('IMG')),
+    downloadFile: vi.fn(async () => JPEG),
   };
   store = {
     consumeLinkCode: vi.fn(async () => ({ userId: 'u1', farmId: FARM, lang: 'es', farmName: 'Sunny Acres', ownerHint: 'a***@example.com' })),
@@ -275,7 +277,7 @@ describe('capturing a photo or text', () => {
     expect(telegram.downloadFile).toHaveBeenCalledWith('file-1', { maxBytes: expect.any(Number) });
     const input = extract.mock.calls[0][0].input;
     expect(input.text).toBe('receipt');
-    expect(input.attachments).toEqual([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: Buffer.from('IMG').toString('base64') } }]);
+    expect(input.attachments).toEqual([{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: JPEG.toString('base64') } }]);
     expect(extract.mock.calls[0][0].today).toBe('2026-10-13');
 
     const rows = store.insertRecords.mock.calls[0][0];
@@ -324,6 +326,7 @@ describe('capturing a photo or text', () => {
   });
 
   it('sends a PDF as a document block', async () => {
+    telegram.downloadFile.mockResolvedValue(PDF);
     await run(update({ files: [{ fileId: 'd', kind: 'document', mimeType: 'application/pdf', size: 10 }] }));
     expect(extract.mock.calls[0][0].input.attachments[0]).toMatchObject({ type: 'document', source: { media_type: 'application/pdf' } });
   });
@@ -620,6 +623,67 @@ describe('the farm’s fields', () => {
   });
 });
 
+describe('files that are not what they say they are', () => {
+  const fileOf = (mimeType) => ({ fileId: 'f', kind: 'document', mimeType, size: 10 });
+
+  it.each([
+    ['a PDF that is plain text', 'application/pdf', Buffer.from('hello, I am not a PDF')],
+    ['an image that is a script', 'image/png', Buffer.from('<script>alert(1)</script>')],
+    ['an image that is empty', 'image/jpeg', Buffer.alloc(0)],
+    ['a type that is not accepted', 'application/zip', Buffer.from('PK\u0003\u0004')],
+  ])('are refused, and never sent to the model or stored: %s', async (_label, mimeType, bytes) => {
+    telegram.downloadFile.mockResolvedValue(bytes);
+    await run(update({ files: [fileOf(mimeType)] }));
+    expect(texts()).toEqual([T.en.notAFile]);
+    expect(extract).not.toHaveBeenCalled();
+    expect(store.uploadAttachments).not.toHaveBeenCalled();
+    expect(store.insertRecords).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['image/jpeg', Buffer.from([0xff, 0xd8, 0xff, 0xdb])],
+    ['image/png', Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a])],
+    ['image/gif', Buffer.from('GIF89a..')],
+    ['image/webp', Buffer.from('RIFF\u0000\u0000\u0000\u0000WEBPVP8 ', 'latin1')],
+    ['application/pdf', Buffer.from('%PDF-1.4\n')],
+  ])('are accepted when the first bytes match: %s', async (mimeType, bytes) => {
+    telegram.downloadFile.mockResolvedValue(bytes);
+    await run(update({ files: [fileOf(mimeType)] }));
+    expect(extract).toHaveBeenCalled();
+  });
+});
+
+describe('text taken from a photo or message is never made tappable in the chat', () => {
+  const linked = (text, kind = 'note') => extraction([{ kind, record_date: '2026-10-11', payload: kind === 'note' ? { text } : { item: text, method: 'clean_only' }, confidence: 0.9, missing: [], errors: {}, complete: true, dropped: [] }]);
+  const ZW = String.fromCharCode(0x200b);
+
+  it.each([
+    ['a web address', 'visit evil-pay.click/now'],
+    ['a made-up top-level domain', 'claim.top/x secure-login.online'],
+    ['a Telegram link', 'tg://resolve?domain=evilbot'],
+    ['an @mention', 'ask @evilbot'],
+    ['a command', 'press (/stop) now'],
+  ])('keeps %s from becoming a link or a command', async (_label, text) => {
+    extract.mockResolvedValue(linked(text));
+    await run(update({ text: 'note it' }));
+    const shown = texts().join('\n');
+    expect(shown).not.toMatch(/[.@/:](?=[A-Za-z/])/);
+    expect(shown.replaceAll(ZW, '')).toContain(text);
+  });
+
+  it('leaves decimals, times and ordinary words alone', async () => {
+    extract.mockResolvedValue(linked('Mixed 1.5 oz at 10:30 on 3.2 acres'));
+    await run(update({ text: 'note it' }));
+    expect(texts().join('\n')).toContain('Mixed 1.5 oz at 10:30 on 3.2 acres');
+  });
+
+  it('keeps the model’s own words from linking anything too', async () => {
+    extract.mockResolvedValue(extraction([], { message: 'Try fsma-update.click or @helper or /stop' }));
+    await run(update({ text: 'hello there' }));
+    expect(texts().join('\n')).not.toMatch(/[.@/:](?=[A-Za-z/])/);
+  });
+});
+
 describe('illness and injury reports (health information)', () => {
   const illness = { kind: 'illness_injury', record_date: '2026-10-12', payload: { person: 'Ana', type: 'illness', description: 'Vomiting', removed_from_contact: 'yes' }, confidence: 0.9, missing: [], errors: {}, complete: true, dropped: [] };
 
@@ -659,5 +723,66 @@ describe('illness and injury reports (health information)', () => {
     extract.mockResolvedValue(extraction([illness]));
     await run(update({ text: 'Ana está enferma', languageCode: 'es' }));
     expect(texts()).toEqual([T.es.restrictedSkipped]);
+  });
+
+  it('are not spelled out in the chat: only that a report was filed, never the person’s name', async () => {
+    store.resolveIdentity.mockResolvedValue({ ...IDENTITY, role: 'manager' });
+    extract.mockResolvedValue(extraction([illness]));
+    await run(update({ text: 'Ana threw up in the field' }));
+    const shown = texts().join('\n');
+    expect(shown).toContain('Illness or injury');
+    expect(shown).not.toContain('Ana');
+  });
+
+  it('cannot be read or changed from a chat once the person is no longer an owner or manager', async () => {
+    store.resolveIdentity.mockResolvedValue({ ...IDENTITY, role: 'crew' });
+    store.latestOpenRecord.mockResolvedValue(openRecord({ kind: 'illness_injury', payload: { person: 'Ana', type: 'illness' }, missing_fields: ['description'] }));
+    extract.mockResolvedValue(extraction([completeSpray]));
+    await run(update({ text: 'she was sick since Monday' }));
+    expect(reply).not.toHaveBeenCalled();
+    expect(store.updateRecord).not.toHaveBeenCalled();
+    expect(texts().join('\n')).not.toContain('Ana');
+  });
+
+  it('say so, when a reply names such a record directly after the role changed', async () => {
+    store.resolveIdentity.mockResolvedValue({ ...IDENTITY, role: 'crew' });
+    store.recordForMessage.mockResolvedValue(openRecord({ kind: 'illness_injury', payload: { person: 'Ana', type: 'illness' }, missing_fields: ['description'] }));
+    await run(update({ text: 'she was sick since Monday', replyToMessageId: 999 }));
+    expect(reply).not.toHaveBeenCalled();
+    expect(texts()).toEqual([T.en.recordNotEditable]);
+  });
+
+  it('are not described again to someone who may not see them when an earlier capture is repeated', async () => {
+    store.resolveIdentity.mockResolvedValue({ ...IDENTITY, role: 'crew' });
+    store.findCapture.mockResolvedValue([{ id: 'old', kind: 'illness_injury', status: 'pending_review', record_date: '2026-10-11', payload: { person: 'Ana', type: 'illness' }, missing_fields: [], version: 1 }]);
+    await run(update({ text: 'Ana is sick' }));
+    expect(texts().join('\n')).not.toMatch(/Ana|Illness/);
+  });
+});
+
+describe('a cleaning log’s result when a reply completes it', () => {
+  const labelled = { id: 'l1', kind: 'sanitizer_label', status: 'approved', record_date: '2026-03-01', payload: { product: 'Peracetic acid', ppm_min: 100, ppm_max: 120 } };
+
+  it('is set by the approved label, not by the reply', async () => {
+    store.listSanitizerLabels = vi.fn(async () => [labelled]);
+    store.latestOpenRecord.mockResolvedValue(openRecord({ payload: { item: 'Harvest bins', method: 'clean_sanitize', sanitizer: 'Peracetic acid' }, missing_fields: ['ppm'] }));
+    reply.mockResolvedValue(replyResult({
+      applied: ['ppm'],
+      evaluation: { ok: true, complete: true, missing: [], value: { record_date: '2026-10-11', payload: { item: 'Harvest bins', method: 'clean_sanitize', field: 'B4', sanitizer: 'Peracetic acid', ppm: 900 } } },
+    }));
+    await run(update({ text: '900 ppm' }));
+    const patch = store.updateRecord.mock.calls[0][4];
+    expect(patch.payload).toMatchObject({ ppm: 900, check_result: 'fail' });
+  });
+
+  it('is left out when the labels cannot be read', async () => {
+    store.listSanitizerLabels = vi.fn(async () => { throw new Error('db down'); });
+    store.latestOpenRecord.mockResolvedValue(openRecord({ missing_fields: ['ppm'] }));
+    reply.mockResolvedValue(replyResult({
+      applied: ['ppm'],
+      evaluation: { ok: true, complete: true, missing: [], value: { record_date: '2026-10-11', payload: { item: 'Harvest bins', method: 'clean_sanitize', field: 'B4', sanitizer: 'Peracetic acid', ppm: 900, check_result: 'pass' } } },
+    }));
+    await run(update({ text: '900 ppm' }));
+    expect(store.updateRecord.mock.calls[0][4].payload).not.toHaveProperty('check_result');
   });
 });

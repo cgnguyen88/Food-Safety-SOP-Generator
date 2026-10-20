@@ -53,7 +53,7 @@ export const WEBHOOK_SECRET_NAME = 'TELEGRAM_WEBHOOK_SECRET';
 export const BROWSER_COPIES = Object.freeze({ SUPABASE_URL: 'VITE_SUPABASE_URL', SUPABASE_ANON_KEY: 'VITE_SUPABASE_ANON_KEY' });
 
 /** Names that must never be in an env file the browser build reads. */
-export const UNSAFE_NAMES = Object.freeze(['VITE_ANTHROPIC_API_KEY', 'OPENROUTER_KEY', 'VITE_SUPABASE_SERVICE_ROLE_KEY']);
+export const UNSAFE_NAMES = Object.freeze(['VITE_ANTHROPIC_API_KEY', 'OPENROUTER_KEY', 'VITE_SUPABASE_SERVICE_ROLE_KEY', 'VITE_TELEGRAM_BOT_TOKEN', 'VITE_TELEGRAM_WEBHOOK_SECRET']);
 
 const LINE_NAME = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
 

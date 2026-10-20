@@ -71,7 +71,7 @@ export async function pollOnce({ api, handler, secret, offset, timeoutSeconds })
 /** Decide whether polling may start. Polling cuts off a registered webhook, so that needs an explicit yes. */
 export function planPolling({ env, webhook, flags }) {
   for (const name of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_WEBHOOK_SECRET', 'SUPABASE_SERVICE_ROLE_KEY']) {
-    if (!env[name]) return { ok: false, error: `${name} is not set (see docs/TELEGRAM_SETUP.md).` };
+    if (!env[name]) return { ok: false, error: `${name} is not set (run npm run setup:env; see the Telegram bot section of the README).` };
   }
   if (webhook?.url) {
     if (!flags?.replaceWebhook) {
@@ -110,7 +110,7 @@ async function main() {
   const flags = { yes: args.includes('--yes'), replaceWebhook: args.includes('--replace-webhook') };
 
   if (!process.env.TELEGRAM_BOT_TOKEN) {
-    console.error('TELEGRAM_BOT_TOKEN is not set (see docs/TELEGRAM_SETUP.md).');
+    console.error('TELEGRAM_BOT_TOKEN is not set (run npm run setup:env; see the Telegram bot section of the README).');
     process.exit(1);
   }
   const api = createTelegramApi({ token: process.env.TELEGRAM_BOT_TOKEN });

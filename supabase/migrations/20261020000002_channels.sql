@@ -326,3 +326,5 @@ revoke all on function public.channel_update_record(uuid, uuid, uuid, integer, j
 grant execute on function public.channel_update_record(uuid, uuid, uuid, integer, jsonb) to service_role;
 grant select, update on public.records to service_role;
 grant select on public.farm_members, public.farms to service_role;
+
+notify pgrst, 'reload schema';

@@ -254,6 +254,10 @@ export const KIND_FIELDS = Object.freeze({
     field('action', 'textarea', 'Corrective action taken', 'Acción correctiva tomada', { required: true }),
     field('verified_by', 'text', 'Verified by', 'Verificado por'),
     field('clears_hold', 'select', 'Does this clear a field hold?', '¿Esto levanta una retención de campo?', { options: YES_NO }),
+    fieldField({
+      requiredWhen: { clears_hold: 'yes' },
+      label: Object.freeze({ en: 'Field whose hold this clears', es: 'Campo cuya retención se levanta' }),
+    }),
     notesField(),
   ]),
 

@@ -93,6 +93,12 @@ describe('requiredFieldKeys', () => {
     expect(requiredFieldKeys('wildlife_check', { evidence: 'no' })).toEqual(['field', 'evidence']);
     expect(requiredFieldKeys('wildlife_check', { evidence: 'yes' })).toEqual(['field', 'evidence', 'evidence_description', 'no_harvest_zone']);
   });
+
+  it('asks which field only when a corrective action lifts a field hold', () => {
+    expect(requiredFieldKeys('corrective_action', {})).toEqual(['problem', 'action']);
+    expect(requiredFieldKeys('corrective_action', { clears_hold: 'no' })).toEqual(['problem', 'action']);
+    expect(requiredFieldKeys('corrective_action', { clears_hold: 'yes' })).toEqual(['problem', 'action', 'field']);
+  });
 });
 
 describe('optionLabel', () => {

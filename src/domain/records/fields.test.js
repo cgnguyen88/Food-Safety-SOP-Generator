@@ -9,7 +9,7 @@ const field = (name, extra = {}) => ({ id: `f-${name}`, name, area: null, area_u
 describe('FIELD_KINDS', () => {
   it('are the kinds of record that have a field', () => {
     expect([...FIELD_KINDS].sort()).toEqual(Object.entries(KIND_FIELDS).filter(([, fields]) => fields.some((f) => f.key === 'field')).map(([kind]) => kind).sort());
-    expect([...FIELD_KINDS].sort()).toEqual(['harvest', 'sanitation_log', 'soil_amendment', 'weather_event', 'wildlife_check']);
+    expect([...FIELD_KINDS].sort()).toEqual(['corrective_action', 'harvest', 'sanitation_log', 'soil_amendment', 'weather_event', 'wildlife_check']);
   });
 });
 

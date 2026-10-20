@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ClipboardList, ClipboardCheck, FileText, History, Layers, MapPin, ChevronDown, ChevronRight, ShieldCheck, Pin } from 'lucide-react';
+import { ClipboardList, ClipboardCheck, FileText, GraduationCap, History, Layers, MapPin, Route, Timer, ChevronDown, ChevronRight, ShieldCheck, Pin } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { KIND_GROUPS, KIND_META } from '../../domain/records/kinds.js';
 import { canSeeKind } from '../../domain/records/workflow.js';
@@ -56,6 +56,9 @@ export default function RecordsNav({ activePage, onNavigate, role, needsReviewCo
         })}
 
         <NavItem icon={MapPin} label={tt.nav.fields} active={activePage === ROUTES.fields} onClick={() => onNavigate(ROUTES.fields)} />
+        <NavItem icon={GraduationCap} label={tt.nav.training} active={activePage === ROUTES.training} onClick={() => onNavigate(ROUTES.training)} />
+        <NavItem icon={Route} label={tt.nav.trace} active={activePage === ROUTES.trace} onClick={() => onNavigate(ROUTES.trace)} />
+        <NavItem icon={Timer} label={tt.nav.recall} active={activePage === ROUTES.recall} onClick={() => onNavigate(ROUTES.recall)} />
         <NavItem icon={History} label={tt.nav.history} active={activePage === ROUTES.history} onClick={() => onNavigate(ROUTES.history)} />
         <NavItem icon={FileText} label={tt.nav.reports} active={activePage === ROUTES.reports} onClick={() => onNavigate(ROUTES.reports)} />
       </NavGroup>

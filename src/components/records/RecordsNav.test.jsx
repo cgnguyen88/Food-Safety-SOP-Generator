@@ -104,6 +104,24 @@ describe('RecordsNav', () => {
     expect(screen.getByRole('button', { name: /^Fields/ }).getAttribute('aria-current')).toBe('page');
   });
 
+  it.each([
+    ['Training Due', 'recordTraining'],
+    ['Trace a Lot', 'recordTrace'],
+    ['Mock Recall', 'recordRecall'],
+  ])('has a %s page, that is marked when active', async (label, route) => {
+    const { user, onNavigate } = setup();
+    await user.click(screen.getByRole('button', { name: new RegExp(`^${label}`) }));
+    expect(onNavigate).toHaveBeenCalledWith(route);
+    cleanup();
+    setup({ activePage: route });
+    expect(screen.getByRole('button', { name: new RegExp(`^${label}`) }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('calls the traceability pages by their Spanish names', () => {
+    setup({}, 'es');
+    for (const name of ['Capacitación Pendiente', 'Rastrear un Lote', 'Simulacro de Retiro']) expect(screen.getByRole('button', { name: new RegExp(`^${name}`) }), name).toBeTruthy();
+  });
+
   it('calls it Campos in Spanish', () => {
     setup({}, 'es');
     expect(screen.getByRole('button', { name: /^Campos/ })).toBeTruthy();

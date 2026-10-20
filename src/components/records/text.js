@@ -4,7 +4,7 @@ import { RULES_TEXT } from './textRules.js';
 export const RECORDS_TEXT = {
   en: {
     ...RULES_TEXT.en,
-    nav: { section: 'Food Safety Records', overview: 'Records', review: 'Needs Review', logs: 'Logs', views: 'Saved Views', history: 'Change History', reports: 'Reports', fields: 'Fields' },
+    nav: { section: 'Food Safety Records', overview: 'Records', review: 'Needs Review', logs: 'Logs', views: 'Saved Views', history: 'Change History', reports: 'Reports', fields: 'Fields', training: 'Training Due', trace: 'Trace a Lot', recall: 'Mock Recall' },
     overview: {
       title: 'Records',
       subtitle: 'Everything your team records for food safety, reviewed and kept in one place.',
@@ -233,7 +233,7 @@ export const RECORDS_TEXT = {
   },
   es: {
     ...RULES_TEXT.es,
-    nav: { section: 'Registros de Inocuidad', overview: 'Registros', review: 'Por Revisar', logs: 'Registros por tipo', views: 'Vistas Guardadas', history: 'Historial de Cambios', reports: 'Informes', fields: 'Campos' },
+    nav: { section: 'Registros de Inocuidad', overview: 'Registros', review: 'Por Revisar', logs: 'Registros por tipo', views: 'Vistas Guardadas', history: 'Historial de Cambios', reports: 'Informes', fields: 'Campos', training: 'Capacitación Pendiente', trace: 'Rastrear un Lote', recall: 'Simulacro de Retiro' },
     overview: {
       title: 'Registros',
       subtitle: 'Todo lo que tu equipo registra para la inocuidad, revisado y guardado en un solo lugar.',

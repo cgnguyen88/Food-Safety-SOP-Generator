@@ -1,3 +1,4 @@
+import { recordDay as dayOf } from './dates.js';
 import { fieldKey, tidyFieldName } from './fields.js';
 
 /**
@@ -14,15 +15,6 @@ const TRIGGERS = Object.freeze([
   { kind: 'weather_event', reason: 'crop_contact', applies: (payload) => payload.crop_contact === 'yes' },
   { kind: 'wildlife_check', reason: 'animal_signs', applies: (payload) => payload.evidence === 'yes' },
 ]);
-
-const PLAIN_DATE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** The day a record is about: its date, or the day it was entered; '' when neither is known. */
-function dayOf(record) {
-  if (typeof record.record_date === 'string' && PLAIN_DATE.test(record.record_date)) return record.record_date;
-  const entered = typeof record.created_at === 'string' ? record.created_at.slice(0, 10) : '';
-  return PLAIN_DATE.test(entered) ? entered : '';
-}
 
 const momentOf = (record) => {
   const time = Date.parse(record.created_at);

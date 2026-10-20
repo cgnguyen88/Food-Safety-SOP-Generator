@@ -10,6 +10,7 @@ import RecordsOverview from './RecordsOverview.jsx';
 import ReportsPage from './ReportsPage.jsx';
 import { canSeeKind } from '../../domain/records/workflow.js';
 import SavedViewResults from './SavedViewResults.jsx';
+import TrainingDuePage from './TrainingDuePage.jsx';
 
 /**
  * Renders whichever records screen the route names. Without a farm (sign-up
@@ -51,6 +52,8 @@ export default function RecordsPage({ route, farm, role, userId, operation, save
         return <ReportsPage farm={farm} role={role} operation={reportOperation} needsReviewCount={needsReviewCount} />;
       case 'fields':
         return <FieldsPage farm={farm} role={role} />;
+      case 'training':
+        return <TrainingDuePage farm={farm} role={role} onChanged={onChanged} />;
       case 'view': {
         const view = savedViews.find((v) => v.id === route.viewId);
         if (view) return <SavedViewResults key={view.id} view={view} {...shared} />;

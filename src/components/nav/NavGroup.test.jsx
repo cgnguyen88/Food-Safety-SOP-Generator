@@ -73,6 +73,43 @@ describe('NavGroup', () => {
     expect(screen.queryByRole('button', { name: 'Item one' })).toBeNull();
   });
 
+  describe('while the current page is inside it', () => {
+    it('can still be closed from its heading, and opened again', async () => {
+      const { user } = setup({ forceOpen: true });
+      expect(heading().getAttribute('aria-expanded')).toBe('true');
+      await user.click(heading());
+      expect(heading().getAttribute('aria-expanded')).toBe('false');
+      expect(screen.queryByRole('button', { name: 'Item one' })).toBeNull();
+      await user.click(heading());
+      expect(heading().getAttribute('aria-expanded')).toBe('true');
+      expect(screen.getByRole('button', { name: 'Item one' })).toBeTruthy();
+    });
+
+    it('stays closed when the page changes to another one inside it', async () => {
+      const view = setup({ forceOpen: true });
+      await view.user.click(heading());
+      view.rerender(<NavGroup id="trace" label="Traceability" icon={Route} accent="#5bbcf0" count={2} forceOpen><button type="button">Item one</button></NavGroup>);
+      expect(heading().getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('opens when the page moves into it from outside, even after it was closed', async () => {
+      const view = setup({ forceOpen: true });
+      await view.user.click(heading());
+      view.rerender(<NavGroup id="trace" label="Traceability" icon={Route} accent="#5bbcf0" count={2}><button type="button">Item one</button></NavGroup>);
+      expect(heading().getAttribute('aria-expanded')).toBe('false');
+      view.rerender(<NavGroup id="trace" label="Traceability" icon={Route} accent="#5bbcf0" count={2} forceOpen><button type="button">Item one</button></NavGroup>);
+      expect(heading().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('remembers that it was closed, for the next visit', async () => {
+      const first = setup({ forceOpen: true });
+      await first.user.click(heading());
+      first.unmount();
+      setup();
+      expect(heading().getAttribute('aria-expanded')).toBe('false');
+    });
+  });
+
   it('works without an icon or a colour', () => {
     const { container } = render(<NavGroup id="plain" label="Plain"><button type="button">Item</button></NavGroup>);
     expect(container.querySelector('.nav-section-icon')).toBeNull();

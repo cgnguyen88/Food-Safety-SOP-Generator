@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { freshDb, signUp, asUser, asAnon, asServiceRole, farmIdOf } from './harness.js';
+import { signOffRow, findSop } from '../api/_lib/shareSop.js';
 
 // A share is the key to one SOP of one farm for anyone holding its link, so it must be unguessable, made only by the
 // database, made and turned off only by owners and managers, and impossible to turn back on.
@@ -99,5 +100,35 @@ describe('migration: SOP shares', () => {
     const { rows } = await asServiceRole(db, () => db.query(`select token from public.sop_shares where farm_id = $1 and revoked_at is null order by sop_id`, [farmA]));
     expect(rows.length).toBeGreaterThan(0);
     await expect(asServiceRole(db, () => db.query(`update public.sop_shares set revoked_at = now() where farm_id = $1`, [farmA]))).rejects.toThrow(/permission denied/i);
+  });
+
+  describe('the sign-off the server files from a link', () => {
+    const insert = (row) =>
+      asServiceRole(db, () =>
+        db.query(
+          `insert into public.records (farm_id, kind, status, record_date, payload, missing_fields, fingerprint, source, source_ref)
+           values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8, $9) returning id, status, source, created_by, version`,
+          [row.farm_id, row.kind, row.status, row.record_date, JSON.stringify(row.payload), row.missing_fields, row.fingerprint, row.source, row.source_ref],
+        ),
+      );
+    const made = (name, today = '2026-10-20') => signOffRow({ share: { id: 'share-x', farm_id: farmA }, sop: findSop(1), name, today, lang: 'en' }).row;
+
+    it('is accepted as a training record waiting for review, with no author', async () => {
+      const { rows } = await insert(made('Maria Lopez'));
+      expect(rows[0]).toMatchObject({ status: 'pending_review', source: 'web_upload', created_by: null, version: 1 });
+      const revisions = await db.query('select change_type, changed_by from public.record_revisions where record_id = $1', [rows[0].id]);
+      expect(revisions.rows).toEqual([{ change_type: 'created', changed_by: null }]);
+    });
+
+    it('is refused as a duplicate when the same person signs the same SOP twice on one day, but not for another day or person', async () => {
+      await expect(insert(made('maria lopez'))).rejects.toThrow(/duplicate key|unique/i);
+      await insert(made('Maria Lopez', '2026-10-21'));
+      await insert(made('Jose Ruiz'));
+    });
+
+    it('is not visible to people outside the farm, and crew see it only as the record it is', async () => {
+      expect((await as(outsider, `select id from public.records where source = 'web_upload'`)).rows).toHaveLength(0);
+      expect((await as(manager, `select id from public.records where source = 'web_upload' and farm_id = $1`, [farmA])).rows.length).toBeGreaterThan(0);
+    });
   });
 });

@@ -15,7 +15,7 @@ import FieldPicker from './FieldPicker.jsx';
 import LotCodeTools from './LotCodeTools.jsx';
 import Modal from './Modal.jsx';
 import SanitizerHint from './SanitizerHint.jsx';
-import { ConcernSummary, FloodWaterNote, PublicWaterNote, RecentFloodsNote } from './WaterHints.jsx';
+import { ConcernSummary, FloodWaterNote, PublicWaterNote, RecentFloodsNote, WATER_SECTION_STARTS, WaterSectionHeading } from './WaterHints.jsx';
 import useFarmRecords from './useFarmRecords.js';
 import useFieldHolds from './useFieldHolds.js';
 
@@ -25,7 +25,7 @@ const WATER_KINDS = ['weather_event', 'water_assessment'];
 
 const blank = (value) => value === undefined || value === null || String(value).trim() === '';
 
-function Field({ field, lang, value, required, invalid, onChange, id, invalidText, disabled }) {
+function Field({ field, lang, value, required, invalid, onChange, id, invalidText, disabled, heading }) {
   const label = `${field.label[lang]}${required ? ' *' : ''}`;
   const errorId = `${id}-error`;
   const common = {
@@ -40,6 +40,7 @@ function Field({ field, lang, value, required, invalid, onChange, id, invalidTex
   };
   return (
     <div style={{ marginBottom: 14 }}>
+      {heading}
       <label htmlFor={id} style={{ fontSize: 12, fontWeight: 600, color: '#475569', display: 'block', marginBottom: 4 }}>{label}</label>
       {field.type === 'select' ? (
         <select {...common}>
@@ -193,6 +194,7 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
           lang={lang}
           value={field.key === 'check_result' && concentration?.result ? concentration.result : values[field.key]}
           disabled={field.key === 'check_result' && (Boolean(concentration?.result) || (sanitizing && labels.status === 'loading'))}
+          heading={assessing && WATER_SECTION_STARTS[field.key] ? <WaterSectionHeading section={WATER_SECTION_STARTS[field.key]} /> : undefined}
           required={required.has(field.key)}
           invalid={Boolean(evaluation.errors[field.key])}
           invalidText={tt.field.invalid}

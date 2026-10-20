@@ -84,3 +84,18 @@ export function PublicWaterNote() {
   const { tt } = useText();
   return <p style={{ ...NOTE, ...TONE.info }}>{tt.form.public}</p>;
 }
+
+/** Which step of an assessment each field starts. */
+export const WATER_SECTION_STARTS = Object.freeze({ source: 'source', source_concern: 'factors', conclusion: 'decision' });
+
+/** The title (and a line of help) that opens a step of the assessment form. @param {{ section: 'source' | 'factors' | 'decision' }} props */
+export function WaterSectionHeading({ section }) {
+  const { tt } = useText();
+  const { title, body } = tt.form.sections[section];
+  return (
+    <div style={{ margin: '6px 0 12px', paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+      <h3 style={{ fontSize: 14, color: 'var(--u-navy)', margin: 0 }}>{title}</h3>
+      {body && <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{body}</p>}
+    </div>
+  );
+}

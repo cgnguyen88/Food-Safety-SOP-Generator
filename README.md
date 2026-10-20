@@ -10,7 +10,7 @@ Plans for records, Telegram capture, traceability and SOP QR codes: [docs/PLAN-r
 
 | Part | Where | What it does |
 |---|---|---|
-| Browser app | `src/` (React 19, Vite) | Sign-in, home, records, fields, training due, trace, reports, SOP editor, plan generator, chat |
+| Browser app | `src/` (React 19, Vite) | Sign-in, home, records, fields, water assessments, training due, trace, reports, SOP editor, plan generator, chat |
 | Accounts and data | Supabase (Auth + Postgres with row-level security) | One farm per account; owners, managers and crew; the farm's shared data |
 | AI endpoint | `api/claude.js` (Vercel function), `server/index.js` (the same code locally) | Signed-in users only, rate-limited; the server owns every instruction sent to Claude |
 | SOP links for workers | `api/sop-share.js` (same code locally) | A QR code or link per SOP: workers read it without signing in and sign that they read it (a training record waiting for approval). Links are long random tokens an owner or manager can turn off; every request is rate-limited |

@@ -776,6 +776,17 @@ describe('RecordForm: water assessments', () => {
   const WELL = { id: 'a1', kind: 'water_assessment', status: 'approved', record_date: '2026-03-01', created_at: '2026-03-01T09:00:00Z', payload: { source: 'Well 1', fields_served: 'A1, A2', conclusion: 'no_mitigation' } };
   const assessment = (props = {}) => setup({ kind: 'water_assessment', role: 'manager', ...props });
 
+  it('goes in three steps: the source, each thing the rule asks about, and the decision', () => {
+    assessment();
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['The water source', 'Look at each thing the rule asks about', 'Your decision']);
+    expect(screen.getByText('Rate how worried you are about each one: low, some or high concern.')).toBeTruthy();
+  });
+
+  it('has no such steps on other records', () => {
+    setup({ kind: 'harvest', role: 'manager' });
+    expect(screen.queryAllByRole('heading', { level: 3 })).toEqual([]);
+  });
+
   it('asks for every factor to be rated, then says what the ratings add up to', async () => {
     const { user } = assessment();
     expect(screen.getByText('Rate every factor to see what your answers add up to.')).toBeTruthy();

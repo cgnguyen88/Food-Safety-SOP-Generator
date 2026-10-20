@@ -168,6 +168,11 @@ export const RULES_TEXT = {
         floods: (list) => `Flood in the last year that may have reached this water: ${list}. Think about it when you rate the weather.`,
         floodItem: (date, field) => (field ? `${date} (${field})` : date),
         floodsError: 'Floods could not be checked right now, so one may have happened that is not shown here.',
+        sections: {
+          source: { title: 'The water source', body: 'Which water you are assessing, and where it goes.' },
+          factors: { title: 'Look at each thing the rule asks about', body: 'Rate how worried you are about each one: low, some or high concern.' },
+          decision: { title: 'Your decision', body: 'Use the suggestion above if it fits, or decide for yourself. You are the one who knows the farm.' },
+        },
       },
       flood: {
         title: 'A flood can reach your water',
@@ -350,6 +355,11 @@ export const RULES_TEXT = {
         floods: (list) => `Hubo una inundación en el último año que pudo alcanzar esta agua: ${list}. Tenla en cuenta al calificar el clima.`,
         floodItem: (date, field) => (field ? `${date} (${field})` : date),
         floodsError: 'Ahora no se pudieron revisar las inundaciones, así que podría haber una que no aparece aquí.',
+        sections: {
+          source: { title: 'La fuente de agua', body: 'Qué agua estás evaluando y adónde va.' },
+          factors: { title: 'Revisa cada cosa que pide la regla', body: 'Califica qué tanto te preocupa cada una: poca, alguna o mucha preocupación.' },
+          decision: { title: 'Tu decisión', body: 'Usa la sugerencia de arriba si te sirve, o decide por tu cuenta. Tú conoces la granja.' },
+        },
       },
       flood: {
         title: 'Una inundación puede llegar a tu agua',

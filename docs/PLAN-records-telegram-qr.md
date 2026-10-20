@@ -38,6 +38,7 @@ once into its account at first sign-in.
 | | `wildlife_check` (pre-harvest) | field, evidence (Y/N), description, no-harvest zone, photos | evidence → field hold |
 | | `soil_amendment` | type, supplier, lot, quantity, field, method, application date | clearance date from the interval |
 | | `water_test` | sample date, source/location, lab, sample id, result (CFU/100 mL), limit, pass/fail, lab report photo | |
+| | `water_assessment` | source, kind, fields watered, how it is applied, six factors rated low/some/high, conclusion, measures | each source due a year on, and after a flood that hit its fields |
 | People | `training` | date, people trained, SOP/topic, trainer, language, sign-off | annual refresher "due" list |
 | | `visitor` | date, name, company, purpose, time in/out, hygiene briefing | |
 | | `illness_injury` (restricted) | date, person, symptoms/injury, removed from produce contact, return date | owners/managers only |
@@ -88,6 +89,16 @@ forward to its customers, lists what the records do not show, and times a mock r
 The app was also slimmed down the same day: one short menu, a Home page that shows what needs attention, a records index
 with a + on every log, and a phone layout with a top bar and slide-out menu. Removed as not core: the violation dashboard,
 economic report, per-SOP record checklists, menu search and photo hero (they are in commit `b1abc89`).
+
+Water assessments (2026-10-21): a record kind for the pre-harvest agricultural water assessment of 21 CFR 112.43 (the source and
+how the water travels, what is near it, how it is applied, the crop, the weather, test results). Each factor is rated low, some or
+high concern; the form says what the ratings add up to and offers the matching conclusion, but the conclusion is the person's,
+and "no measures needed" with a high concern asks for a reason in the notes. A "Water assessments" page lists each water source
+with its newest approved assessment and when it is next due (a year on); a source also needs a new assessment when a flood
+(an approved weather event) came after it was last assessed and hit a field it waters, or named it. Floods are tied in three
+places: the flood form names the assessed sources for its field, a flood's detail lists the water it may have reached with
+one click to assess each again, and an assessment shows floods of the last year on its fields. Home points to sources that
+need an assessment. Owner to do: run `20261021000000_water_assessments.sql` (it adds the kind to the database's list).
 
 ### Phase 3: Telegram capture
 Copy the Organic channel and agent code (two-step linking, review queue, photo reading), with tools for the food safety

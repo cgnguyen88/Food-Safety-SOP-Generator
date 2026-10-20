@@ -74,7 +74,7 @@ Word, CSV and print, with checks before hand-over; five default saved views; a f
 photo capture and Telegram (Phase 3), the Organic app's stock page and OMRI check. Owner to do: run the two
 `20261019...` migrations.
 
-### Phase 2: rules that connect records
+### Phase 2: rules that connect records (built on `feat/food-safety-records`; the menu was also slimmed to one short list)
 Sanitizer label → sanitation log pass/fail; field holds and their clearing; training due list; lot code generator from the
 farm's own format (SOP #9, tokens such as `{FARM}-{CROP}-{YYYYMMDD}-{FIELD}`, a suffix when a code would repeat);
 trace back (lot → field, crew, inputs, bin sanitation, water tests) and trace forward (lot → customers); timed mock recall report.

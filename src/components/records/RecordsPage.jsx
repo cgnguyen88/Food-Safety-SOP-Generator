@@ -10,6 +10,7 @@ import RecordsOverview from './RecordsOverview.jsx';
 import ReportsPage from './ReportsPage.jsx';
 import { canSeeKind } from '../../domain/records/workflow.js';
 import SavedViewResults from './SavedViewResults.jsx';
+import TracePage from './TracePage.jsx';
 import TrainingDuePage from './TrainingDuePage.jsx';
 
 /**
@@ -54,6 +55,8 @@ export default function RecordsPage({ route, farm, role, userId, operation, lotC
         return <FieldsPage farm={farm} role={role} />;
       case 'training':
         return <TrainingDuePage farm={farm} role={role} onChanged={onChanged} />;
+      case 'trace':
+        return <TracePage farm={farm} role={role} />;
       case 'view': {
         const view = savedViews.find((v) => v.id === route.viewId);
         if (view) return <SavedViewResults key={view.id} view={view} {...shared} />;

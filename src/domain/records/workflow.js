@@ -5,6 +5,8 @@
  * that will actually succeed.
  */
 
+import { RESTRICTED_KINDS } from './kinds.js';
+
 const REVIEWER_ROLES = ['owner', 'manager'];
 const EDITABLE_BY_AUTHOR = ['draft', 'needs_info', 'pending_review'];
 
@@ -30,6 +32,15 @@ const CREW_TRANSITIONS = Object.freeze({
 
 /** @param {string | null | undefined} role */
 export const canReview = (role) => REVIEWER_ROLES.includes(role);
+
+/**
+ * Whether this person may see (and so add) records of this kind: illness and injury reports are for
+ * owners and managers only. The database enforces the same rule.
+ *
+ * @param {string} kind
+ * @param {string | null | undefined} role
+ */
+export const canSeeKind = (kind, role) => !RESTRICTED_KINDS.includes(kind) || canReview(role);
 
 /**
  * @param {string} status

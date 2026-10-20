@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { KIND_FIELDS, RECORD_KINDS } from './kinds.js';
 import { toCsv } from './csv.js';
 import {
-  REPORT_KIND_ORDER, REPORT_TEXT, buildReport, recordsToCsvRows, reviewChecks, describePeriod, reportFileName, reportStatuses,
+  REPORT_KIND_ORDER, REPORT_TEXT, buildReport, recordsToCsvRows, reviewChecks, describePeriod, reportFileName, reportStatuses, operationFromFarmProfile,
 } from './report.js';
 
 // Approved at local noon on 2 June: the local date is 2026-06-02 wherever the tests run.
@@ -523,5 +523,23 @@ describe('reportFileName', () => {
 
   it('only ever ends with a known extension', () => {
     expect(reportFileName({ farm: { name: 'F' }, generatedOn: '2026-10-14', ext: 'exe' })).toMatch(/\.csv$/);
+  });
+});
+
+describe('operationFromFarmProfile', () => {
+  it('takes the report header from the farm profile the whole team shares', () => {
+    expect(operationFromFarmProfile({
+      farm_name: 'Green Valley', owner_name: 'Ana Reyes', food_safety_manager: 'Luis Diaz', address: '1 Farm Rd',
+      certifier: 'PrimusGFS', fsma_status: 'Covered farm', phone: '555-0100', email: 'a@b.c',
+    })).toEqual({
+      operationName: 'Green Valley', ownerName: 'Ana Reyes', foodSafetyManager: 'Luis Diaz', address: '1 Farm Rd',
+      auditor: 'PrimusGFS', fsmaStatus: 'Covered farm',
+    });
+  });
+
+  it('leaves out what the profile does not have, and copes with no profile', () => {
+    expect(operationFromFarmProfile({ farm_name: 'GV', owner_name: '', certifier: 5 })).toEqual({ operationName: 'GV' });
+    expect(operationFromFarmProfile(null)).toEqual({});
+    expect(operationFromFarmProfile(undefined)).toEqual({});
   });
 });

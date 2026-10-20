@@ -280,3 +280,28 @@ export function reportFileName({ farm, scope, generatedOn, ext, partial = false 
   const parts = ['food-safety-records', slug(farm?.name) || 'farm', slug(scope), partial ? 'partial' : '', slug(generatedOn)].filter(Boolean);
   return `${parts.join('_')}.${extension}`;
 }
+
+const PROFILE_TO_OPERATION = Object.freeze([
+  ['farm_name', 'operationName'],
+  ['owner_name', 'ownerName'],
+  ['food_safety_manager', 'foodSafetyManager'],
+  ['address', 'address'],
+  ['certifier', 'auditor'],
+  ['fsma_status', 'fsmaStatus'],
+]);
+
+/**
+ * The report header's details, from the farm profile (which the whole team shares). Phone numbers and
+ * emails are not put on reports.
+ *
+ * @param {Record<string, unknown> | null | undefined} profile
+ * @returns {{ operationName?: string, ownerName?: string, foodSafetyManager?: string, address?: string, auditor?: string, fsmaStatus?: string }}
+ */
+export function operationFromFarmProfile(profile) {
+  if (!profile || typeof profile !== 'object') return {};
+  return Object.fromEntries(
+    PROFILE_TO_OPERATION
+      .map(([from, to]) => [to, profile[from]])
+      .filter(([, value]) => typeof value === 'string' && value.trim() !== ''),
+  );
+}

@@ -5,8 +5,9 @@ import { SOP_DATA } from "../data/sop-data.js";
 import { useLanguage } from "../i18n/LanguageContext.jsx";
 import { T } from "../i18n/translations.js";
 import { getLocalizedSop } from "../i18n/sop-translations.js";
+import RecordsNav from "./records/RecordsNav.jsx";
 
-export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, onLogout, currentUser, farmProfile }) {
+export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProfile, onNavigate, onLogout, currentUser, farmProfile, records }) {
   const { lang, toggleLang } = useLanguage();
   const s = T[lang].sidebar;
 
@@ -210,11 +211,14 @@ export default function Sidebar({ activeSOP, activePage, onSelectSOP, onOpenProf
         </button>
       </div>
 
-      {/* SOP List */}
-      <div style={{ padding: "12px 18px 6px" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,.45)", padding: "0 6px", marginBottom: 8 }}>{s.procedures}</div>
-      </div>
+      {/* Records and the SOP list share one scrolling area */}
       <div style={{ flex: 1, overflowY: "auto", padding: "0 14px 24px" }}>
+        {records && (
+          <div style={{ padding: "0 4px 6px" }}>
+            <RecordsNav activePage={activePage} onNavigate={onNavigate} role={records.role} needsReviewCount={records.needsReviewCount} savedViews={records.savedViews} />
+          </div>
+        )}
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,.45)", padding: "14px 10px 8px" }}>{s.procedures}</div>
         {localizedSops.map(sop => (
           <button key={sop.id} onClick={() => onSelectSOP(SOP_DATA.find(d => d.id === sop.id))}
             style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", marginBottom: 4, background: activeSOP?.id === sop.id ? "rgba(255,255,255,.2)" : "transparent", border: "none", borderRadius: 8, cursor: "pointer", textAlign: "left", color: "white", transition: "all .15s" }}>

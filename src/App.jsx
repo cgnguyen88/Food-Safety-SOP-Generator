@@ -14,6 +14,10 @@ import EconomicReport from "./components/EconomicReport.jsx";
 import ExpandableChat from "./components/ExpandableChat.jsx";
 import PlanGenerator from "./components/PlanGenerator.jsx";
 import { AccountMessage, ImportNotice, ImportOffer, MergedNotice, SaveIndicator } from "./components/AccountStatus.jsx";
+import RecordsPage from "./components/records/RecordsPage.jsx";
+import useRecordsMeta from "./components/records/useRecordsMeta.js";
+import { parseRecordsRoute } from "./lib/recordsRoute.js";
+import { operationFromFarmProfile } from "./domain/records/report.js";
 
 const KEYFRAMES = `@keyframes bounce{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}@keyframes caretBlink{0%,100%{opacity:1}50%{opacity:0}}`;
 
@@ -30,6 +34,7 @@ export default function App() {
 function FarmApp() {
   const { lang } = useLanguage();
   const farm = useFarmAccount();
+  const recordsMeta = useRecordsMeta({ farm: farm.account?.farm ?? null, userId: farm.account?.user.id });
   const [activeSOP, setActiveSOP] = useState(null);
   const [activePage, setActivePage] = useState("home");
   const [showProfile, setShowProfile] = useState(false);
@@ -50,6 +55,7 @@ function FarmApp() {
   }
 
   const { farm_profile: farmProfile, incidents, cost_settings: costSettings, sop_activity_records: activityRecords } = farm.data;
+  const recordsRoute = parseRecordsRoute(activePage);
 
   const saveFarmProfile = (profile) => {
     farm.setValue("farm_profile", profile);
@@ -92,12 +98,29 @@ function FarmApp() {
           currentUser={farm.account.user}
           farmProfile={farmProfile}
           incidents={incidents}
+          records={{ role: recordsMeta.role ?? farm.account.role, needsReviewCount: recordsMeta.needsReviewCount, savedViews: recordsMeta.savedViews }}
         />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--cream)" }}>
           <ImportOffer offer={farm.importOffer} farmName={farm.account.farm?.name} onAccept={farm.acceptImport} onDecline={farm.declineImport} />
           <ImportNotice result={farm.importResult} onDismiss={farm.dismissImport} />
           <MergedNotice show={farm.mergedNotice} onDismiss={farm.dismissMerged} />
-          {activePage === "sop" && activeSOP ? (
+          {recordsRoute ? (
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              <RecordsPage
+                route={recordsRoute}
+                farm={farm.account.farm}
+                role={recordsMeta.role ?? farm.account.role}
+                userId={farm.account.user.id}
+                operation={operationFromFarmProfile(farmProfile)}
+                savedViews={recordsMeta.savedViews}
+                metaReady={recordsMeta.ready}
+                needsReviewCount={recordsMeta.needsReviewCount}
+                onNavigate={handleNavigate}
+                onChanged={recordsMeta.refresh}
+                onRetryFarm={farm.retryLoad}
+              />
+            </div>
+          ) : activePage === "sop" && activeSOP ? (
             <SOPEditor
               sop={activeSOP}
               farmProfile={farmProfile}

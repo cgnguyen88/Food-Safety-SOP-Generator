@@ -90,7 +90,7 @@ export async function loadAccount(client, authUser) {
   if (error || !farmId) throw new Error('Could not load your farm. Check your connection and reload the page.');
 
   const [farm, membership, profile] = await Promise.all([
-    single(client.from('farms').select('id, name, farm_code').eq('id', farmId), 'farm'),
+    single(client.from('farms').select('id, name, farm_code, season_start_month, season_start_day').eq('id', farmId), 'farm'),
     single(client.from('farm_members').select('role').eq('farm_id', farmId).eq('user_id', authUser.id), 'farm'),
     single(client.from('profiles').select('first_name, last_name, phone, organization, job_role').eq('id', authUser.id), 'profile'),
   ]);

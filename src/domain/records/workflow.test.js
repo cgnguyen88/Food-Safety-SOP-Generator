@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { allowedTransitions, availableActions, canEditRecord, canReview, STATUS_TONE } from './workflow.js';
+import { allowedTransitions, availableActions, canEditRecord, canReview, canSeeKind, STATUS_TONE } from './workflow.js';
 import { RECORD_STATUSES } from './kinds.js';
 
 describe('canReview', () => {
@@ -91,5 +91,16 @@ describe('availableActions (what the UI offers this person on this record)', () 
         for (const to of availableActions(rec(status), role, 'u1')) expect(allowedTransitions(status, role), `${role} ${status}->${to}`).toContain(to);
       }
     }
+  });
+});
+
+describe('canSeeKind', () => {
+  it('shows illness and injury reports to owners and managers only, and every other kind to everyone', () => {
+    expect(canSeeKind('illness_injury', 'owner')).toBe(true);
+    expect(canSeeKind('illness_injury', 'manager')).toBe(true);
+    expect(canSeeKind('illness_injury', 'crew')).toBe(false);
+    expect(canSeeKind('illness_injury', null)).toBe(false);
+    expect(canSeeKind('harvest', 'crew')).toBe(true);
+    expect(canSeeKind('training', undefined)).toBe(true);
   });
 });

@@ -252,5 +252,8 @@ revoke all on function public.backfill_fields_from_records() from public, anon, 
 
 select public.backfill_fields_from_records();
 
+-- The server role (Telegram agent, imports) keeps the field list too; newer projects grant it nothing by default.
+grant select, insert, update, delete on public.fields to service_role;
+
 -- Tell the Supabase API about the new tables and functions now, not at its next restart.
 notify pgrst, 'reload schema';

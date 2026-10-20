@@ -169,6 +169,20 @@ describe('RecordsPage: reports', () => {
   });
 });
 
+describe('RecordsPage: a log crew may not see', () => {
+  it('says only owners and managers can see illness and injury reports, and reads nothing', () => {
+    setup({ type: 'log', kind: 'illness_injury' }, { role: 'crew' });
+    expect(screen.getByText('Only owners and managers can see these records.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Add/ })).toBeNull();
+    expect(records.listRecords).not.toHaveBeenCalled();
+  });
+
+  it('opens it for a manager', async () => {
+    setup({ type: 'log', kind: 'illness_injury' }, { role: 'manager' });
+    expect(await screen.findByRole('heading', { name: 'Illness & Injury Reports' })).toBeTruthy();
+  });
+});
+
 describe('RecordsPage: a log', () => {
   const route = { type: 'log', kind: 'sanitizer_purchase' };
 

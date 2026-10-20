@@ -194,7 +194,7 @@ export function buildReportDocument(report) {
   body.push(spacer(400), signatureBlock(text));
 
   return new Document({
-    creator: 'OrganicPath CA',
+    creator: 'FarmSafe',
     title: report.title,
     styles: { default: { document: { run: { font: FONT, size: SIZE.body, language: { value: WORD_LANGUAGE[report.lang] ?? WORD_LANGUAGE.en } } } } },
     sections: [{

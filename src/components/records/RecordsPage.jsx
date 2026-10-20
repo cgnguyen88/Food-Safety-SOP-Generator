@@ -8,6 +8,7 @@ import NeedsReview from './NeedsReview.jsx';
 import RecordLog from './RecordLog.jsx';
 import RecordsOverview from './RecordsOverview.jsx';
 import ReportsPage from './ReportsPage.jsx';
+import { canSeeKind } from '../../domain/records/workflow.js';
 import SavedViewResults from './SavedViewResults.jsx';
 
 /**
@@ -40,6 +41,9 @@ export default function RecordsPage({ route, farm, role, userId, operation, save
       case 'review':
         return <NeedsReview {...shared} />;
       case 'log':
+        if (!canSeeKind(route.kind, role)) {
+          return <div style={ui.page}><div style={{ ...ui.card, padding: 32, textAlign: 'center', color: '#64748b' }}>{tt.log.notAllowed}</div></div>;
+        }
         return <RecordLog key={route.kind} kind={route.kind} {...shared} />;
       case 'history':
         return <ChangeHistory farm={farm} />;

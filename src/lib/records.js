@@ -58,10 +58,11 @@ function fromDb({ data, error }, table) {
  * `source` and `source_ref` (where a record came from, and its de-duplication key) are set by the
  * server paths that ingest records, never by a client, so they are not accepted here.
  *
- * @param {{ farmId: string, kind: string, recordDate?: string, payload?: object, status?: string,
- *   attachments?: object[], confidence?: number }} input
+ * Attached files are never sent: only the server attaches files, after checking where each one is kept.
+ *
+ * @param {{ farmId: string, kind: string, recordDate?: string, payload?: object, status?: string, confidence?: number }} input
  */
-export async function createRecord({ farmId, kind, recordDate, payload, status = 'pending_review', attachments, confidence }) {
+export async function createRecord({ farmId, kind, recordDate, payload, status = 'pending_review', confidence }) {
   if (!CREATABLE_STATUSES.includes(status)) return fail('invalid', { fields: { status: 'invalid' } });
 
   const evaluation = evaluateRecord(kind, { record_date: recordDate, payload });
@@ -77,7 +78,6 @@ export async function createRecord({ farmId, kind, recordDate, payload, status =
     payload: cleanPayload,
     missing_fields: evaluation.missing,
     fingerprint: recordFingerprint(kind, record_date, cleanPayload),
-    attachments: attachments ?? [],
     confidence: confidence ?? null,
   };
   return fromDb(await supabase.from('records').insert(row).select().single(), 'createRecord');
@@ -86,9 +86,9 @@ export async function createRecord({ farmId, kind, recordDate, payload, status =
 /**
  * Edit a record's content. Status changes go through setRecordStatus.
  * @param {string} id
- * @param {{ kind: string, recordDate?: string, payload?: object, attachments?: object[], confidence?: number }} input
+ * @param {{ kind: string, recordDate?: string, payload?: object, confidence?: number }} input
  */
-export async function updateRecord(id, { kind, recordDate, payload, attachments, confidence }) {
+export async function updateRecord(id, { kind, recordDate, payload, confidence }) {
   const evaluation = evaluateRecord(kind, { record_date: recordDate, payload });
   if (!evaluation.ok) return fail('invalid', { fields: evaluation.errors });
 
@@ -98,7 +98,6 @@ export async function updateRecord(id, { kind, recordDate, payload, attachments,
     payload: cleanPayload,
     missing_fields: evaluation.missing,
     fingerprint: recordFingerprint(kind, record_date, cleanPayload),
-    ...(attachments !== undefined ? { attachments } : {}),
     ...(confidence !== undefined ? { confidence } : {}),
   };
   return fromDb(await supabase.from('records').update(patch).eq('id', id).select().single(), 'updateRecord');

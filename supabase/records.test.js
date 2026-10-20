@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { freshDb, signUp, asUser, asAnon, farmIdOf } from './harness.js';
+import { freshDb, signUp, asUser, asAnon, asServiceRole, farmIdOf } from './harness.js';
 import { RECORD_KINDS, RECORD_STATUSES, RECORD_SOURCES } from '../src/domain/records/kinds.js';
 import { DEFAULT_SAVED_VIEWS } from '../src/domain/records/savedViews.js';
 import { allowedTransitions } from '../src/domain/records/workflow.js';
@@ -169,6 +169,23 @@ describe('records', () => {
       for (const set of [`farm_id = '${t.otherFarm}'`, `created_by = '${t.owner}'`, `source = 'import'`, `source_ref = 'x'`, `version = 99`, `reviewed_by = '${t.owner}'`, `created_at = now()`, `id = gen_random_uuid()`]) {
         await expect(update(db, t.owner, r.id, set), set).rejects.toThrow(/permission denied/i);
       }
+    });
+
+    it('never lets a record change kind, not even from the server: a kind decides who may see it', async () => {
+      const r = await insertRecord(db, t.owner, t.farm);
+      await expect(update(db, t.owner, r.id, `kind = 'harvest'`)).rejects.toThrow(/permission denied/i);
+      await expect(asServiceRole(db, () => db.query(`update public.records set kind = 'illness_injury' where id = $1`, [r.id]))).rejects.toThrow(/immutable/i);
+    });
+
+    it('leaves attached files to the server: the app can neither set nor change them', async () => {
+      await expect(asUser(db, t.crew, () => db.query(
+        `insert into public.records (farm_id, kind, status, record_date, payload, attachments) values ($1, 'note', 'draft', '2026-10-01', '{"text":"x"}', '[{"path":"other-farm/secret.pdf"}]')`,
+        [t.farm],
+      ))).rejects.toThrow(/permission denied/i);
+      const r = await insertRecord(db, t.owner, t.farm);
+      await expect(update(db, t.owner, r.id, `attachments = '[{"path":"x"}]'`)).rejects.toThrow(/permission denied/i);
+      const saved = await asServiceRole(db, async () => (await db.query(`update public.records set attachments = '[{"path":"f/1.jpg"}]' where id = $1 returning attachments`, [r.id])).rows[0]);
+      expect(saved.attachments).toEqual([{ path: 'f/1.jpg' }]);
     });
 
     it('enforces the status transitions in the database, not just the UI', async () => {
@@ -345,7 +362,7 @@ describe('records', () => {
 
     it('lets owners and managers add, rename, unpin and delete their own views, but never touch identity columns or default views’ existence', async () => {
       const added = await asUser(db, t.manager, async () =>
-        (await db.query(`insert into public.saved_views (farm_id, name, filter) values ('${t.farm}', 'Kelp purchases', '{"kinds":["purchase"]}') returning *`)).rows[0],
+        (await db.query(`insert into public.saved_views (farm_id, name, filter) values ('${t.farm}', 'Kelp purchases', '{"kinds":["harvest"]}') returning *`)).rows[0],
       );
       expect(added).toMatchObject({ is_default: false, slug: null, created_by: t.manager });
 
@@ -358,6 +375,13 @@ describe('records', () => {
 
       expect((await asUser(db, t.owner, () => db.query(`delete from public.saved_views where id = '${added.id}' returning id`))).rows).toHaveLength(1);
       expect((await asUser(db, t.owner, () => db.query(`delete from public.saved_views where farm_id = '${t.farm}' and is_default returning id`))).rows).toHaveLength(0);
+    });
+
+    it('keeps the filter of a default view fixed, though it can still be renamed, unpinned or moved', async () => {
+      const id = (await db.query(`select id from public.saved_views where farm_id = $1 and slug = 'this-seasons-training'`, [t.farm])).rows[0].id;
+      await expect(asUser(db, t.manager, () => db.query(`update public.saved_views set filter = '{"kinds":["illness_injury"]}' where id = $1`, [id]))).rejects.toThrow(/default view/i);
+      const moved = await asUser(db, t.manager, () => db.query(`update public.saved_views set pinned = false, position = 9 where id = $1 returning pinned`, [id]));
+      expect(moved.rows).toEqual([{ pinned: false }]);
     });
 
     it('validates a view’s name and filter shape and keeps other farms out', async () => {
@@ -458,5 +482,26 @@ describe('the farm season', () => {
     expect((await set(t.crew, 9)).rows).toHaveLength(0);
     expect(await season(t.owner)).toEqual({ m: 4, d: 1 });
     await expect(set(t.owner, 13)).rejects.toThrow(/check constraint/i);
+  });
+});
+
+describe('what the server role may do (for the Telegram agent and imports later)', () => {
+  it('reads and writes records, reads their history, and keeps saved views and fields, even on a project with no default grants', async () => {
+    const db = await freshDb({ defaultGrants: false });
+    try {
+      const owner = await signUp(db, { email: 'svc@example.com' });
+      const farm = await farmIdOf(db, owner);
+      await asServiceRole(db, async () => {
+        const { rows } = await db.query(
+          `insert into public.records (farm_id, kind, status, record_date, payload, created_by, source, source_ref) values ($1, 'note', 'pending_review', '2026-10-01', '{"text":"From Telegram"}', $2, 'telegram', 'tg:1') returning id`,
+          [farm, owner],
+        );
+        expect((await db.query('select count(*)::int as n from public.record_revisions where record_id = $1', [rows[0].id])).rows[0].n).toBe(1);
+        expect((await db.query('select count(*)::int as n from public.saved_views where farm_id = $1', [farm])).rows[0].n).toBeGreaterThan(0);
+        await db.query(`insert into public.fields (farm_id, name) values ($1, 'A2')`, [farm]);
+      });
+    } finally {
+      await db.close();
+    }
   });
 });

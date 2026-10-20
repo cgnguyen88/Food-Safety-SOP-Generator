@@ -120,8 +120,10 @@ begin
     if old.status = 'voided' then
       raise exception 'Voided records cannot be changed' using errcode = '23514';
     end if;
+    -- The kind decides who may see a record (illness and injury reports), so it never changes either.
     if new.id is distinct from old.id
        or new.farm_id is distinct from old.farm_id
+       or new.kind is distinct from old.kind
        or new.created_by is distinct from old.created_by
        or new.created_at is distinct from old.created_at
        or new.source is distinct from old.source
@@ -287,6 +289,26 @@ create trigger farms_seed_default_views
 -- Farms that already exist.
 select public.seed_default_saved_views(f.id) from public.farms f;
 
+-- A default view keeps its filter: its name on screen comes from its slug, so a changed filter would show
+-- other records under the same name. It can still be renamed, unpinned or moved.
+create or replace function public.saved_views_keep_default_filter()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if old.is_default and new.filter is distinct from old.filter then
+    raise exception 'The filter of a default view cannot be changed' using errcode = '23514';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists saved_views_keep_default_filter on public.saved_views;
+create trigger saved_views_keep_default_filter
+  before update on public.saved_views
+  for each row execute function public.saved_views_keep_default_filter();
+
 -- ─── Row level security ──────────────────────────────────────────────────────
 
 alter table public.records enable row level security;
@@ -383,10 +405,18 @@ grant select on public.records to authenticated;
 -- Server-controlled columns (id, created_by, version, reviewed_by/at, timestamps) are not grantable.
 -- `source` and `source_ref` are provenance and dedupe keys: set only by the server paths that
 -- ingest (later the Telegram agent and imports), never by a client.
-grant insert (farm_id, kind, status, record_date, payload, missing_fields, confidence, fingerprint, attachments)
+-- Attached files are written by the server only (the Telegram agent, uploads), which checks where each file
+-- lives; the app could otherwise point a record at another farm's file.
+grant insert (farm_id, kind, status, record_date, payload, missing_fields, confidence, fingerprint)
   on public.records to authenticated;
-grant update (record_date, payload, status, missing_fields, confidence, fingerprint, attachments)
+grant update (record_date, payload, status, missing_fields, confidence, fingerprint)
   on public.records to authenticated;
+
+-- The server role (Telegram agent, imports) works with records directly. Newer projects grant it nothing by
+-- default, so the grants are explicit. It has no delete: records are voided, never deleted.
+grant select, insert, update on public.records to service_role;
+grant select on public.record_revisions to service_role;
+grant select, insert, update, delete on public.saved_views to service_role;
 
 grant select on public.record_revisions to authenticated;
 
@@ -399,6 +429,7 @@ revoke all on function public.records_before_write() from public, anon, authenti
 revoke all on function public.records_write_revision() from public, anon, authenticated;
 revoke all on function public.seed_default_saved_views(uuid) from public, anon, authenticated;
 revoke all on function public.farms_seed_default_views() from public, anon, authenticated;
+revoke all on function public.saved_views_keep_default_filter() from public, anon, authenticated;
 
 -- Tell the Supabase API about the new tables and functions now, not at its next restart.
 notify pgrst, 'reload schema';

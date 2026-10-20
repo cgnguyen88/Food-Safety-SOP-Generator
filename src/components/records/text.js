@@ -25,6 +25,7 @@ export const RECORDS_TEXT = {
       close: 'Close',
       costTotal: (amount, shown) => (shown === 1 ? `Total cost of the 1 record shown: ${amount}` : `Total cost of the ${shown} records shown: ${amount}`),
       costMissing: (n) => (n === 1 ? '1 has no cost recorded' : `${n} have no cost recorded`),
+      notAllowed: 'Only owners and managers can see these records.',
     },
     form: {
       addTitle: (label) => `Add ${label.toLowerCase()}`,
@@ -252,6 +253,7 @@ export const RECORDS_TEXT = {
       close: 'Cerrar',
       costTotal: (amount, shown) => (shown === 1 ? `Costo total del 1 registro mostrado: ${amount}` : `Costo total de los ${shown} registros mostrados: ${amount}`),
       costMissing: (n) => (n === 1 ? '1 no tiene costo registrado' : `${n} no tienen costo registrado`),
+      notAllowed: 'Solo los dueños y gerentes pueden ver estos registros.',
     },
     form: {
       addTitle: (label) => `Agregar ${label.toLowerCase()}`,

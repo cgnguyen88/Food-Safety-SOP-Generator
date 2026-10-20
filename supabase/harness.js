@@ -41,7 +41,7 @@ const SCHEMAS = `
   create function storage.foldername(name text) returns text[] language plpgsql as
     $$ declare parts text[]; begin parts := string_to_array(name, '/'); return parts[1:array_length(parts, 1) - 1]; end $$;
 
-  grant usage on schema auth, storage to anon, authenticated;
+  grant usage on schema auth, storage to anon, authenticated, service_role;
   grant all on all tables in schema storage to anon, authenticated;
 `;
 

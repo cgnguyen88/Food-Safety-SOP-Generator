@@ -175,6 +175,12 @@ describe('buildReportDocument', () => {
     expect(document).not.toContain('\u202E');
   });
 
+  it('names FarmSafe as the author of the file', async () => {
+    const { core } = await parts(make([clean('2026-07-01')]));
+    expect(core).toContain('FarmSafe');
+    expect(core).not.toContain('OrganicPath');
+  });
+
   it('copes with a very large number of columns and a very long note', async () => {
     const everything = { product: 'Sani', epa_reg_no: '1', active_ingredient: 'x', approved_use: 'both', ppm_min: 1, ppm_max: 2, contact_time: 't', ppe: 'p', notes: 'word '.repeat(300) };
     const { buffer } = await parts(make([rec('sanitizer_label', '2026-07-01', everything)]));

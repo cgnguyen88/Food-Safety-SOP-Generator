@@ -48,6 +48,13 @@ describe('createRecord', () => {
     for (const forbidden of ['id', 'created_by', 'version', 'reviewed_by', 'reviewed_at', 'created_at']) expect(row).not.toHaveProperty(forbidden);
   });
 
+  it('never sends attached files: only the server attaches files, after checking where they are', async () => {
+    const q = chain({ data: { id: 'r1' }, error: null });
+    from.mockReturnValue(q);
+    await createRecord({ ...base, status: 'pending_review', attachments: [{ path: 'other-farm/x.pdf' }] });
+    expect(callArgs(q, 'insert')[0]).not.toHaveProperty('attachments');
+  });
+
   it('never sends provenance (source, source_ref): only the server decides where a record came from', async () => {
     const q = chain({ data: { id: 'r1' }, error: null });
     from.mockReturnValue(q);
@@ -102,7 +109,8 @@ describe('updateRecord', () => {
     from.mockReturnValue(q);
     await updateRecord('r1', { kind: 'note', recordDate: '2026-10-01', payload: { text: 'x' }, farm_id: 'evil', created_by: 'evil', version: 9 });
     const patch = callArgs(q, 'update')[0];
-    expect(Object.keys(patch).sort()).toEqual(['attachments', 'confidence', 'fingerprint', 'missing_fields', 'payload', 'record_date'].filter((k) => k in patch).sort());
+    expect(Object.keys(patch).sort()).toEqual(['confidence', 'fingerprint', 'missing_fields', 'payload', 'record_date'].filter((k) => k in patch).sort());
+    expect(patch).not.toHaveProperty('attachments');
     for (const forbidden of ['farm_id', 'created_by', 'version', 'status']) expect(patch).not.toHaveProperty(forbidden);
   });
 });

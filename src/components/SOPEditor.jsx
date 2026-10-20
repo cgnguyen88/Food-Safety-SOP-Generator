@@ -107,9 +107,9 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
   const completion = completionPct();
 
   return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column", background: "var(--cream)", position: "relative" }}>
+    <div className="page-bleed sop-editor" style={{ height: "100%", display: "flex", flexDirection: "column", background: "var(--cream)", position: "relative" }}>
       {/* Top Bar with Glass effect */}
-      <div className="glass" style={{
+      <div className="glass sop-topbar" style={{
         padding: "16px 32px", display: "flex", justifyContent: "space-between", alignItems: "center",
         zIndex: 20, borderBottom: "1px solid var(--glass-bdr)", borderLeft: "none", borderRight: "none", borderTop: "none",
         borderRadius: 0
@@ -143,7 +143,7 @@ export default function SOPEditor({ sop, farmProfile, onBack }) {
       </div>
 
       {/* Main split layout */}
-      <div style={{ flex: 1, display: "flex", overflow: "hidden" }} className="no-print">
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }} className="no-print sop-split">
         <ChatPanel sop={sop} formData={formData} onFormUpdate={handleFormUpdate} farmProfile={farmProfile} />
         <FormPanel sop={sop} formData={formData} onChange={handleChange} missingFields={missingFields} farmProfile={farmProfile} />
         {showReview && <ReviewPanel sop={sop} missingFields={missingFields} onClose={() => setShowReview(false)} />}

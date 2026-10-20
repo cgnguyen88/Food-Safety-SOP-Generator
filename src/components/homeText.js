@@ -15,6 +15,9 @@ export const HOME_TEXT = {
       profile: 'Farm profile',
       signOut: 'Sign out',
       switchLanguage: 'Switch to Spanish',
+      openMenu: 'Open menu',
+      closeMenu: 'Close menu',
+      history: 'Change history',
     },
     home: {
       title: (name) => (name ? `${name}` : 'Welcome'),
@@ -60,6 +63,9 @@ export const HOME_TEXT = {
       profile: 'Perfil de la granja',
       signOut: 'Cerrar sesión',
       switchLanguage: 'Cambiar a inglés',
+      openMenu: 'Abrir menú',
+      closeMenu: 'Cerrar menú',
+      history: 'Historial de cambios',
     },
     home: {
       title: (name) => (name ? `${name}` : 'Bienvenido'),

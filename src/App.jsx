@@ -5,7 +5,7 @@ import { decodeShareLink } from "./utils/export.js";
 import { LanguageProvider, useLanguage } from "./i18n/LanguageContext.jsx";
 import useFarmAccount from "./lib/useFarmAccount.js";
 import AuthScreen from "./components/AuthScreen.jsx";
-import Sidebar from "./components/Sidebar.jsx";
+import AppShell from "./components/AppShell.jsx";
 import Home from "./components/Home.jsx";
 import SopLibrary from "./components/SopLibrary.jsx";
 import SOPEditor from "./components/SOPEditor.jsx";
@@ -79,67 +79,59 @@ function FarmApp() {
 
   return (
     <>
-      <div style={{ height: "100vh", display: "flex", overflow: "hidden" }}>
-        <Sidebar
-          activePage={activePage}
-          onNavigate={handleNavigate}
-          onOpenProfile={() => setShowProfile(true)}
-          onLogout={handleLogout}
-          currentUser={farm.account.user}
-          farmProfile={farmProfile}
-          needsReviewCount={recordsMeta.needsReviewCount}
-        />
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--cream)" }}>
+      <AppShell
+        activePage={activePage}
+        onNavigate={handleNavigate}
+        sidebar={{
+          onOpenProfile: () => setShowProfile(true),
+          onLogout: handleLogout,
+          currentUser: farm.account.user,
+          farmProfile,
+          needsReviewCount: recordsMeta.needsReviewCount,
+        }}
+      >
+        <div className="page-bleed">
           <ImportOffer offer={farm.importOffer} farmName={farm.account.farm?.name} onAccept={farm.acceptImport} onDecline={farm.declineImport} />
           <ImportNotice result={farm.importResult} onDismiss={farm.dismissImport} />
           <MergedNotice show={farm.mergedNotice} onDismiss={farm.dismissMerged} />
-          {recordsRoute ? (
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              <RecordsPage
-                route={recordsRoute}
-                farm={farm.account.farm}
-                role={recordsMeta.role ?? farm.account.role}
-                userId={farm.account.user.id}
-                operation={operationFromFarmProfile(farmProfile)}
-                lotCodeFormat={farmProfile?.lot_code_format}
-                savedViews={recordsMeta.savedViews}
-                metaReady={recordsMeta.ready}
-                needsReviewCount={recordsMeta.needsReviewCount}
-                onNavigate={handleNavigate}
-                onChanged={recordsMeta.refresh}
-                onRetryFarm={farm.retryLoad}
-              />
-            </div>
-          ) : activePage === "sop" && activeSOP ? (
-            <SOPEditor sop={activeSOP} farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
-          ) : activePage === "plan_generator" ? (
-            <PlanGenerator farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
-          ) : activePage === "sops" ? (
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              <SopLibrary onSelectSOP={handleSelectSOP} onOpenPlan={() => handleNavigate("plan_generator")} />
-            </div>
-          ) : (
-            <div style={{ flex: 1, overflowY: "auto" }}>
-              {farm.account.farm ? (
-                <Home
-                  farm={farm.account.farm}
-                  farmProfile={farmProfile}
-                  role={recordsMeta.role ?? farm.account.role}
-                  lotCodeFormat={farmProfile?.lot_code_format}
-                  needsReviewCount={recordsMeta.needsReviewCount}
-                  onNavigate={handleNavigate}
-                  onOpenProfile={() => setShowProfile(true)}
-                  onChanged={recordsMeta.refresh}
-                />
-              ) : (
-                <SopLibrary onSelectSOP={handleSelectSOP} onOpenPlan={() => handleNavigate("plan_generator")} />
-              )}
-            </div>
-          )}
         </div>
-      </div>
+        {recordsRoute ? (
+          <RecordsPage
+            route={recordsRoute}
+            farm={farm.account.farm}
+            role={recordsMeta.role ?? farm.account.role}
+            userId={farm.account.user.id}
+            operation={operationFromFarmProfile(farmProfile)}
+            lotCodeFormat={farmProfile?.lot_code_format}
+            savedViews={recordsMeta.savedViews}
+            metaReady={recordsMeta.ready}
+            needsReviewCount={recordsMeta.needsReviewCount}
+            onNavigate={handleNavigate}
+            onChanged={recordsMeta.refresh}
+            onRetryFarm={farm.retryLoad}
+          />
+        ) : activePage === "sop" && activeSOP ? (
+          <SOPEditor sop={activeSOP} farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
+        ) : activePage === "plan_generator" ? (
+          <PlanGenerator farmProfile={farmProfile} onBack={() => handleNavigate("sops")} />
+        ) : activePage === "sops" || !farm.account.farm ? (
+          <SopLibrary onSelectSOP={handleSelectSOP} onOpenPlan={() => handleNavigate("plan_generator")} />
+        ) : (
+          <Home
+            farm={farm.account.farm}
+            farmProfile={farmProfile}
+            role={recordsMeta.role ?? farm.account.role}
+            lotCodeFormat={farmProfile?.lot_code_format}
+            needsReviewCount={recordsMeta.needsReviewCount}
+            onNavigate={handleNavigate}
+            onOpenProfile={() => setShowProfile(true)}
+            onChanged={recordsMeta.refresh}
+          />
+        )}
+      </AppShell>
       {showProfile && <FarmProfileModal profile={farmProfile} onSave={saveFarmProfile} onClose={() => setShowProfile(false)} />}
-      <ExpandableChat farmProfile={farmProfile} defaultOpen={farm.justSignedIn} />
+      {/* A SOP has its own assistant beside the form, so the general one steps aside there. */}
+      {!(activePage === "sop" && activeSOP) && <ExpandableChat farmProfile={farmProfile} defaultOpen={farm.justSignedIn} />}
       <SaveIndicator status={farm.saveStatus} onRetry={farm.retrySaves} />
     </>
   );

@@ -74,6 +74,19 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'SOPs & plan' })).toBeTruthy();
   });
 
+  it('offers the general assistant everywhere except inside a SOP, which has its own beside the form', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    expect(await screen.findByTitle('Chat with Jimmy')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /^SOPs & plan/ }));
+    expect(screen.getByTitle('Chat with Jimmy')).toBeTruthy();
+    await user.click((await screen.findAllByRole('button', { name: /Handwashing/i }))[0]);
+    await screen.findByRole('button', { name: /Back/ });
+    expect(screen.queryByTitle('Chat with Jimmy')).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Back/ }));
+    expect(await screen.findByTitle('Chat with Jimmy')).toBeTruthy();
+  });
+
   it('opens the farm food safety plan from the library', async () => {
     const user = userEvent.setup();
     render(<App />);

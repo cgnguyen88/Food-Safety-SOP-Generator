@@ -81,7 +81,7 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
         </div>
 
         <h2 style={{ fontSize: 14, color: '#475569', margin: '0 0 10px' }}>{tt.quickAdd}</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 10, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10, marginBottom: 12 }}>
           {quickKinds.map((kind) => {
             const Icon = KIND_ICONS[KIND_META[kind].icon];
             return (

@@ -113,6 +113,101 @@ export const GLOBAL_CSS = `
   .nav-group-header:focus-visible { outline: 2px solid #8fd0ff; outline-offset: -2px; border-radius: 6px; }
   .nav-subhead { padding: 8px 12px 2px 50px; color: var(--menu-muted); font: 600 10px/1.2 Inter, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
 
+
+  /* ── App frame: menu + page; on a phone a top bar and a slide-out menu ───────────────────── */
+  .app-shell { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
+  .app-main { flex: 1; min-width: 0; overflow-y: auto; background: var(--cream); position: relative; -webkit-overflow-scrolling: touch; }
+  .app-shell--phone { flex-direction: column; }
+  .side-menu { width: 260px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--u-navy); color: #fff; }
+
+  .mobile-topbar {
+    position: relative; z-index: 20; flex-shrink: 0; display: flex; align-items: center; gap: 10px;
+    min-height: 56px; padding: 8px 14px; padding-top: max(8px, env(safe-area-inset-top));
+    background: var(--u-navy); color: #fff; box-shadow: 0 2px 10px rgba(0,10,25,0.25);
+  }
+  .mobile-topbar-button {
+    display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin-left: -6px;
+    border: 0; border-radius: 12px; background: transparent; color: #fff; cursor: pointer;
+  }
+  .mobile-topbar-button:focus-visible { outline: 2px solid #8fd0ff; outline-offset: 0; }
+  .mobile-topbar-title { flex: 1; min-width: 0; font: 600 16px/1.2 Lora, serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .side-menu--drawer {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 1001; width: min(86vw, 320px); height: 100%;
+    transform: translateX(-102%); visibility: hidden; box-shadow: none;
+    transition: transform .28s var(--glass-ease), visibility 0s linear .28s;
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+  }
+  .side-menu--drawer.is-open { transform: none; visibility: visible; box-shadow: 8px 0 30px rgba(0,8,20,0.35); transition: transform .28s var(--glass-ease); }
+  .side-menu--drawer .nav-item { min-height: 44px; font-size: 15px; }
+  .menu-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; color: #fff; cursor: pointer; flex-shrink: 0; }
+  .menu-icon-button:focus-visible { outline: 2px solid #8fd0ff; }
+  .menu-scrim { position: fixed; inset: 0; z-index: 1000; background: rgba(0,10,25,0.5); animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) {
+    .side-menu--drawer { transition: none; }
+    .menu-scrim { animation: none; }
+  }
+
+  /* ── Phones ─────────────────────────────────────────────────────────────────────────────────
+     The pages are styled with inline styles, so these rules need !important, and where a page has no
+     class of its own they match what React writes into the style attribute. */
+  @media (max-width: 767px) {
+    /* Every page: phone margins, and room at the bottom so the chat button never covers the last line. */
+    .app-shell--phone .app-main > :not(.page-bleed) { padding: 20px 16px 96px !important; }
+
+    /* Tables of records, fields and training: each row becomes a card. The column headings move into the cards
+       (each cell's data-label), the record or item name is the card's title and the buttons sit at its foot. */
+    .stack-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .stack-table, .stack-table tbody { display: block; width: 100%; }
+    .stack-table tr { display: flex; flex-direction: column; width: 100%; padding: 12px 14px; border-bottom: 1px solid #e2e8f0; }
+    .stack-table tr:last-child { border-bottom: 0; }
+    .stack-table td { display: flex; align-items: baseline; gap: 12px; padding: 3px 0 !important; border: 0 !important; white-space: normal !important; text-align: left; }
+    .stack-table td[data-label]::before {
+      content: attr(data-label); flex: 0 0 38%; max-width: 140px;
+      font: 600 11px/1.4 Inter, sans-serif; letter-spacing: .03em; text-transform: uppercase; color: #64748b;
+    }
+    .stack-table td.stack-title { display: block; order: -1; padding-bottom: 6px !important; font-size: 15px !important; }
+    .stack-table td.stack-title button { font-size: 15px !important; }
+    .stack-table td.stack-actions { display: block; padding-top: 10px !important; }
+    .stack-table td.stack-actions button { min-height: 36px; }
+
+    /* Change history: what happened and when on the first line, the record and its version below. */
+    .history-row { flex-wrap: wrap; gap: 2px 10px !important; }
+    .history-row > :nth-child(1) { order: 1; width: auto !important; flex: 1; }
+    .history-row > :nth-child(4) { order: 2; width: auto !important; }
+    .history-row > :nth-child(2) { order: 3; flex-basis: 100% !important; }
+    .history-row > :nth-child(3) { order: 4; }
+
+    /* Columns that sit side by side on a computer are stacked. */
+    .app-main [style*="grid-template-columns: 1fr 1fr"],
+    .app-main [style*="grid-template-columns: repeat(3, 1fr)"],
+    .app-main [style*="minmax(340px"], .app-main [style*="minmax(330px"],
+    .app-main [style*="minmax(320px"], .app-main [style*="minmax(300px"] {
+      grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    /* Generous computer padding inside cards and panels becomes phone padding. */
+    .app-main [style*="padding: 40px"], .app-main [style*="padding: 32px"], .app-main [style*="padding: 28px"] { padding: 18px 16px !important; }
+
+    /* Page titles that suit a wide screen are scaled down. */
+    .app-main h1 { font-size: 24px !important; line-height: 1.25 !important; }
+
+    /* Form fields at 16px, so iPhones do not zoom in when one is tapped. */
+    .app-main input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .app-main select, .app-main textarea { font-size: 16px !important; }
+
+    /* Long words, links and codes wrap instead of pushing the page sideways. */
+    .app-main { overflow-wrap: break-word; }
+
+    /* The SOP editor: the title bar wraps, and the form comes first with the assistant below it. */
+    .sop-topbar { flex-wrap: wrap; gap: 12px !important; padding: 12px 16px !important; }
+    .sop-topbar > div { flex-wrap: wrap; gap: 12px !important; }
+    .sop-split { flex-direction: column !important; overflow-y: auto !important; }
+    .sop-split > * { width: 100% !important; min-width: 0 !important; flex: 0 0 auto !important; border-left: 0 !important; }
+    .sop-split > :nth-child(2) { order: -1; padding: 16px !important; overflow: visible !important; }
+    .sop-split > :first-child { height: 480px; border-top: 1px solid var(--u-navy-l); }
+  }
+
   /* ── Reports: the page shown on screen, and what the browser prints or saves as PDF ───────── */
   /* A page keeps its width and scrolls sideways in a small window, rather than crushing its columns. */
   .report-doc { box-sizing: border-box; min-width: 860px; background: #fff; color: #0f172a; font: 12px/1.45 Inter, sans-serif; padding: 28px 32px; border: 1px solid #e2e8f0; border-radius: 10px; }

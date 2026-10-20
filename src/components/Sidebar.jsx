@@ -1,4 +1,5 @@
-import { ClipboardCheck, ClipboardList, FileText, GraduationCap, Home, Library, MapPin, Route, UserCog } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { ClipboardCheck, ClipboardList, FileText, GraduationCap, Home, Library, MapPin, Route, UserCog, X } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { ROUTES } from '../lib/recordsRoute.js';
 import { homeText } from './homeText.js';
@@ -16,13 +17,23 @@ const isRecordsPage = (page) => page === ROUTES.overview || page.startsWith('log
  * The side menu: Home, then the records pages, then traceability, then the SOP library. Short enough to see at a
  * glance, with nothing to open or close.
  */
-export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogout, currentUser, farmProfile, needsReviewCount = 0 }) {
+export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogout, currentUser, farmProfile, needsReviewCount = 0, drawer = false, open = false, onClose }) {
   const { lang, toggleLang } = useLanguage();
   const tt = homeText(lang);
+  const closeButton = useRef(null);
+  const hidden = drawer && !open;
   const go = (page) => () => onNavigate(page);
 
+  useEffect(() => {
+    if (drawer && open) closeButton.current?.focus();
+  }, [drawer, open]);
+
+  const className = ['side-menu', 'no-print', drawer && 'side-menu--drawer', drawer && open && 'is-open'].filter(Boolean).join(' ');
+
   return (
-    <nav aria-label="Main" style={{ width: 260, background: 'var(--u-navy)', color: 'white', display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden' }}>
+    <>
+    {drawer && open && <div className="menu-scrim no-print" aria-hidden="true" onClick={onClose} />}
+    <nav id="app-menu" aria-label="Main" className={className} inert={hidden || undefined} aria-hidden={hidden || undefined}>
       <div style={{ padding: '20px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div>
           <div style={{ fontFamily: 'Lora,serif', fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>FarmSafe</div>
@@ -37,6 +48,11 @@ export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogou
         >
           {lang === 'en' ? 'ES' : 'EN'}
         </button>
+        {drawer && (
+          <button ref={closeButton} type="button" className="menu-icon-button" onClick={onClose} aria-label={tt.nav.closeMenu}>
+            <X size={20} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '4px 12px 16px' }}>
@@ -73,5 +89,6 @@ export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogou
         )}
       </div>
     </nav>
+    </>
   );
 }

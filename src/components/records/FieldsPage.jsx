@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useLanguage } from '../../i18n/LanguageContext.jsx';
 import { canManageFields, FIELD_KINDS, summarizeFields, unregisteredFieldNames } from '../../domain/records/fields.js';
+import { computeFieldHolds, holdFor } from '../../domain/records/holds.js';
 import { addFieldsByName, deleteField, setFieldActive } from '../../lib/fields.js';
 import { recordsText } from './text.js';
 import { useFarmFields } from './farmFields.js';
@@ -42,6 +43,7 @@ export default function FieldsPage({ farm, role }) {
   const [justAdded, setJustAdded] = useState('');
 
   const summaries = useMemo(() => summarizeFields(fields, recordsReady ? records : []), [fields, records, recordsReady]);
+  const holds = useMemo(() => (recordsReady ? computeFieldHolds(records) : []), [records, recordsReady]);
   const found = useMemo(
     () => (canManage && recordsReady && status === 'ready' ? unregisteredFieldNames(records, fields) : []),
     [canManage, recordsReady, status, records, fields],
@@ -139,6 +141,7 @@ export default function FieldsPage({ farm, role }) {
                   key={summary.field.id}
                   summary={summary}
                   recordsReady={recordsReady}
+                  hold={holdFor(holds, summary.field.name)}
                   canManage={canManage}
                   busy={busyId === summary.field.id}
                   onDetails={() => setDetailId(summary.field.id)}

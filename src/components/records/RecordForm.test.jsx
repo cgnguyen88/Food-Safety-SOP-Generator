@@ -5,7 +5,9 @@ import userEvent from '@testing-library/user-event';
 import { renderWithLang } from './testUtils.jsx';
 
 vi.mock('../../lib/records.js', () => ({ createRecord: vi.fn(), updateRecord: vi.fn() }));
+vi.mock('../../lib/reportData.js', () => ({ listRecordsForReport: vi.fn() }));
 const { createRecord, updateRecord } = await import('../../lib/records.js');
+const { listRecordsForReport } = await import('../../lib/reportData.js');
 const { default: RecordForm } = await import('./RecordForm.jsx');
 const { FarmFieldsContext } = await import('./farmFields.js');
 
@@ -25,9 +27,14 @@ const fillHarvest = async (user) => {
   await user.type(screen.getByLabelText(/^Unit/), 'lb');
 };
 
+/** What the farm already has recorded, as the form reads it (by kind). */
+const farmHas = (records) => listRecordsForReport.mockImplementation(async ({ kinds }) => ({ data: { records: records.filter((r) => kinds.includes(r.kind)), truncated: false }, error: null }));
+
 beforeEach(() => {
   createRecord.mockReset();
   updateRecord.mockReset();
+  listRecordsForReport.mockReset();
+  farmHas([]);
 });
 afterEach(cleanup);
 
@@ -383,5 +390,93 @@ describe('RecordForm: starting from some values', () => {
   it('lets a record being edited keep its own values over any it was started with', () => {
     setup({ kind: 'harvest', role: 'owner', prefill: { crop: 'Wrong' }, record: { id: 'x', kind: 'harvest', status: 'pending_review', record_date: '2026-09-30', payload: { crop: 'Kale', field: 'A1', quantity: 5, unit: 'lb' } } });
     expect(screen.getByLabelText(/^Crop/).value).toBe('Kale');
+  });
+});
+
+describe('RecordForm: the sanitizer check', () => {
+  const LABEL = { id: 'l1', kind: 'sanitizer_label', status: 'approved', record_date: '2026-03-01', payload: { product: 'Peracetic Acid 15%', ppm_min: 100, ppm_max: 200 } };
+
+  const fillCleaning = async (user, ppm) => {
+    await user.type(screen.getByLabelText(/^Item or surface/), 'Harvest bins');
+    await user.selectOptions(screen.getByLabelText(/^What was done/), 'clean_sanitize');
+    await user.type(screen.getByLabelText(/^Sanitizer used/), 'peracetic acid');
+    await user.type(screen.getByLabelText(/^Concentration \(ppm\)/), ppm);
+  };
+
+  it('says a reading inside the label range is within it, and fills in the pass', async () => {
+    farmHas([LABEL]);
+    const { user } = setup({ kind: 'sanitation_log' });
+    await fillCleaning(user, '150');
+    expect(await screen.findByText('Within the label range (100 to 200 ppm).')).toBeTruthy();
+    const check = screen.getByLabelText(/^Concentration check/);
+    expect(check.value).toBe('pass');
+    expect(check.disabled).toBe(true);
+  });
+
+  it('says when a reading is too high, and saves the record as a fail whatever else was chosen', async () => {
+    farmHas([LABEL]);
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user } = setup({ kind: 'sanitation_log', role: 'manager' });
+    await fillCleaning(user, '300');
+    expect(await screen.findByText('Too high. The label says 100 to 200 ppm.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Save & approve' }));
+    await waitFor(() => expect(createRecord).toHaveBeenCalled());
+    expect(createRecord.mock.calls[0][0].payload).toMatchObject({ ppm: '300', check_result: 'fail' });
+  });
+
+  it('explains when there is no label to check against, and lets the person choose the result', async () => {
+    farmHas([]);
+    const { user } = setup({ kind: 'sanitation_log' });
+    await fillCleaning(user, '150');
+    expect(await screen.findByText(/no approved label for this sanitizer/)).toBeTruthy();
+    expect(screen.getByLabelText(/^Concentration check/).disabled).toBe(false);
+  });
+
+  it('does not check anything when the step only cleaned', async () => {
+    farmHas([LABEL]);
+    const { user } = setup({ kind: 'sanitation_log' });
+    await user.selectOptions(screen.getByLabelText(/^What was done/), 'clean_only');
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByLabelText(/^Concentration check/).disabled).toBe(false);
+  });
+
+  it('speaks Spanish', async () => {
+    farmHas([LABEL]);
+    const { user } = setup({ kind: 'sanitation_log' }, 'es');
+    await user.type(screen.getByLabelText(/^Artículo o superficie/), 'Cajas');
+    await user.selectOptions(screen.getByLabelText(/^Qué se hizo/), 'clean_sanitize');
+    await user.type(screen.getByLabelText(/^Desinfectante usado/), 'peracetic');
+    await user.type(screen.getByLabelText(/^Concentración \(ppm\)/), '50');
+    expect(await screen.findByText('Demasiado baja. La etiqueta indica de 100 a 200 ppm.')).toBeTruthy();
+  });
+});
+
+describe('RecordForm: a field on hold', () => {
+  const FLOOD = { id: 'w1', kind: 'weather_event', status: 'approved', record_date: '2026-10-01', payload: { event_type: 'flood', field: 'B4', crop_contact: 'yes' } };
+
+  it('warns when a harvest is from a field that is on hold', async () => {
+    farmHas([FLOOD]);
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Field/), 'b4');
+    expect(await screen.findByText('B4 is on hold. Record the corrective action that clears it before harvesting from it.')).toBeTruthy();
+  });
+
+  it('says nothing for a field that is not on hold', async () => {
+    farmHas([FLOOD]);
+    const { user } = setup({ role: 'manager' });
+    await user.type(screen.getByLabelText(/^Field/), 'A1');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.queryByText(/is on hold/)).toBeNull();
+  });
+
+  it('still lets the harvest be recorded: what happened has to be written down', async () => {
+    farmHas([FLOOD]);
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user, onSaved } = setup({ role: 'manager' });
+    await fillHarvest(user);
+    await user.clear(screen.getByLabelText(/^Field/));
+    await user.type(screen.getByLabelText(/^Field/), 'B4');
+    await user.click(screen.getByRole('button', { name: 'Save & approve' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
   });
 });

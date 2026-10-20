@@ -1,6 +1,9 @@
+import { RULES_TEXT } from './textRules.js';
+
 /** Bilingual UI strings for the food safety records screens. Field and kind labels live in the domain (kinds.js). */
 export const RECORDS_TEXT = {
   en: {
+    ...RULES_TEXT.en,
     nav: { section: 'Food Safety Records', overview: 'Records', review: 'Needs Review', logs: 'Logs', views: 'Saved Views', history: 'Change History', reports: 'Reports', fields: 'Fields' },
     overview: {
       title: 'Records',
@@ -229,6 +232,7 @@ export const RECORDS_TEXT = {
     },
   },
   es: {
+    ...RULES_TEXT.es,
     nav: { section: 'Registros de Inocuidad', overview: 'Registros', review: 'Por Revisar', logs: 'Registros por tipo', views: 'Vistas Guardadas', history: 'Historial de Cambios', reports: 'Informes', fields: 'Campos' },
     overview: {
       title: 'Registros',

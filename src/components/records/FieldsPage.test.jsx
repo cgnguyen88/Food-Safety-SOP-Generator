@@ -68,7 +68,22 @@ describe('FieldsPage: the list', () => {
   it('shows each field with its area, crops, record count, last wildlife check and harvest, and status', async () => {
     setup();
     await screen.findByRole('row', { name: /^B2\b/ });
-    expect(cellsOf('B2').slice(0, 7)).toEqual(['B2', '2.5 acres', 'Lettuce', '3', '2026-06-01', '2026-06-20', 'Active']);
+    expect(cellsOf('B2').slice(0, 7)).toEqual(['B2 On hold', '2.5 acres', 'Lettuce', '3', '2026-06-01', '2026-06-20', 'Active']);
+  });
+
+  it('marks a field that is on hold, and only that field', async () => {
+    setup();
+    await screen.findByRole('row', { name: /^B2\b/ });
+    expect(within(rowOf('B2')).getByText('On hold')).toBeTruthy();
+    expect(within(rowOf('North 40')).queryByText('On hold')).toBeNull();
+  });
+
+  it('does not mark a field once a corrective action has cleared its hold', async () => {
+    const cleared = [...RECORDS, rec('r8', 'corrective_action', '2026-06-05', { problem: 'p', action: 'a', clears_hold: 'yes', field: 'B2' })];
+    listRecordsForReport.mockResolvedValue(ok({ records: cleared, truncated: false }));
+    setup();
+    await screen.findByRole('row', { name: /^B2\b/ });
+    expect(within(rowOf('B2')).queryByText('On hold')).toBeNull();
   });
 
   it('shows a dash for a field with no area and nothing recorded, and keeps its notes under its name', async () => {

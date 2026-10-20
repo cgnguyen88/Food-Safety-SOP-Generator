@@ -7,7 +7,9 @@ import { ROUTES, logRoute, viewRoute } from '../../lib/recordsRoute.js';
 import { recordsText, viewName } from './text.js';
 import { KIND_ICONS } from './icons.js';
 import * as ui from './ui.js';
+import FieldHoldsBanner from './FieldHoldsBanner.jsx';
 import RecordForm from './RecordForm.jsx';
+import useFieldHolds from './useFieldHolds.js';
 
 /** The records home: what needs review, start a record of any kind, and the saved views. */
 export default function RecordsOverview({ farm, role, savedViews, needsReviewCount, onNavigate, onChanged }) {
@@ -15,6 +17,12 @@ export default function RecordsOverview({ farm, role, savedViews, needsReviewCou
   const lang = rawLang === 'es' ? 'es' : 'en';
   const tt = recordsText(lang);
   const [adding, setAdding] = useState(null);
+  const [prefill, setPrefill] = useState(undefined);
+  const holds = useFieldHolds({ farmId: farm.id });
+  const startRecord = (kind, values) => {
+    setPrefill(values);
+    setAdding(kind);
+  };
 
   return (
     <div style={ui.page}>
@@ -25,6 +33,13 @@ export default function RecordsOverview({ farm, role, savedViews, needsReviewCou
         <span style={{ fontSize: 14, color: '#334155' }}>{tt.reports.overviewHint}</span>
         <button type="button" onClick={() => onNavigate(ROUTES.reports)} style={ui.buttonSecondary}>{tt.reports.overviewOpen}</button>
       </div>
+
+      <FieldHoldsBanner
+        status={holds.status}
+        holds={holds.holds}
+        onRetry={holds.reload}
+        onClear={(hold) => startRecord('corrective_action', { field: hold.name, clears_hold: 'yes' })}
+      />
 
       {needsReviewCount > 0 && (
         <div style={{ ...ui.card, borderColor: '#fde68a', background: '#fffbeb', padding: '14px 18px', marginBottom: 22, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -44,7 +59,7 @@ export default function RecordsOverview({ farm, role, savedViews, needsReviewCou
               {kinds.map((kind) => {
                 const Icon = KIND_ICONS[KIND_META[kind].icon];
                 return (
-                  <button key={kind} type="button" onClick={() => setAdding(kind)} style={{ ...ui.card, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#0f172a', textAlign: 'left' }}>
+                  <button key={kind} type="button" onClick={() => startRecord(kind)} style={{ ...ui.card, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#0f172a', textAlign: 'left' }}>
                     <span style={{ width: 28, height: 28, flexShrink: 0, borderRadius: 8, background: `${KIND_META[kind].color}1f`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Icon size={15} color={KIND_META[kind].color} />
                     </span>
@@ -76,6 +91,7 @@ export default function RecordsOverview({ farm, role, savedViews, needsReviewCou
           kind={adding}
           role={role}
           farmId={farm.id}
+          prefill={prefill}
           onCancel={() => setAdding(null)}
           onSaved={() => {
             const kind = adding;

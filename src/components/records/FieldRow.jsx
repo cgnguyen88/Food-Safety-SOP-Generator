@@ -12,10 +12,11 @@ const off = (disabled) => (disabled ? ui.buttonDisabled : {});
  * One field in the list, from `summarizeFields`. What depends on the farm's records (the counts, and whether the
  * name can change or the field can be deleted) shows as a dash, and its buttons stay off, until they are read.
  */
-export default function FieldRow({ summary, recordsReady, canManage, busy, onDetails, onEdit, onToggleActive, onDelete }) {
+export default function FieldRow({ summary, recordsReady, hold = null, canManage, busy, onDetails, onEdit, onToggleActive, onDelete }) {
   const { lang: rawLang } = useLanguage();
   const lang = rawLang === 'es' ? 'es' : 'en';
   const tt = recordsText(lang).fields;
+  const holdText = recordsText(lang).holds;
   const none = tt.detail.none;
   const column = tt.columns;
 
@@ -28,7 +29,10 @@ export default function FieldRow({ summary, recordsReady, canManage, busy, onDet
   return (
     <tr>
       <td className="stack-title" style={{ ...td, ...muted }}>
-        <div style={{ fontWeight: 600, color: archived ? '#94a3b8' : '#0f172a' }}>{field.name}</div>
+        <div style={{ fontWeight: 600, color: archived ? '#94a3b8' : '#0f172a' }}>
+          {field.name}
+          {hold && <> <span title={holdText.since(hold.since)} style={{ ...ui.TONES.danger, marginLeft: 8, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700 }}>{holdText.badge}</span></>}
+        </div>
         {field.notes && <div style={{ fontSize: 12, color: '#94a3b8', whiteSpace: 'pre-wrap' }}>{field.notes}</div>}
       </td>
       <td data-label={column.area} style={{ ...td, ...muted, whiteSpace: 'nowrap' }}>{area}</td>

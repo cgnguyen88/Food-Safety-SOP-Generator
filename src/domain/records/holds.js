@@ -7,6 +7,9 @@ import { fieldKey, tidyFieldName } from './fields.js';
  * from the approved records every time; nothing is stored, so a hold can never be out of step with the records.
  */
 
+/** The kinds of record that decide whether a field is on hold. */
+export const HOLD_KINDS = Object.freeze(['weather_event', 'wildlife_check', 'corrective_action']);
+
 const TRIGGERS = Object.freeze([
   { kind: 'weather_event', reason: 'crop_contact', applies: (payload) => payload.crop_contact === 'yes' },
   { kind: 'wildlife_check', reason: 'animal_signs', applies: (payload) => payload.evidence === 'yes' },

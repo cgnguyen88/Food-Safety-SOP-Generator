@@ -4,22 +4,30 @@ import { KIND_FIELDS, KIND_META, requiredFieldKeys } from '../../domain/records/
 import { evaluateRecord } from '../../domain/records/schemas.js';
 import { todayLocalIso } from '../../domain/records/seasons.js';
 import { canReview } from '../../domain/records/workflow.js';
+import { applySanitationCheck, checkSanitizerConcentration } from '../../domain/records/sanitation.js';
+import { holdFor } from '../../domain/records/holds.js';
 import { createRecord, updateRecord } from '../../lib/records.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
 import { useFarmFields } from './farmFields.js';
 import FieldPicker from './FieldPicker.jsx';
 import Modal from './Modal.jsx';
+import SanitizerHint from './SanitizerHint.jsx';
+import useFarmRecords from './useFarmRecords.js';
+import useFieldHolds from './useFieldHolds.js';
+
+const SANITIZER_LABELS = ['sanitizer_label'];
 
 const blank = (value) => value === undefined || value === null || String(value).trim() === '';
 
-function Field({ field, lang, value, required, invalid, onChange, id, invalidText }) {
+function Field({ field, lang, value, required, invalid, onChange, id, invalidText, disabled }) {
   const label = `${field.label[lang]}${required ? ' *' : ''}`;
   const errorId = `${id}-error`;
   const common = {
     id,
     value,
     onChange: (event) => onChange(event.target.value),
+    disabled: disabled || undefined,
     'aria-required': required ? 'true' : undefined,
     'aria-invalid': invalid ? 'true' : undefined,
     'aria-describedby': invalid ? errorId : undefined,
@@ -71,7 +79,21 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
   const [submitting, setSubmitting] = useState(null);
   const [error, setError] = useState(null);
 
-  const evaluation = useMemo(() => evaluateRecord(kind, { record_date: date, payload: values }), [kind, date, values]);
+  // A cleaning log's pass or fail comes from the sanitizer's label, not from what is typed.
+  const sanitizing = kind === 'sanitation_log';
+  const labels = useFarmRecords({ farmId: sanitizing ? farmId : undefined, kinds: SANITIZER_LABELS });
+  const labelsReady = sanitizing && labels.status === 'ready';
+  const payload = useMemo(() => (labelsReady ? applySanitationCheck(values, labels.records) : values), [labelsReady, values, labels.records]);
+  const concentration = useMemo(
+    () => (labelsReady && ['clean_sanitize', 'sanitize_only'].includes(values.method) ? checkSanitizerConcentration({ ppm: values.ppm, sanitizer: values.sanitizer }, labels.records) : null),
+    [labelsReady, values.method, values.ppm, values.sanitizer, labels.records],
+  );
+
+  // A harvest from a field that is on hold needs a corrective action first.
+  const holds = useFieldHolds({ farmId: kind === 'harvest' ? farmId : undefined });
+  const heldField = kind === 'harvest' ? holdFor(holds.holds, values.field) : null;
+
+  const evaluation = useMemo(() => evaluateRecord(kind, { record_date: date, payload }), [kind, date, payload]);
   const filled = useMemo(() => Object.fromEntries(Object.entries(values).filter(([, v]) => !blank(v))), [values]);
   const required = useMemo(() => new Set(requiredFieldKeys(kind, filled)), [kind, filled]);
 
@@ -83,8 +105,8 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
     setSubmitting(status);
     setError(null);
     const result = isEdit
-      ? await updateRecord(record.id, { kind, recordDate: date, payload: values })
-      : await createRecord({ farmId, kind, recordDate: date, payload: values, status });
+      ? await updateRecord(record.id, { kind, recordDate: date, payload })
+      : await createRecord({ farmId, kind, recordDate: date, payload, status });
     setSubmitting(null);
     if (result.error) {
       setError(result.error);
@@ -139,13 +161,19 @@ export default function RecordForm({ kind, role, farmId, record, prefill, today,
           id={`rec-${field.key}`}
           field={field}
           lang={lang}
-          value={values[field.key]}
+          value={field.key === 'check_result' && concentration?.result ? concentration.result : values[field.key]}
+          disabled={field.key === 'check_result' && Boolean(concentration?.result)}
           required={required.has(field.key)}
           invalid={Boolean(evaluation.errors[field.key])}
           invalidText={tt.field.invalid}
           onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
         />
-      ))}
+      )).flatMap((node, index) => {
+        const key = fields[index].key;
+        if (key === 'ppm' && sanitizing) return [node, <SanitizerHint key="ppm-hint" check={concentration} loading={labels.status === 'loading' && !blank(values.ppm)} />];
+        if (key === 'field' && heldField) return [node, <p key="hold-warning" role="alert" style={{ fontSize: 12, margin: '-8px 0 14px', padding: '6px 10px', borderRadius: 8, background: '#fee2e2', color: '#991b1b' }}>{tt.holds.harvestWarning(heldField.name)}</p>];
+        return [node];
+      })}
 
       {!evaluation.complete && !hasErrors && evaluation.missing.length > 0 && (
         <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', borderRadius: 8, padding: '8px 12px', margin: '4px 0 14px' }}>

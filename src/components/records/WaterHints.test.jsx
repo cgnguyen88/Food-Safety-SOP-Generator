@@ -74,7 +74,15 @@ describe('ConcernSummary', () => {
 describe('RecentFloodsNote', () => {
   it('names the floods in the last year that may have reached this water', () => {
     renderWithLang(<RecentFloodsNote status="ready" floods={[{ id: 'f1', date: '2026-06-10', field: 'A2' }, { id: 'f2', date: '2026-03-01', field: '' }]} />);
-    expect(screen.getByRole('status').textContent).toBe('Flood in the last year that may have reached this water: 2026-06-10 (A2), 2026-03-01. Think about it when you rate the weather.');
+    expect(screen.getByRole('status').textContent).toBe('Floods in the last year that may have reached this water: 2026-06-10 (A2), 2026-03-01. Think about them when you rate the weather.');
+  });
+
+  it('speaks of floods in the plural when there are several', () => {
+    renderWithLang(<RecentFloodsNote status="ready" floods={[{ id: 'f1', date: '2026-06-10', field: 'A2' }, { id: 'f2', date: '2026-03-01', field: 'B1' }]} />);
+    expect(screen.getByRole('status').textContent).toBe('Floods in the last year that may have reached this water: 2026-06-10 (A2), 2026-03-01 (B1). Think about them when you rate the weather.');
+    cleanup();
+    renderWithLang(<RecentFloodsNote status="ready" floods={[{ id: 'f1', date: '2026-06-10', field: 'A2' }, { id: 'f2', date: '2026-03-01', field: 'B1' }]} />, 'es');
+    expect(screen.getByRole('status').textContent).toContain('Hubo inundaciones en el último año');
   });
 
   it('says nothing when there are none, and says so when floods could not be checked', () => {
@@ -83,6 +91,11 @@ describe('RecentFloodsNote', () => {
     cleanup();
     renderWithLang(<RecentFloodsNote status="error" floods={[]} />);
     expect(screen.getByRole('status').textContent).toContain('Floods could not be checked right now');
+  });
+
+  it('says the records were cut short, rather than nothing, when none were found but not everything was read', () => {
+    renderWithLang(<RecentFloodsNote status="ready" truncated floods={[]} />);
+    expect(screen.getByRole('status').textContent).toBe('You have so many records that some could not be read, so this may not show everything.');
   });
 
   it('says nothing while it is still reading', () => {
@@ -101,8 +114,20 @@ describe('FloodWaterNote', () => {
   });
 
   it('says no assessment lists the field when none does', () => {
-    renderWithLang(<FloodWaterNote status="ready" sources={[]} />);
+    renderWithLang(<FloodWaterNote status="ready" searched sources={[]} />);
     expect(screen.getByRole('status').textContent).toContain('No water assessment lists this field yet.');
+  });
+
+  it('does not say that before a field or water source has been given', () => {
+    renderWithLang(<FloodWaterNote status="ready" sources={[]} />);
+    expect(screen.getByRole('status').textContent).toContain('A flood can reach your water');
+    expect(screen.getByRole('status').textContent).not.toContain('No water assessment lists');
+  });
+
+  it('says the list may be incomplete, rather than that none is listed, when the records were cut short', () => {
+    renderWithLang(<FloodWaterNote status="ready" searched truncated sources={[]} />);
+    expect(screen.getByRole('status').textContent).not.toContain('No water assessment lists');
+    expect(screen.getByRole('status').textContent).toContain('You have so many records that some could not be read, so this may not show everything.');
   });
 
   it('does not claim to know the sources while still reading, or when it could not', () => {

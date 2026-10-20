@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CONCERN_KEYS, assessConcerns, floodLinks, prefillFromAssessment, recentFloods, sourcesServing, waterCounts, waterSources,
+  CONCERN_KEYS, assessConcerns, fieldNamesIn, floodLinks, prefillFromAssessment, recentFloods, sourcesServing, waterCounts, waterSources,
 } from './waterAssessment.js';
 
 let n = 0;
@@ -218,6 +218,15 @@ describe('floodLinks: which water sources a flood may have reached', () => {
     expect(links.map((l) => l.source.name)).toEqual(['Canal']);
   });
 
+  it('links nothing for a flood that was voided or rejected, or that is dated after today', () => {
+    const rows = sources([assessment()]);
+    expect(floodLinks(flood('A1', { status: 'voided' }), rows, { today: TODAY })).toEqual([]);
+    expect(floodLinks(flood('A1', { status: 'rejected' }), rows, { today: TODAY })).toEqual([]);
+    expect(floodLinks(flood('A1', { record_date: '2026-07-20' }), rows, { today: TODAY })).toEqual([]);
+    expect(floodLinks(flood('A1', { status: 'draft' }), rows, { today: TODAY })).toHaveLength(1);
+    expect(floodLinks(flood('A1', { status: 'pending_review' }), rows, { today: TODAY })).toHaveLength(1);
+  });
+
   it('links nothing for weather that is not a flood, or a flood that touches no assessed source', () => {
     expect(floodLinks(flood('A1', {}, { event_type: 'hail' }), sources([assessment()]))).toEqual([]);
     expect(floodLinks(flood('Z9'), sources([assessment()]))).toEqual([]);
@@ -293,5 +302,59 @@ describe('sourcesServing: the assessed water sources for a field', () => {
     expect(sourcesServing(rows, { field: 'Z9' })).toEqual([]);
     expect(sourcesServing(rows, {})).toEqual([]);
     expect(sourcesServing([], { field: 'A1' })).toEqual([]);
+  });
+});
+
+describe('naming fields and sources the way people write them', () => {
+  const floodedAfter = (fields, floodField, extra = {}) => waterSources([assessment({ fields_served: fields }), flood(floodField, {}, extra)], { today: TODAY })[0];
+
+  it.each([
+    ['A2 and B1', 'B1'],
+    ['A2 y B1', 'B1'],
+    ['A2 & B1', 'B1'],
+    ['A2/B1', 'B1'],
+    ['A2; B1', 'B1'],
+    ['A2,\nB1', 'B1'],
+    ['A-2, B1', 'A2'],
+    ['A 2, B1', 'A2'],
+    ['Parcela Peña', 'parcela pena'],
+    ['Parcela Pena', 'PARCELA PEÑA'],
+    ['Block #3', 'Block 3'],
+  ])('ties a flood on “%s” to the source, whatever the spelling (%s)', (fields, floodField) => {
+    expect(floodedAfter(fields, floodField).status).toBe('flood');
+  });
+
+  it('still keeps different fields apart', () => {
+    expect(floodedAfter('A2, B1', 'A20').status).toBe('current');
+    expect(floodedAfter('A1', 'A11').status).toBe('current');
+    expect(floodedAfter('Block 1', 'Block 10').status).toBe('current');
+  });
+
+  it('splits a box of fields the way people write them, keeping each once and as first written', () => {
+    expect(fieldNamesIn('A2 and B1, b1; C3 / D4 y E5 & F6')).toEqual(['A2', 'B1', 'C3', 'D4', 'E5', 'F6']);
+    expect(fieldNamesIn(' , ; ')).toEqual([]);
+    expect(fieldNamesIn(undefined)).toEqual([]);
+  });
+
+  it('does not take a word that merely contains "and" or "y" for a separator', () => {
+    expect(fieldNamesIn('Sandy Flat, Yard')).toEqual(['Sandy Flat', 'Yard']);
+  });
+
+  it('ties a flood that names several water sources to each of them', () => {
+    const rows = waterSources([assessment({ source: 'Well 1', fields_served: 'A1' }), assessment({ source: 'Pond', fields_served: 'C1' }), assessment({ source: 'Canal', fields_served: 'D1' }), flood('Z9', {}, { water_source: 'Well 1, pond and Spring' })], { today: TODAY });
+    expect(rows.map((r) => [r.name, r.status]).sort()).toEqual([['Canal', 'current'], ['Pond', 'flood'], ['Well 1', 'flood']]);
+  });
+
+  it('treats a source written two ways as one source, the newest spelling winning', () => {
+    const older = assessment({ source: 'Well #1', conclusion: 'mitigation_needed', mitigation: 'x' }, { record_date: '2024-04-01', created_at: '2024-04-01T00:00:00Z' });
+    const rows = waterSources([older, assessment({ source: 'Well 1' })], { today: TODAY });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: 'Well 1', status: 'current' });
+  });
+
+  it('finds the sources for a field, and the floods on a source, by the same loose spelling', () => {
+    const rows = waterSources([assessment({ fields_served: 'A-2 and B1' })], { today: TODAY });
+    expect(sourcesServing(rows, { field: 'a2' }).map((s) => s.name)).toEqual(['Well 1']);
+    expect(recentFloods([flood('b1')], { fields: 'A-2 and B1', today: TODAY })).toHaveLength(1);
   });
 });

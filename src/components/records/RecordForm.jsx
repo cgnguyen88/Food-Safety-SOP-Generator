@@ -6,7 +6,8 @@ import { todayLocalIso } from '../../domain/records/seasons.js';
 import { canReview } from '../../domain/records/workflow.js';
 import { applySanitationCheck, checkSanitizerConcentration } from '../../domain/records/sanitation.js';
 import { holdFor } from '../../domain/records/holds.js';
-import { recentFloods, sourcesServing, waterSources } from '../../domain/records/waterAssessment.js';
+import { findField } from '../../domain/records/fields.js';
+import { fieldNamesIn, recentFloods, sourcesServing, waterSources } from '../../domain/records/waterAssessment.js';
 import { createRecord, updateRecord } from '../../lib/records.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
@@ -15,7 +16,7 @@ import FieldPicker from './FieldPicker.jsx';
 import LotCodeTools from './LotCodeTools.jsx';
 import Modal from './Modal.jsx';
 import SanitizerHint from './SanitizerHint.jsx';
-import { ConcernSummary, FloodWaterNote, PublicWaterNote, RecentFloodsNote, WATER_SECTION_STARTS, WaterSectionHeading } from './WaterHints.jsx';
+import { ConcernSummary, FloodWaterNote, PublicWaterNote, RecentFloodsNote, UnlistedFieldsNote, WATER_SECTION_STARTS, WaterSectionHeading } from './WaterHints.jsx';
 import useFarmRecords from './useFarmRecords.js';
 import useFieldHolds from './useFieldHolds.js';
 
@@ -117,6 +118,11 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
     () => (assessing ? recentFloods(water.records, { fields: values.fields_served, source: values.source, today: waterToday }) : []),
     [assessing, water.records, values.fields_served, values.source, waterToday],
   );
+  // Names typed in the box of fields that are not in the farm's list (only when the farm has a list to check against).
+  const unlistedFields = useMemo(
+    () => (assessing && pickFromFarmFields ? fieldNamesIn(values.fields_served).filter((name) => !findField(name, farmFields)) : []),
+    [assessing, pickFromFarmFields, values.fields_served, farmFields],
+  );
   const sourcesForFlood = useMemo(
     () => (recordingFlood ? sourcesServing(waterSources(water.records, { today: waterToday }), { field: values.field, waterSource: values.water_source }) : []),
     [recordingFlood, water.records, values.field, values.water_source, waterToday],
@@ -208,9 +214,10 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
           return [node, ...(holdsUnreadable ? [<p key="holds-unreadable" role="alert" style={{ fontSize: 12, margin: '-8px 0 14px', padding: '6px 10px', borderRadius: 8, background: '#fef3c7', color: '#92400e' }}>{holds.status === 'error' ? tt.holds.unknown : tt.lots.checkingHolds}</p>] : []), <LotCodeTools key="lot-tools" farmId={farmId} recordId={record?.id} values={values} date={date} holds={holds} heldField={heldField} onMade={(code) => setValues((current) => ({ ...current, lot_code: code }))} />];
         }
         if (assessing && key === 'source_type' && values.source_type === 'public') return [node, <PublicWaterNote key="public-water" />];
-        if (assessing && key === 'weather_concern') return [node, <RecentFloodsNote key="recent-floods" status={water.status} floods={recentFloodList} />];
+        if (assessing && key === 'fields_served') return [node, <UnlistedFieldsNote key="unlisted-fields" names={unlistedFields} />];
+        if (assessing && key === 'weather_concern') return [node, <RecentFloodsNote key="recent-floods" status={water.status} floods={recentFloodList} truncated={water.truncated} />];
         if (assessing && key === 'testing_concern') return [node, <ConcernSummary key="concerns" values={values} onUse={(conclusion) => setValues((current) => ({ ...current, conclusion }))} />];
-        if (recordingFlood && key === 'water_source') return [node, <FloodWaterNote key="flood-water" status={water.status} sources={sourcesForFlood} />];
+        if (recordingFlood && key === 'water_source') return [node, <FloodWaterNote key="flood-water" status={water.status} sources={sourcesForFlood} searched={!blank(values.field) || !blank(values.water_source)} truncated={water.truncated} />];
         return [node];
       })}
 

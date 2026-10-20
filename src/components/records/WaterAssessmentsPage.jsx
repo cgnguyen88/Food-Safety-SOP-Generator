@@ -80,7 +80,7 @@ export default function WaterAssessmentsPage({ farm, role, today, onChanged }) {
             </label>
           </div>
 
-          {shown.length === 0 ? (
+          {shown.length === 0 && truncated ? null : shown.length === 0 ? (
             <div style={{ ...ui.card, padding: '28px 24px', textAlign: 'center', color: '#166534', background: '#f0fdf4' }}>{tt.nothingDue}</div>
           ) : (
             <div style={{ ...ui.card, overflowX: 'auto' }}>

@@ -186,7 +186,7 @@ export const KIND_FIELDS = Object.freeze({
         opt('other', 'Other', 'Otro'),
       ],
     }),
-    field('fields_served', 'text', 'Fields this water is used on (separate with commas)', 'Campos donde se usa esta agua (separa con comas)', { required: true }),
+    field('fields_served', 'textarea', 'Fields this water is used on (separate with commas)', 'Campos donde se usa esta agua (separa con comas)', { required: true }),
     field('application_method', 'select', 'How the water is applied', 'Cómo se aplica el agua', {
       required: true,
       options: [

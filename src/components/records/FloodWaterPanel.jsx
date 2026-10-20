@@ -19,18 +19,21 @@ const NOTE = { fontSize: 13, margin: 0, padding: '8px 12px', borderRadius: 8, ba
 export default function FloodWaterPanel({ record, farmId, onAssess }) {
   const { lang: rawLang } = useLanguage();
   const lang = rawLang === 'es' ? 'es' : 'en';
-  const tt = recordsText(lang).water.floodDetail;
+  const water = recordsText(lang).water;
+  const tt = water.floodDetail;
+  const incomplete = water.incomplete;
 
-  const { status, records } = useFarmRecords({ farmId, kinds: WATER_KINDS });
+  const { status, records, truncated } = useFarmRecords({ farmId, kinds: WATER_KINDS });
   const today = todayLocalIso();
-  const links = useMemo(() => floodLinks(record, waterSources(records, { today })), [record, records, today]);
+  const links = useMemo(() => floodLinks(record, waterSources(records, { today }), { today }), [record, records, today]);
   const assessmentOf = (source) => records.find((candidate) => candidate.id === source.recordId);
 
   return (
     <section aria-label={tt.title} style={{ margin: '16px 0 4px' }}>
       <h3 style={{ fontSize: 13, color: '#475569', margin: '0 0 6px' }}>{tt.title}</h3>
       {status === 'error' && <p role="status" style={{ ...NOTE, background: '#fef3c7', color: '#92400e' }}>{tt.error}</p>}
-      {status === 'ready' && links.length === 0 && <p style={NOTE}>{tt.none}</p>}
+      {status === 'ready' && links.length === 0 && !truncated && <p style={NOTE}>{tt.none}</p>}
+      {status === 'ready' && truncated && <p role="status" style={{ ...NOTE, background: '#fef3c7', color: '#92400e' }}>{incomplete}</p>}
       {status === 'ready' && links.length > 0 && (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 6 }}>
           {links.map(({ source, needsAssessment }) => (

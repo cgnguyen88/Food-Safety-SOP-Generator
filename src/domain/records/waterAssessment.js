@@ -1,5 +1,5 @@
 import { addYears, daysBetween, recordDay } from './dates.js';
-import { fieldKey, tidyFieldName } from './fields.js';
+import { tidyFieldName } from './fields.js';
 import { KIND_FIELDS } from './kinds.js';
 
 /**
@@ -42,8 +42,35 @@ const momentOf = (record) => {
   return Number.isNaN(time) ? null : time;
 };
 
-/** The fields a record names: one, or several separated by commas, semicolons or lines. @param {unknown} text */
-const namesOf = (text) => (typeof text === 'string' ? text.split(/[,;\n]/).map(tidyFieldName).filter((name) => name !== '') : []);
+/**
+ * What two spellings of a field or a water source have in common. Capital letters, accents, spacing and punctuation do
+ * not tell two names apart ("A-2", "A 2" and "a2" are one field; "Peña" and "Pena" are one place), because a mistaken
+ * "these are different" would mean a flood that is never tied to the water it reached, which is worse than a flood
+ * tied to a neighbour.
+ */
+const looseKey = (text) => tidyFieldName(text).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+
+/** What separates one name from the next in a box of names: commas, semicolons, lines, slashes, "&", "and" and "y". */
+const SEPARATORS = /[,;\n/&]|\s+(?:and|y)\s+/i;
+
+/**
+ * The fields (or water sources) a box of text names, each once, as first written.
+ * @param {unknown} text
+ * @returns {string[]}
+ */
+export function fieldNamesIn(text) {
+  if (typeof text !== 'string') return [];
+  const seen = new Set();
+  const names = [];
+  for (const piece of text.split(SEPARATORS)) {
+    const name = tidyFieldName(piece);
+    const key = looseKey(name);
+    if (key === '' || seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names;
+}
 
 const newestFirst = (a, b) => b.day.localeCompare(a.day) || String(b.record.created_at ?? '').localeCompare(String(a.record.created_at ?? ''));
 
@@ -55,8 +82,8 @@ function floodIsAfter(flood, assessed) {
 
 /** How a flood is tied to a water source: the flood names the source, or it hit a field the source waters. */
 function linkReason(floodPayload, source) {
-  if (fieldKey(floodPayload?.water_source) === source.key && source.key !== '') return { reason: 'named', field: tidyFieldName(floodPayload.field) };
-  const hit = namesOf(floodPayload?.field).find((name) => source.fieldKeys.has(fieldKey(name)));
+  if (source.key !== '' && fieldNamesIn(floodPayload?.water_source).some((name) => looseKey(name) === source.key)) return { reason: 'named', field: tidyFieldName(floodPayload.field) };
+  const hit = fieldNamesIn(floodPayload?.field).find((name) => source.fieldKeys.has(looseKey(name)));
   return hit === undefined ? null : { reason: 'field', field: hit };
 }
 
@@ -80,7 +107,7 @@ export function waterSources(records, { today }) {
   const latest = new Map();
   for (const record of records) {
     if (!isApproved(record, 'water_assessment')) continue;
-    const key = fieldKey(record.payload.source);
+    const key = looseKey(record.payload.source);
     const day = recordDay(record);
     if (key === '' || day === '' || day > today) continue;
     const candidate = { record, day };
@@ -94,8 +121,8 @@ export function waterSources(records, { today }) {
     .filter((flood) => flood.day !== '' && flood.day <= today);
 
   const rows = [...latest.entries()].map(([key, { record, day }]) => {
-    const names = namesOf(record.payload.fields_served);
-    const source = { key, fieldKeys: new Set(names.map(fieldKey)) };
+    const names = fieldNamesIn(record.payload.fields_served);
+    const source = { key, fieldKeys: new Set(names.map(looseKey)) };
     const assessed = { day, moment: momentOf(record) };
     const hits = floods.flatMap((flood) => {
       const link = linkReason(flood.record.payload, source);
@@ -126,15 +153,18 @@ export function waterSources(records, { today }) {
 
 /**
  * The water sources a flood may have reached (the ones it names, and the ones that water the field it hit), and whether
- * each still needs a new assessment because of it. Works for a flood in any status.
+ * each still needs a new assessment because of it. Works for a flood still being worked on, but not one that was
+ * voided or rejected, and not one dated after `today` (when it is given): those did not happen.
  *
- * @param {{ payload?: Record<string, unknown>, record_date?: string | null, created_at?: string } | null | undefined} flood
+ * @param {{ status?: string, payload?: Record<string, unknown>, record_date?: string | null, created_at?: string } | null | undefined} flood
  * @param {ReturnType<typeof waterSources>} sources
+ * @param {{ today?: string }} [options]
  * @returns {Array<{ source: ReturnType<typeof waterSources>[number], needsAssessment: boolean, reason: 'field' | 'named' }>}
  */
-export function floodLinks(flood, sources) {
+export function floodLinks(flood, sources, { today } = {}) {
   const day = flood ? recordDay(flood) : '';
   if (!flood || flood.payload?.event_type !== 'flood' || day === '') return [];
+  if (flood.status === 'voided' || flood.status === 'rejected' || (today !== undefined && day > today)) return [];
   const moment = momentOf(flood);
   return sources.flatMap((source) => {
     const link = linkReason(flood.payload, source);
@@ -175,8 +205,8 @@ export function prefillFromAssessment(record) {
  * @returns {Array<{ id: string, date: string, field: string, reason: 'field' | 'named' }>}
  */
 export function recentFloods(records, { fields, source, today }) {
-  const key = fieldKey(source);
-  const target = { key, fieldKeys: new Set(namesOf(fields).map(fieldKey)) };
+  const key = looseKey(source);
+  const target = { key, fieldKeys: new Set(fieldNamesIn(fields).map(looseKey)) };
   if (target.key === '' && target.fieldKeys.size === 0) return [];
   const since = addYears(today, -1);
   return records

@@ -31,6 +31,29 @@ describe('questionsFor', () => {
     }
   });
 
+  it('has a proper question for every detail a record can be missing, so none falls back on a label that reads badly', () => {
+    for (const lang of ['en', 'es']) {
+      for (const [kind, fields] of Object.entries(KIND_FIELDS)) {
+        for (const f of fields.filter((x) => x.required || x.requiredWhen)) {
+          const { text } = questionsFor(kind, [f.key], lang);
+          // The fallback question quotes the field's label; a written question does not.
+          const fallback = lang === 'es' ? `¿Cuál es ${f.label.es}?` : `What is the ${f.label.en}?`;
+          expect(text, `${kind}.${f.key} ${lang}`).not.toContain(fallback);
+        }
+      }
+    }
+  });
+
+  it('asks about a water assessment in plain words, telling the worker to answer low, some or high', () => {
+    const concern = questionsFor('water_assessment', ['weather_concern'], 'en').text;
+    expect(concern).toMatch(/weather/i);
+    expect(concern).toMatch(/low, some or high/i);
+    expect(questionsFor('water_assessment', ['conclusion'], 'en').text).toMatch(/measures/i);
+    expect(questionsFor('water_assessment', ['fields_served'], 'en').text).toMatch(/fields/i);
+    expect(questionsFor('water_assessment', ['nearby_concern'], 'es').text).toMatch(/poca, alguna o mucha/i);
+    expect(questionsFor('water_assessment', ['conclusion'], 'es').text).toMatch(/medidas/i);
+  });
+
   it(`asks at most ${MAX_QUESTIONS} things at once and reports which, so the rest follow in the next round`, () => {
     const q = questionsFor('harvest', ['record_date', 'crop', 'field', 'quantity', 'unit'], 'en');
     expect(q.asked).toHaveLength(MAX_QUESTIONS);

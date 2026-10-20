@@ -56,17 +56,29 @@ export function ConcernSummary({ values, onUse }) {
   );
 }
 
-/** The floods in the last year that may have reached this water, for the weather rating. @param {{ status: string, floods: Array<{ id: string, date: string, field: string }> }} props */
-export function RecentFloodsNote({ status, floods }) {
-  const { lang, tt } = useText();
+/** The floods in the last year that may have reached this water, for the weather rating. @param {{ status: string, floods: Array<{ id: string, date: string, field: string }>, truncated?: boolean }} props */
+export function RecentFloodsNote({ status, floods, truncated = false }) {
+  const { tt } = useText();
   if (status === 'error') return <p role="status" style={{ ...NOTE, ...TONE.warn }}>{tt.form.floodsError}</p>;
-  if (status !== 'ready' || floods.length === 0) return null;
+  if (status !== 'ready') return null;
+  if (floods.length === 0) return truncated ? <p role="status" style={{ ...NOTE, ...TONE.warn }}>{tt.incomplete}</p> : null;
   const items = floods.map((flood) => tt.form.floodItem(flood.date, flood.field));
-  return <p role="status" style={{ ...NOTE, ...TONE.info }}>{tt.form.floods(items.join(', '))}</p>;
+  return (
+    <>
+      <p role="status" style={{ ...NOTE, ...TONE.info }}>{tt.form.floods(items.join(', '), items.length)}</p>
+      {truncated && <p role="status" style={{ ...NOTE, ...TONE.warn }}>{tt.incomplete}</p>}
+    </>
+  );
 }
 
-/** On a flood record: a reminder that the flood can reach the water, and which assessed sources are for this field. @param {{ status: string, sources: Array<{ key: string, name: string }> }} props */
-export function FloodWaterNote({ status, sources }) {
+/**
+ * On a flood record: a reminder that the flood can reach the water, and which assessed sources are for this field. It
+ * says that no assessment lists the field only once a field or water source has been given (`searched`), and not when the
+ * records were cut short (`truncated`), since then it cannot know.
+ *
+ * @param {{ status: string, sources: Array<{ key: string, name: string }>, searched?: boolean, truncated?: boolean }} props
+ */
+export function FloodWaterNote({ status, sources, searched = false, truncated = false }) {
   const { tt } = useText();
   const known = status === 'ready';
   return (
@@ -74,7 +86,8 @@ export function FloodWaterNote({ status, sources }) {
       <strong>{tt.flood.title}</strong>
       <div>{tt.flood.body}</div>
       {known && sources.length > 0 && <div>{tt.flood.sources(sources.map((source) => source.name).join(', '))}</div>}
-      {known && sources.length === 0 && <div>{tt.flood.none}</div>}
+      {known && sources.length === 0 && searched && !truncated && <div>{tt.flood.none}</div>}
+      {known && truncated && <div>{tt.incomplete}</div>}
     </div>
   );
 }
@@ -98,4 +111,11 @@ export function WaterSectionHeading({ section }) {
       {body && <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{body}</p>}
     </div>
   );
+}
+
+/** Under the fields the water is used on: the names that are not in the farm's field list. @param {{ names: string[] }} props */
+export function UnlistedFieldsNote({ names }) {
+  const { tt } = useText();
+  if (names.length === 0) return null;
+  return <p role="status" style={{ ...NOTE, ...TONE.warn }}>{tt.form.notInList(names.join(', '))}</p>;
 }

@@ -377,6 +377,22 @@ describe('RecordDetail: a flood and the water it may have reached', () => {
     await screen.findByText('Created');
   });
 
+  it('says the list may be incomplete, rather than that none is tied, when the records were cut short', async () => {
+    listRecordsForReport.mockResolvedValue({ data: { records: [], truncated: true }, error: null });
+    setup(flood);
+    expect(await screen.findByText('You have so many records that some could not be read, so this may not show everything.')).toBeTruthy();
+    expect(screen.queryByText(/No assessed water source is tied/)).toBeNull();
+    await screen.findByText('Created');
+  });
+
+  it('does not tie a voided flood to anything', async () => {
+    farmHas([assessment('Well 1', 'A1', '2026-03-01')]);
+    setup({ ...flood, status: 'voided' });
+    expect(await screen.findByText(/No assessed water source is tied to this flood/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Assess Well 1 again' })).toBeNull();
+    await screen.findByText('Created');
+  });
+
   it('says so when the water assessments could not be read, rather than saying none are tied', async () => {
     listRecordsForReport.mockResolvedValue({ data: null, error: { code: 'unknown' } });
     setup(flood);

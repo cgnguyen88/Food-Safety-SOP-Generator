@@ -71,6 +71,16 @@ describe('WaterAssessmentsPage', () => {
     ]);
   });
 
+  it('names a flood once, and several floods as floods', async () => {
+    listRecordsForReport.mockResolvedValue(ok([assessment('Well 1', 'A1', '2026-03-01'), flood('A1', '2026-06-10'), flood('A1', '2026-08-02')]));
+    setup();
+    expect(await screen.findByText('Floods on 2026-06-10 (A1), 2026-08-02 (A1)')).toBeTruthy();
+    cleanup();
+    listRecordsForReport.mockResolvedValue(ok([assessment('Pozo', 'A1', '2026-03-01'), flood('A1', '2026-06-10')]));
+    setup({}, 'es');
+    expect(await screen.findByText('Inundación del 2026-06-10 (A1)')).toBeTruthy();
+  });
+
   it('can show every source', async () => {
     const { user } = setup();
     await screen.findByText('1 overdue');
@@ -82,6 +92,13 @@ describe('WaterAssessmentsPage', () => {
     listRecordsForReport.mockResolvedValue(ok([assessment('Spring', 'D1', '2026-09-01')]));
     setup();
     expect(await screen.findByText('Every water source is up to date.')).toBeTruthy();
+  });
+
+  it('does not say every source is up to date when the records were cut short, only warns', async () => {
+    listRecordsForReport.mockResolvedValue(ok([assessment('Spring', 'D1', '2026-09-01')], true));
+    setup();
+    expect(await screen.findByText(/very large number of records/)).toBeTruthy();
+    expect(screen.queryByText('Every water source is up to date.')).toBeNull();
   });
 
   it('explains an empty page and offers the first assessment', async () => {
@@ -102,7 +119,7 @@ describe('WaterAssessmentsPage', () => {
   it('starts an assessment again from the last one’s answers, with the decision left to make', async () => {
     const { user } = setup();
     await screen.findByText('1 overdue');
-    await user.click(screen.getByRole('button', { name: 'Assess Well 1 again' }));
+    await user.click(screen.getByRole('button', { name: 'Assess again: Well 1' }));
     const dialog = await screen.findByRole('dialog', { name: 'Add water assessment' });
     expect(within(dialog).getByLabelText(/^Water source or system/).value).toBe('Well 1');
     expect(within(dialog).getByLabelText(/^Fields this water is used on/).value).toBe('A1, A2');
@@ -115,7 +132,7 @@ describe('WaterAssessmentsPage', () => {
     createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
     const { user, onChanged } = setup();
     await screen.findByText('1 overdue');
-    await user.click(screen.getByRole('button', { name: 'Assess Canal again' }));
+    await user.click(screen.getByRole('button', { name: 'Assess again: Canal' }));
     const dialog = await screen.findByRole('dialog');
     for (const label of [/^The source and how/, /^Animals, manure/, /^How the water is applied, and the time/, /^The crop/, /^The weather/, /^Water test results/]) {
       await user.selectOptions(within(dialog).getByLabelText(label), 'low');
@@ -158,6 +175,6 @@ describe('WaterAssessmentsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Evaluaciones del agua' })).toBeTruthy();
     expect(await screen.findByText('1 por evaluar tras una inundación')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Nueva evaluación' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Evaluar de nuevo Well 1' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Evaluar de nuevo: Well 1' })).toBeTruthy();
   });
 });

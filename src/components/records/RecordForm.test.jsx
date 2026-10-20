@@ -875,6 +875,40 @@ describe('RecordForm: water assessments', () => {
     expect(listRecordsForReport).not.toHaveBeenCalled();
   });
 
+  describe('the fields the water is used on', () => {
+    const withFields = (fields) => {
+      const user = userEvent.setup();
+      renderWithLang(
+        <FarmFieldsContext.Provider value={{ status: 'ready', fields, reload: () => {} }}>
+          <RecordForm kind="water_assessment" role="manager" farmId={FARM} today="2026-10-12" onSaved={() => {}} onCancel={() => {}} />
+        </FarmFieldsContext.Provider>,
+      );
+      return { user };
+    };
+    const list = (...names) => names.map((name) => ({ id: `id-${name}`, name, is_active: true }));
+
+    it('names the fields that are not in the farm’s field list, so a flood on them can be tied to this water', async () => {
+      const { user } = withFields(list('A1', 'B2'));
+      await user.type(screen.getByLabelText(LABEL.fields_served), 'A1 and Z9, North 40');
+      expect((await screen.findByText(/Not in your field list/)).textContent).toBe('Not in your field list: Z9, North 40. Use the names under Fields, separated by commas, so a flood on one of these fields is tied to this water.');
+    });
+
+    it('says nothing when every field is in the list, however it is written, or when the farm has no list yet', async () => {
+      const { user } = withFields(list('A1', 'B2'));
+      await user.type(screen.getByLabelText(LABEL.fields_served), ' a1,  B2 ');
+      expect(screen.queryByText(/Not in your field list/)).toBeNull();
+      cleanup();
+      const second = withFields([]);
+      await second.user.type(screen.getByLabelText(LABEL.fields_served), 'Z9');
+      expect(screen.queryByText(/Not in your field list/)).toBeNull();
+    });
+
+    it('has room for a long list of fields', () => {
+      assessment();
+      expect(screen.getByLabelText(LABEL.fields_served).tagName).toBe('TEXTAREA');
+    });
+  });
+
   describe('on a flood record', () => {
     const floodForm = async (user, props = {}) => {
       await user.selectOptions(screen.getByLabelText(/^Event/), 'flood');
@@ -888,6 +922,16 @@ describe('RecordForm: water assessments', () => {
       await user.type(screen.getByLabelText(/^Field/), 'a2');
       expect(await screen.findByText('A flood can reach your water')).toBeTruthy();
       expect(await screen.findByText('Water sources for this field: Well 1.')).toBeTruthy();
+    });
+
+    it('does not say no assessment lists the field before a field has been given', async () => {
+      farmHas([WELL]);
+      const { user } = setup({ kind: 'weather_event', role: 'manager' });
+      await floodForm(user);
+      await waitFor(() => expect(listRecordsForReport).toHaveBeenCalled());
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      expect(screen.getByText('A flood can reach your water')).toBeTruthy();
+      expect(screen.queryByText(/No water assessment lists this field yet/)).toBeNull();
     });
 
     it('says when no assessment lists the field', async () => {

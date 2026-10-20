@@ -17,6 +17,13 @@ describe('parseShareToken', () => {
   });
 });
 
+describe('findSop: other than by number', () => {
+  it('finds nothing for a number that is no SOP, instead of an undefined one', () => {
+    expect(findSop(2)).toBe(SOP_DATA[1]);
+    expect(findSop(12345)).toBeNull();
+  });
+});
+
 describe('findSop', () => {
   it('finds a SOP by its number, and nothing for anything else', () => {
     expect(findSop(1)).toBe(SOP_DATA[0]);
@@ -59,6 +66,16 @@ describe('cleanSignerName', () => {
     expect(cleanSignerName('李明')).toBe('李明');
   });
 
+  it('needs two characters with two letters: one letter is not a name', () => {
+    expect(cleanSignerName('A')).toBeNull();
+    expect(cleanSignerName('Al')).toBe('Al');
+  });
+
+  it('cuts nothing from a name of exactly 80 characters, and refuses 81', () => {
+    expect(cleanSignerName('a'.repeat(80))).toBe('a'.repeat(80));
+    expect(cleanSignerName('a'.repeat(81))).toBeNull();
+  });
+
   it('accepts exactly the limits', () => {
     expect(cleanSignerName('Al')).toBe('Al');
     expect(cleanSignerName('x'.repeat(80))).toHaveLength(80);
@@ -90,9 +107,51 @@ describe('sharedSopView', () => {
     expect(view.farmName).toHaveLength(120);
   });
 
+  it('keeps at most 50 items of a list, each at most 200 characters, and keeps exactly those limits', () => {
+    const listField = SOP.sections.flatMap((s) => s.fields).find((f) => f.type === 'checkbox' || f.checkboxOptions) ?? FIELD;
+    const fifty = Array.from({ length: 50 }, (_, i) => `item ${i}`);
+    expect(sharedSopView({ sop: SOP, form: { [listField.id]: fifty }, farmProfile: null }).values[listField.id]).toHaveLength(50);
+    expect(sharedSopView({ sop: SOP, form: { [listField.id]: [...fifty, 'one more'] }, farmProfile: null }).values[listField.id]).toHaveLength(50);
+    expect(sharedSopView({ sop: SOP, form: { [listField.id]: ['x'.repeat(200)] }, farmProfile: null }).values[listField.id][0]).toHaveLength(200);
+    expect(sharedSopView({ sop: SOP, form: { [listField.id]: ['x'.repeat(201)] }, farmProfile: null }).values[listField.id][0]).toHaveLength(200);
+  });
+
+  it('leaves out a list that has nothing in it after cleaning', () => {
+    const listField = SOP.sections.flatMap((s) => s.fields).find((f) => f.type === 'checkbox' || f.checkboxOptions) ?? FIELD;
+    expect(sharedSopView({ sop: SOP, form: { [listField.id]: ['', '  ', 3] }, farmProfile: null }).values[listField.id]).toBeUndefined();
+    expect(sharedSopView({ sop: SOP, form: { [listField.id]: [] }, farmProfile: null }).values[listField.id]).toBeUndefined();
+  });
+
+  it('keeps the line breaks and tabs of a written answer, and takes out other control characters', () => {
+    const view = sharedSopView({ sop: SOP, form: { [FIELD.id]: 'Line one\nLine two\twith tab\r\nLine three\u0007 bell' }, farmProfile: null });
+    expect(view.values[FIELD.id]).toBe('Line one\nLine two\twith tab\r\nLine three bell');
+  });
+
+  it('shows a form that is an object but not a list, and ignores a list or text in its place', () => {
+    expect(sharedSopView({ sop: SOP, form: { [FIELD.id]: 'x' }, farmProfile: null }).values).toEqual({ [FIELD.id]: 'x' });
+    expect(sharedSopView({ sop: SOP, form: ['x'], farmProfile: null }).values).toEqual({});
+    expect(sharedSopView({ sop: SOP, form: 'x', farmProfile: null }).values).toEqual({});
+    expect(sharedSopView({ sop: SOP, form: null, farmProfile: null }).values).toEqual({});
+  });
+
   it('copes with a missing form or profile', () => {
     expect(sharedSopView({ sop: SOP, form: undefined, farmProfile: undefined })).toEqual({ sopId: 1, farmName: '', values: {} });
     expect(sharedSopView({ sop: SOP, form: [1, 2], farmProfile: 'x' })).toEqual({ sopId: 1, farmName: '', values: {} });
+  });
+});
+
+describe('signOffRow: limits', () => {
+  const share = { id: 'share-1', farm_id: 'farm-1' };
+
+  it('keeps the dedupe key within 200 characters however long the name or id is', () => {
+    const { row } = signOffRow({ share: { ...share, id: 'i'.repeat(200) }, sop: SOP, name: 'x'.repeat(80), today: '2026-10-20', lang: 'en' });
+    expect(row.source_ref).toHaveLength(200);
+    const short = signOffRow({ share, sop: SOP, name: 'Ana Diaz', today: '2026-10-20', lang: 'en' }).row.source_ref;
+    expect(short).toBe('sop-share:share-1:2026-10-20:ana diaz');
+  });
+
+  it('is refused when the record would be incomplete', () => {
+    expect(signOffRow({ share, sop: { ...SOP, title: '' }, name: 'Ana Diaz', today: '2026-10-20', lang: 'en' })).toEqual({ ok: false });
   });
 });
 

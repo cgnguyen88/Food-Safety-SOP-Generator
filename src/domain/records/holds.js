@@ -26,7 +26,7 @@ const momentOf = (record) => {
 
 /** Whether a clearing action comes after an event. With no date on either side it cannot be told, so it does not. */
 function comesAfter(action, trigger) {
-  if (action.date === '' || trigger.date === '') return false;
+  if (action.date === '' || trigger.date === null) return false;
   // An action cannot have dealt with an event that was recorded after the action was.
   if (action.moment !== null && trigger.moment !== null && action.moment < trigger.moment) return false;
   if (action.date !== trigger.date) return action.date > trigger.date;

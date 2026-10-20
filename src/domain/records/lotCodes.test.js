@@ -31,6 +31,57 @@ describe('validateLotFormat', () => {
   });
 });
 
+describe('lot code limits', () => {
+  it('accepts a format of exactly 40 characters and refuses 41', () => {
+    const forty = `{YYYYMMDD}${'-'.repeat(30)}`;
+    expect(forty).toHaveLength(40);
+    expect(validateLotFormat(forty).ok).toBe(true);
+    expect(validateLotFormat(`${forty}-`).errors).toContain('too_long');
+    expect(LOT_FORMAT_MAX).toBe(40);
+  });
+
+  it('keeps a farm code to 8 letters, a crop to 12 and a field to 14', () => {
+    const code = generateLotCode(input({ farmCode: 'ABCDEFGHIJ', crop: 'abcdefghijklmnop', field: 'abcdefghijklmnopqrs' })).code;
+    expect(code).toBe('ABCDEFGH-ABCDEFGHIJKL-20260703-ABCDEFGHIJKLMN');
+  });
+
+  it('makes a farm code of the farm’s name with digits kept in it', () => {
+    expect(generateLotCode(input({ farmCode: '', farmName: 'Farm 9 Acres' })).code).toBe('F9A-LETTUCE-20260703-A1');
+    expect(generateLotCode(input({ farmCode: '', farmName: 'Farm 0 Acres' })).code).toBe('F0A-LETTUCE-20260703-A1');
+  });
+
+  it('does not use the first letters when the farm has one word', () => {
+    expect(generateLotCode(input({ farmCode: '', farmName: 'Sunnyside' })).code).toBe('SUNNYSIDE-LETTUCE-20260703-A1'.replace('SUNNYSIDE', 'SUNNYSID'));
+  });
+
+  it('does not number the first use of a code, but numbers the second as 2 and the third as 3', () => {
+    expect(generateLotCode(input()).code).toBe('GVF-LETTUCE-20260703-A1');
+    expect(generateLotCode(input({ existingCodes: ['GVF-LETTUCE-20260703-A1'] })).code).toBe('GVF-LETTUCE-20260703-A1-2');
+    expect(generateLotCode(input({ existingCodes: ['GVF-LETTUCE-20260703-A1', 'GVF-LETTUCE-20260703-A1-2'] })).code).toBe('GVF-LETTUCE-20260703-A1-3');
+  });
+
+  it('numbers a {SEQ} code from 01 and skips taken numbers', () => {
+    expect(generateLotCode(input({ format: '{YYYYMMDD}-{SEQ}' })).code).toBe('20260703-01');
+    expect(generateLotCode(input({ format: '{YYYYMMDD}-{SEQ}', existingCodes: ['20260703-01', '20260703-02'] })).code).toBe('20260703-03');
+  });
+
+  it('refuses a format that has only a day-of-year part, or only a year, as the date', () => {
+    expect(validateLotFormat('{FARM}-{JULIAN}').ok).toBe(true);
+    expect(validateLotFormat('{FARM}-{YYYY}').errors).toEqual(['no_date']);
+    expect(validateLotFormat('{FARM}-{SEQ}').ok).toBe(true);
+  });
+
+  it('lists a missing farm even when the format also has a date', () => {
+    expect(generateLotCode(input({ farmCode: '', farmName: '' }))).toEqual({ ok: false, reason: 'missing', missing: ['FARM'] });
+    expect(generateLotCode(input({ format: '{FARM}-{YYYYMMDD}', farmCode: '', farmName: '', date: '' })).missing).toEqual(['FARM', 'YYYYMMDD']);
+  });
+
+  it('flags an unknown part even next to known ones', () => {
+    expect(validateLotFormat('{FARM}{NOPE}{YYYYMMDD}').errors).toEqual(['unknown_token']);
+    expect(validateLotFormat('{FARM}{YYYYMMDD}').errors).toEqual([]);
+  });
+});
+
 describe('generateLotCode', () => {
   it('fills the format from the farm, the crop, the date and the field', () => {
     expect(generateLotCode(input())).toEqual({ ok: true, code: 'GVF-LETTUCE-20260703-A1' });

@@ -115,6 +115,39 @@ describe('trainingDueList', () => {
   });
 });
 
+describe('trainingDueList: order and limits', () => {
+  const list = (records, options = {}) => trainingDueList(records, { today: '2026-10-19', ...options });
+
+  it('puts overdue before due soon before current, whatever the days left', () => {
+    const rows = list([training('A', 'Current', '2026-10-01'), training('B', 'Soon', '2025-11-15'), training('C', 'Late', '2024-01-01')]);
+    expect(rows.map((r) => r.status)).toEqual(['overdue', 'due_soon', 'current']);
+  });
+
+  it('puts the person due soonest first within a standing, then by name, then by topic', () => {
+    const rows = list([
+      training('Zeta topic', 'Bea', '2025-11-20'),
+      training('Alpha topic', 'Bea', '2025-11-20'),
+      training('Zeta topic', 'Ana', '2025-11-20'),
+      training('Early', 'Cy', '2025-11-10'),
+    ]);
+    expect(rows.map((r) => `${r.person}/${r.topic}`)).toEqual(['Cy/Early', 'Ana/Zeta topic', 'Bea/Alpha topic', 'Bea/Zeta topic']);
+  });
+
+  it('keeps the latest date for a person and topic, and a second record on the same day changes nothing', () => {
+    const rows = list([training('Hygiene', 'Ana', '2026-03-01'), training('Hygiene', 'Ana', '2026-03-01'), training('Hygiene', 'Ana', '2026-02-01')]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ lastTrained: '2026-03-01' });
+    expect(rows[0].recordIds).toHaveLength(3);
+  });
+
+  it('says due soon from exactly 30 days before the due date, and current from 31', () => {
+    const at = (daysLeft) => list([training('Hygiene', 'Ana', '2025-10-19')], { today: addDaysTo('2026-10-19', -daysLeft) })[0];
+    expect(at(30).status).toBe('due_soon');
+    expect(at(31).status).toBe('current');
+    expect(DUE_SOON_DAYS).toBe(30);
+  });
+});
+
 describe('trainingCounts', () => {
   it('counts the rows by how they stand', () => {
     const rows = [{ status: 'overdue' }, { status: 'overdue' }, { status: 'due_soon' }, { status: 'current' }];

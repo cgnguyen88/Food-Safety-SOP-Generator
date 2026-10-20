@@ -117,6 +117,16 @@ describe('computeFieldHolds: what lifts a hold', () => {
     expect(computeFieldHolds(before)).toHaveLength(1);
   });
 
+  it('on the same day, an action recorded at the very same moment lifts the event', () => {
+    const records = [flood('A2'), clearing('A2', { created_at: '2026-06-10T08:00:00Z' })];
+    expect(computeFieldHolds(records)).toEqual([]);
+  });
+
+  it('on the same day, when only one of them has a recording time, the action is taken to come after', () => {
+    expect(computeFieldHolds([flood('A2'), clearing('A2', { created_at: undefined })])).toEqual([]);
+    expect(computeFieldHolds([flood('A2', 'yes', { created_at: undefined }), clearing('A2')])).toEqual([]);
+  });
+
   it('on the same day with no recording times, the action lifts the event', () => {
     const records = [flood('A2', 'yes', { created_at: undefined }), clearing('A2', { created_at: undefined })];
     expect(computeFieldHolds(records)).toEqual([]);
@@ -129,6 +139,35 @@ describe('computeFieldHolds: what lifts a hold', () => {
   it('keeps a hold from an event with no date at all until something dated lifts it', () => {
     const undated = flood('A2', 'yes', { record_date: null, created_at: undefined });
     expect(computeFieldHolds([undated, clearing('A2', { record_date: '2026-06-15' })])).toHaveLength(1);
+  });
+});
+
+describe('computeFieldHolds: what each hold says', () => {
+  it('says what the weather event was and what the animal check found', () => {
+    const [flooded] = computeFieldHolds([flood('A2')]);
+    expect(flooded.triggers[0].detail).toBe('flood');
+    const [animal] = computeFieldHolds([record('wildlife_check', { field: 'B1', evidence: 'yes', evidence_description: 'Deer tracks in the bed' })]);
+    expect(animal.triggers[0].detail).toBe('Deer tracks in the bed');
+    const [plain] = computeFieldHolds([animals('C1')]);
+    expect(plain.triggers[0].detail).toBe('');
+  });
+
+  it('orders the holds by when they began (undated last, then by name), and each hold’s events by date', () => {
+    const records = [
+      animals('Zed', 'yes', { record_date: '2026-07-01' }),
+      animals('Alpha', 'yes', { record_date: '2026-07-01' }),
+      animals('Undated', 'yes', { record_date: null, created_at: undefined }),
+      flood('Early', 'yes', { record_date: '2026-05-01' }),
+    ];
+    expect(computeFieldHolds(records).map((h) => h.name)).toEqual(['Early', 'Alpha', 'Zed', 'Undated']);
+    const [hold] = computeFieldHolds([animals('A2', 'yes', { record_date: '2026-07-01' }), flood('A2'), animals('A2', 'yes', { record_date: null, created_at: undefined })]);
+    expect(hold.triggers.map((t) => t.date)).toEqual(['2026-06-10', '2026-07-01', null]);
+    expect(hold.since).toBe('2026-06-10');
+  });
+
+  it('has no start date when every event is undated', () => {
+    const [hold] = computeFieldHolds([flood('A2', 'yes', { record_date: null, created_at: undefined })]);
+    expect(hold.since).toBeNull();
   });
 });
 

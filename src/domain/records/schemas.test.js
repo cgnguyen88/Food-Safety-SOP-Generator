@@ -152,6 +152,8 @@ describe('summarizeRecord', () => {
     expect(s('weather_event', { event_type: 'flood', field: 'A2' })).toBe('Flood · A2');
     expect(s('wildlife_check', { field: 'B2', evidence: 'yes' })).toBe('B2 · Signs of animals');
     expect(s('water_test', { source: 'Well 1', result: 'fail' })).toBe('Well 1 · Does not meet the standard');
+    expect(s('water_assessment', { source: 'Well 1', conclusion: 'mitigation_needed' })).toBe('Well 1 · Measures needed');
+    expect(s('water_assessment', { source: 'Canal', conclusion: 'no_mitigation' }, 'es')).toBe('Canal · No se necesitan medidas');
     expect(s('harvest', { crop: 'Lettuce', quantity: 12, unit: 'cartons' })).toBe('Lettuce · 12 cartons');
     expect(s('illness_injury', { type: 'illness', person: 'J. Doe' })).toBe('Illness · J. Doe');
     expect(s('shipment', { customer: 'Co-op', lot_codes: 'GV-0801' })).toBe('Co-op · GV-0801');

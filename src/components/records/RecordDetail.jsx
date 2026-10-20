@@ -6,6 +6,7 @@ import { getAttachmentUrl } from '../../lib/attachments.js';
 import { advanceRecord, listRevisions } from '../../lib/records.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
+import FloodWaterPanel from './FloodWaterPanel.jsx';
 import Modal from './Modal.jsx';
 import RecordForm from './RecordForm.jsx';
 import StatusBadge from './StatusBadge.jsx';
@@ -45,6 +46,8 @@ export default function RecordDetail({ record, role, userId, farm, onClose, onCh
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  // A water assessment started from a flood record (`{ prefill }`). The water panel is not shown meanwhile, so it reads again when it comes back.
+  const [assessing, setAssessing] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -114,6 +117,19 @@ export default function RecordDetail({ record, role, userId, farm, onClose, onCh
     );
   }
 
+  if (assessing) {
+    return (
+      <RecordForm
+        kind="water_assessment"
+        role={role}
+        farmId={farm.id}
+        prefill={assessing.prefill}
+        onCancel={() => setAssessing(null)}
+        onSaved={() => setAssessing(null)}
+      />
+    );
+  }
+
   const present = fields.filter((f) => current.payload?.[f.key] !== undefined && current.payload?.[f.key] !== null && current.payload?.[f.key] !== '');
 
   return (
@@ -134,6 +150,10 @@ export default function RecordDetail({ record, role, userId, farm, onClose, onCh
         <p style={{ fontSize: 12, color: '#92400e', background: '#fef3c7', borderRadius: 8, padding: '8px 12px', margin: '12px 0' }}>
           {tt.detail.missing} {current.missing_fields.map((k) => (k === 'record_date' ? tt.form.date : label(k))).join(', ')}
         </p>
+      )}
+
+      {kind === 'weather_event' && current.payload?.event_type === 'flood' && (
+        <FloodWaterPanel record={current} farmId={farm.id} onAssess={(prefill) => setAssessing({ prefill })} />
       )}
 
       {current.attachments?.length > 0 && (

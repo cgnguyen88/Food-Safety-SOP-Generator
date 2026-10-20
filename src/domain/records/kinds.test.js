@@ -9,7 +9,7 @@ describe('record vocabulary', () => {
   it('defines the food safety kinds: sanitation, field and environment, people, harvest and traceability, and notes', () => {
     expect([...RECORD_KINDS].sort()).toEqual([
       'corrective_action', 'harvest', 'illness_injury', 'note', 'packing_cooling', 'sanitation_log', 'sanitizer_label',
-      'sanitizer_purchase', 'shipment', 'soil_amendment', 'training', 'visitor', 'water_test', 'weather_event', 'wildlife_check',
+      'sanitizer_purchase', 'shipment', 'soil_amendment', 'training', 'visitor', 'water_assessment', 'water_test', 'weather_event', 'wildlife_check',
     ]);
   });
 
@@ -98,6 +98,55 @@ describe('requiredFieldKeys', () => {
     expect(requiredFieldKeys('corrective_action', {})).toEqual(['problem', 'action']);
     expect(requiredFieldKeys('corrective_action', { clears_hold: 'no' })).toEqual(['problem', 'action']);
     expect(requiredFieldKeys('corrective_action', { clears_hold: 'yes' })).toEqual(['problem', 'action', 'field']);
+  });
+});
+
+describe('the water assessment record', () => {
+  const keys = KIND_FIELDS.water_assessment.map((f) => f.key);
+  const fieldOf = (key) => KIND_FIELDS.water_assessment.find((f) => f.key === key);
+
+  it('covers what the Produce Safety Rule says an assessment looks at: the source, the people and animals near it, how the water is applied, the crop, the weather and test results', () => {
+    expect(keys).toEqual([
+      'source', 'source_type', 'fields_served', 'application_method', 'days_before_harvest',
+      'source_concern', 'nearby_concern', 'practice_concern', 'crop_concern', 'weather_concern', 'testing_concern',
+      'conclusion', 'mitigation', 'assessed_by', 'notes',
+    ]);
+  });
+
+  it('needs the source, what it is, the fields it waters, how it is applied, how each factor looks and what was decided', () => {
+    expect(requiredFieldKeys('water_assessment', {})).toEqual([
+      'source', 'source_type', 'fields_served', 'application_method',
+      'source_concern', 'nearby_concern', 'practice_concern', 'crop_concern', 'weather_concern', 'testing_concern', 'conclusion',
+    ]);
+  });
+
+  it('asks what will be done, and by when, only when the conclusion is that measures are needed', () => {
+    expect(requiredFieldKeys('water_assessment', { conclusion: 'no_mitigation' })).not.toContain('mitigation');
+    expect(requiredFieldKeys('water_assessment', { conclusion: 'mitigation_needed' })).toContain('mitigation');
+  });
+
+  it('rates every factor low, some or high, and lets test results also be "none"', () => {
+    for (const key of ['source_concern', 'nearby_concern', 'practice_concern', 'crop_concern', 'weather_concern']) {
+      expect(fieldOf(key).options.map((o) => o.value), key).toEqual(['low', 'some', 'high']);
+    }
+    expect(fieldOf('testing_concern').options.map((o) => o.value)).toEqual(['low', 'some', 'high', 'none']);
+  });
+
+  it('has a short conclusion in each language for the record’s title', () => {
+    expect(optionLabel('water_assessment', 'conclusion', 'mitigation_needed', 'en')).toBe('Measures needed');
+    expect(optionLabel('water_assessment', 'conclusion', 'no_mitigation', 'es')).toBe('No se necesitan medidas');
+  });
+
+  it('is listed with the field and environment records, next to water tests', () => {
+    const group = KIND_GROUPS.find((g) => g.id === 'field');
+    expect(group.kinds.indexOf('water_assessment')).toBe(group.kinds.indexOf('water_test') + 1);
+  });
+
+  it('lets a flood record say which water source it may have reached, so it can be tied to that source’s assessment', () => {
+    const field = KIND_FIELDS.weather_event.find((f) => f.key === 'water_source');
+    expect(field.type).toBe('text');
+    expect(field.required).toBeUndefined();
+    expect(requiredFieldKeys('weather_event', { event_type: 'flood' })).not.toContain('water_source');
   });
 });
 

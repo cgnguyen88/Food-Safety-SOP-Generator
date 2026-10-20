@@ -6,6 +6,7 @@ import { todayLocalIso } from '../../domain/records/seasons.js';
 import { canReview } from '../../domain/records/workflow.js';
 import { applySanitationCheck, checkSanitizerConcentration } from '../../domain/records/sanitation.js';
 import { holdFor } from '../../domain/records/holds.js';
+import { recentFloods, sourcesServing, waterSources } from '../../domain/records/waterAssessment.js';
 import { createRecord, updateRecord } from '../../lib/records.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
@@ -14,10 +15,13 @@ import FieldPicker from './FieldPicker.jsx';
 import LotCodeTools from './LotCodeTools.jsx';
 import Modal from './Modal.jsx';
 import SanitizerHint from './SanitizerHint.jsx';
+import { ConcernSummary, FloodWaterNote, PublicWaterNote, RecentFloodsNote } from './WaterHints.jsx';
 import useFarmRecords from './useFarmRecords.js';
 import useFieldHolds from './useFieldHolds.js';
 
 const SANITIZER_LABELS = ['sanitizer_label'];
+/** What the water hints read: floods, and the farm's water assessments. */
+const WATER_KINDS = ['weather_event', 'water_assessment'];
 
 const blank = (value) => value === undefined || value === null || String(value).trim() === '';
 
@@ -103,6 +107,20 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
   const holdsUnreadable = kind === 'harvest' && movesForward && holds.status !== 'ready' && !blank(values.lot_code);
   const submitBlocked = lotCodeOnHeldField || holdsUnreadable;
 
+  // Water: an assessment looks at floods of the last year; a flood record points at the water sources for its field.
+  const assessing = kind === 'water_assessment';
+  const recordingFlood = kind === 'weather_event' && values.event_type === 'flood';
+  const water = useFarmRecords({ farmId: assessing || recordingFlood ? farmId : undefined, kinds: WATER_KINDS });
+  const waterToday = today ?? todayLocalIso();
+  const recentFloodList = useMemo(
+    () => (assessing ? recentFloods(water.records, { fields: values.fields_served, source: values.source, today: waterToday }) : []),
+    [assessing, water.records, values.fields_served, values.source, waterToday],
+  );
+  const sourcesForFlood = useMemo(
+    () => (recordingFlood ? sourcesServing(waterSources(water.records, { today: waterToday }), { field: values.field, waterSource: values.water_source }) : []),
+    [recordingFlood, water.records, values.field, values.water_source, waterToday],
+  );
+
   const evaluation = useMemo(() => evaluateRecord(kind, { record_date: date, payload }), [kind, date, payload]);
   const filled = useMemo(() => Object.fromEntries(Object.entries(values).filter(([, v]) => !blank(v))), [values]);
   const required = useMemo(() => new Set(requiredFieldKeys(kind, filled)), [kind, filled]);
@@ -187,6 +205,10 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
         if (key === 'lot_code' && kind === 'harvest') {
           return [node, ...(holdsUnreadable ? [<p key="holds-unreadable" role="alert" style={{ fontSize: 12, margin: '-8px 0 14px', padding: '6px 10px', borderRadius: 8, background: '#fef3c7', color: '#92400e' }}>{holds.status === 'error' ? tt.holds.unknown : tt.lots.checkingHolds}</p>] : []), <LotCodeTools key="lot-tools" farmId={farmId} recordId={record?.id} values={values} date={date} holds={holds} heldField={heldField} onMade={(code) => setValues((current) => ({ ...current, lot_code: code }))} />];
         }
+        if (assessing && key === 'source_type' && values.source_type === 'public') return [node, <PublicWaterNote key="public-water" />];
+        if (assessing && key === 'weather_concern') return [node, <RecentFloodsNote key="recent-floods" status={water.status} floods={recentFloodList} />];
+        if (assessing && key === 'testing_concern') return [node, <ConcernSummary key="concerns" values={values} onUse={(conclusion) => setValues((current) => ({ ...current, conclusion }))} />];
+        if (recordingFlood && key === 'water_source') return [node, <FloodWaterNote key="flood-water" status={water.status} sources={sourcesForFlood} />];
         return [node];
       })}
 

@@ -19,7 +19,7 @@ import { todayLocalIso } from './seasons.js';
 export const REPORT_KIND_ORDER = Object.freeze([
   'training', 'visitor', 'illness_injury',
   'sanitizer_label', 'sanitizer_purchase', 'sanitation_log',
-  'water_test', 'soil_amendment', 'wildlife_check', 'weather_event',
+  'water_assessment', 'water_test', 'soil_amendment', 'wildlife_check', 'weather_event',
   'harvest', 'packing_cooling', 'shipment', 'corrective_action',
   'note',
 ]);

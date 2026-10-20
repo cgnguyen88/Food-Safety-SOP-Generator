@@ -6,9 +6,11 @@ import { renderWithLang } from './testUtils.jsx';
 
 vi.mock('../../lib/records.js', () => ({ listRevisions: vi.fn(), advanceRecord: vi.fn(), updateRecord: vi.fn(), createRecord: vi.fn() }));
 vi.mock('../../lib/attachments.js', () => ({ getAttachmentUrl: vi.fn() }));
+vi.mock('../../lib/reportData.js', () => ({ listRecordsForReport: vi.fn() }));
 vi.mock('../../lib/fields.js', () => ({ addFieldsByName: vi.fn() }));
 const db = await import('../../lib/attachments.js');
 const records = await import('../../lib/records.js');
+const { listRecordsForReport } = await import('../../lib/reportData.js');
 const { default: RecordDetail } = await import('./RecordDetail.jsx');
 const { FarmFieldsContext } = await import('./farmFields.js');
 
@@ -23,6 +25,8 @@ const setup = (record = base, props = {}, lang = 'en') => {
 };
 
 beforeEach(() => {
+  listRecordsForReport.mockReset();
+  listRecordsForReport.mockResolvedValue({ data: { records: [], truncated: false }, error: null });
   Object.values(records).forEach((fn) => fn.mockReset());
   records.listRevisions.mockResolvedValue({ data: [
     { id: 1, version: 1, change_type: 'created', changed_at: '2026-10-01T12:00:00Z', changed_by: 'crew-1' },
@@ -321,6 +325,83 @@ describe('RecordDetail: a draft', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'Edit' }));
     expect(await screen.findByRole('button', { name: 'Save changes' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Save & approve' })).toBeNull();
+  });
+});
+
+describe('RecordDetail: a flood and the water it may have reached', () => {
+  const flood = { ...base, id: 'w1', kind: 'weather_event', status: 'approved', record_date: '2026-06-10', created_at: '2026-06-10T15:00:00Z', source: 'manual', confidence: null, payload: { event_type: 'flood', field: 'A1', crop_contact: 'no' } };
+  const assessment = (source, fields, date) => ({ id: `a-${source}`, kind: 'water_assessment', status: 'approved', record_date: date, created_at: `${date}T09:00:00Z`, payload: { source, source_type: 'enclosed_groundwater', fields_served: fields, application_method: 'drip', ...Object.fromEntries(['source_concern', 'nearby_concern', 'practice_concern', 'crop_concern', 'weather_concern', 'testing_concern'].map((k) => [k, 'low'])), conclusion: 'no_mitigation' } });
+  const farmHas = (list) => listRecordsForReport.mockImplementation(async ({ kinds }) => ({ data: { records: list.filter((r) => kinds.includes(r.kind)), truncated: false }, error: null }));
+  const panel = () => screen.getByRole('region', { name: 'Water this flood may have reached' });
+
+  it('lists the water sources that water the flooded field, and says which need a new assessment', async () => {
+    farmHas([assessment('Well 1', 'A1, A2', '2026-03-01'), assessment('Canal', 'A1', '2026-06-20'), assessment('Pond', 'C1', '2026-03-01'), flood]);
+    setup(flood);
+    expect(await within(await screen.findByRole('region', { name: 'Water this flood may have reached' })).findByText('Well 1')).toBeTruthy();
+    const items = within(panel()).getAllByRole('listitem').map((item) => item.textContent);
+    expect(items).toEqual(['Well 1Needs a new assessmentAssess Well 1 again', 'CanalAssessed again on 2026-06-20']);
+    await screen.findByText('Created');
+  });
+
+  it('starts the new assessment from the source’s last answers, right there, and reads again once it is saved', async () => {
+    farmHas([assessment('Well 1', 'A1, A2', '2026-03-01'), flood]);
+    records.createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user, onChanged } = setup(flood);
+    await user.click(await screen.findByRole('button', { name: 'Assess Well 1 again' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add water assessment' });
+    expect(within(dialog).getByLabelText(/^Water source or system/).value).toBe('Well 1');
+    expect(within(dialog).getByLabelText(/^Fields this water is used on/).value).toBe('A1, A2');
+    for (const label of [/^The source and how/, /^Animals, manure/, /^How the water is applied, and the time/, /^The crop/, /^The weather/, /^Water test results/]) {
+      expect(within(dialog).getByLabelText(label).value).toBe('low');
+    }
+    await user.selectOptions(within(dialog).getByLabelText(/^What you decided/), 'no_mitigation');
+    const reads = listRecordsForReport.mock.calls.length;
+    await user.click(within(dialog).getByRole('button', { name: 'Save & approve' }));
+    await waitFor(() => expect(records.createRecord).toHaveBeenCalledWith(expect.objectContaining({ kind: 'water_assessment' })));
+    expect(await screen.findByRole('dialog', { name: 'Weather event' })).toBeTruthy();
+    await waitFor(() => expect(listRecordsForReport.mock.calls.length).toBeGreaterThan(reads));
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it('says so when no assessed water source is tied to the flood', async () => {
+    farmHas([assessment('Pond', 'C1', '2026-03-01'), flood]);
+    setup(flood);
+    expect(await screen.findByText(/No assessed water source is tied to this flood/)).toBeTruthy();
+    await screen.findByText('Created');
+  });
+
+  it('finds the source the flood names', async () => {
+    farmHas([assessment('Pond', 'C1', '2026-03-01')]);
+    setup({ ...flood, payload: { ...flood.payload, water_source: 'pond' } });
+    expect(await screen.findByText('Pond')).toBeTruthy();
+    await screen.findByText('Created');
+  });
+
+  it('says so when the water assessments could not be read, rather than saying none are tied', async () => {
+    listRecordsForReport.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+    setup(flood);
+    expect(await screen.findByText('The water assessments could not be checked right now.')).toBeTruthy();
+    expect(screen.queryByText(/No assessed water source/)).toBeNull();
+    await screen.findByText('Created');
+  });
+
+  it('does not show it for other weather, or for other records, and reads nothing for them', async () => {
+    setup({ ...flood, payload: { ...flood.payload, event_type: 'hail' } });
+    await screen.findByText('Created');
+    expect(screen.queryByRole('region', { name: 'Water this flood may have reached' })).toBeNull();
+    cleanup();
+    setup(base);
+    await screen.findByText('Created');
+    expect(screen.queryByRole('region', { name: 'Water this flood may have reached' })).toBeNull();
+    expect(listRecordsForReport).not.toHaveBeenCalledWith(expect.objectContaining({ kinds: ['weather_event', 'water_assessment'] }));
+  });
+
+  it('speaks Spanish', async () => {
+    farmHas([assessment('Pozo 1', 'A1', '2026-03-01'), flood]);
+    setup(flood, {}, 'es');
+    expect(await screen.findByRole('region', { name: 'Agua que esta inundación pudo alcanzar' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Evaluar de nuevo Pozo 1' })).toBeTruthy();
+    await screen.findByText('Creado');
   });
 });
 

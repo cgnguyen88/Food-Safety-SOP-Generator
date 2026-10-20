@@ -1,3 +1,4 @@
+import { RECORD_KINDS } from '../../../src/domain/records/kinds.js';
 import { describe, it, expect, vi } from 'vitest';
 import { extractRecords, MAX_PROPOSALS } from './extract.js';
 
@@ -27,7 +28,7 @@ describe('extractRecords: the request', () => {
     expect(params.model).toBe('claude-sonnet-5-5');
     expect(params.max_tokens).toBe(16000);
     expect(params.system).toContain(TODAY);
-    expect(params.tools).toHaveLength(15);
+    expect(params.tools).toHaveLength(RECORD_KINDS.length);
     expect(params.tool_choice).toEqual({ type: 'auto' }); // forced tool use is rejected by this model family
     expect(params.output_config).toEqual({ effort: 'medium' });
     expect(options).toMatchObject({ timeout: 60000 });

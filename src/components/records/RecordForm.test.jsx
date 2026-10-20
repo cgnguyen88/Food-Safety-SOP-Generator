@@ -753,3 +753,163 @@ describe('RecordForm: editing a record that can be moved on', () => {
     expect(saveAnd('Save & approve').disabled).toBe(false);
   });
 });
+
+describe('RecordForm: water assessments', () => {
+  const LABEL = {
+    source: /^Water source or system/,
+    source_type: /^What kind of source it is/,
+    fields_served: /^Fields this water is used on/,
+    application_method: /^How the water is applied \*/,
+    source_concern: /^The source and how the water travels/,
+    nearby_concern: /^Animals, manure, compost or human waste/,
+    practice_concern: /^How the water is applied, and the time before harvest/,
+    crop_concern: /^The crop/,
+    weather_concern: /^The weather/,
+    testing_concern: /^Water test results/,
+    conclusion: /^What you decided/,
+  };
+  const CONCERNS = ['source_concern', 'nearby_concern', 'practice_concern', 'crop_concern', 'weather_concern', 'testing_concern'];
+  const rateAll = async (user, level, overrides = {}) => {
+    for (const key of CONCERNS) await user.selectOptions(screen.getByLabelText(LABEL[key]), overrides[key] ?? level);
+  };
+  const FLOOD = { id: 'w1', kind: 'weather_event', status: 'approved', record_date: '2026-06-10', created_at: '2026-06-10T15:00:00Z', payload: { event_type: 'flood', field: 'A1', crop_contact: 'no' } };
+  const WELL = { id: 'a1', kind: 'water_assessment', status: 'approved', record_date: '2026-03-01', created_at: '2026-03-01T09:00:00Z', payload: { source: 'Well 1', fields_served: 'A1, A2', conclusion: 'no_mitigation' } };
+  const assessment = (props = {}) => setup({ kind: 'water_assessment', role: 'manager', ...props });
+
+  it('asks for every factor to be rated, then says what the ratings add up to', async () => {
+    const { user } = assessment();
+    expect(screen.getByText('Rate every factor to see what your answers add up to.')).toBeTruthy();
+    await rateAll(user, 'low');
+    expect(await screen.findByText('Every factor is low concern, so no measures look needed.')).toBeTruthy();
+  });
+
+  it('fills in the suggested conclusion when asked, and the person can still choose the other', async () => {
+    const { user } = assessment();
+    await rateAll(user, 'low');
+    await user.click(screen.getByRole('button', { name: 'Use “No measures needed”' }));
+    expect(screen.getByLabelText(LABEL.conclusion).value).toBe('no_mitigation');
+    await user.selectOptions(screen.getByLabelText(LABEL.conclusion), 'mitigation_needed');
+    expect(screen.getByLabelText(LABEL.conclusion).value).toBe('mitigation_needed');
+  });
+
+  it('suggests measures when a factor is high concern, and warns if the person then says none are needed', async () => {
+    const { user } = assessment();
+    await rateAll(user, 'low', { weather_concern: 'high' });
+    expect(await screen.findByText(/so measures to protect the water look needed/)).toBeTruthy();
+    await user.selectOptions(screen.getByLabelText(LABEL.conclusion), 'no_mitigation');
+    expect(screen.getByRole('alert').textContent).toContain('Write why in the notes.');
+  });
+
+  it('asks what the measures are only once the conclusion is that measures are needed', async () => {
+    const { user } = assessment();
+    expect(screen.queryByLabelText(/^The measures you will take/)).toBeTruthy();
+    expect(screen.getByLabelText(/^The measures you will take/).getAttribute('aria-required')).toBeNull();
+    await user.selectOptions(screen.getByLabelText(LABEL.conclusion), 'mitigation_needed');
+    expect(screen.getByLabelText(/^The measures you will take/).getAttribute('aria-required')).toBe('true');
+  });
+
+  it('reminds that a public water system may not need an assessment', async () => {
+    const { user } = assessment();
+    expect(screen.queryByText(/A public water system may not need a written assessment/)).toBeNull();
+    await user.selectOptions(screen.getByLabelText(LABEL.source_type), 'public');
+    expect(screen.getByText(/A public water system may not need a written assessment/)).toBeTruthy();
+  });
+
+  it('tells the person about a flood in the last year on the fields the water is used on', async () => {
+    farmHas([FLOOD]);
+    const { user } = assessment();
+    await user.type(screen.getByLabelText(LABEL.fields_served), 'A1, B2');
+    expect(await screen.findByText('Flood in the last year that may have reached this water: 2026-06-10 (A1). Think about it when you rate the weather.')).toBeTruthy();
+  });
+
+  it('says nothing about floods on other fields', async () => {
+    farmHas([FLOOD]);
+    const { user } = assessment();
+    await user.type(screen.getByLabelText(LABEL.fields_served), 'C3');
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(screen.queryByText(/Flood in the last year/)).toBeNull();
+  });
+
+  it('says so when it could not check for floods', async () => {
+    listRecordsForReport.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+    assessment();
+    expect(await screen.findByText(/Floods could not be checked right now/)).toBeTruthy();
+  });
+
+  it('saves a complete assessment for a manager as approved', async () => {
+    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
+    const { user, onSaved } = assessment();
+    await user.type(screen.getByLabelText(LABEL.source), 'Well 1');
+    await user.selectOptions(screen.getByLabelText(LABEL.source_type), 'enclosed_groundwater');
+    await user.type(screen.getByLabelText(LABEL.fields_served), 'A1');
+    await user.selectOptions(screen.getByLabelText(LABEL.application_method), 'drip');
+    await rateAll(user, 'low');
+    await user.click(screen.getByRole('button', { name: 'Use “No measures needed”' }));
+    await user.click(screen.getByRole('button', { name: 'Save & approve' }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    expect(createRecord).toHaveBeenCalledWith(expect.objectContaining({ kind: 'water_assessment', status: 'approved', payload: expect.objectContaining({ source: 'Well 1', conclusion: 'no_mitigation', weather_concern: 'low' }) }));
+  });
+
+  it('starts a new assessment from the answers it is given', () => {
+    assessment({ prefill: { source: 'Well 1', source_type: 'enclosed_groundwater', fields_served: 'A1, A2', application_method: 'drip', weather_concern: 'some' } });
+    expect(screen.getByLabelText(LABEL.source).value).toBe('Well 1');
+    expect(screen.getByLabelText(LABEL.weather_concern).value).toBe('some');
+    expect(screen.getByLabelText(LABEL.conclusion).value).toBe('');
+  });
+
+  it('does not read the farm’s records for any other kind of record', async () => {
+    setup({ kind: 'note', role: 'manager' });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(listRecordsForReport).not.toHaveBeenCalled();
+  });
+
+  describe('on a flood record', () => {
+    const floodForm = async (user, props = {}) => {
+      await user.selectOptions(screen.getByLabelText(/^Event/), 'flood');
+      return props;
+    };
+
+    it('reminds that a flood can reach the water, and names the assessed sources for the field', async () => {
+      farmHas([WELL]);
+      const { user } = setup({ kind: 'weather_event', role: 'manager' });
+      await floodForm(user);
+      await user.type(screen.getByLabelText(/^Field/), 'a2');
+      expect(await screen.findByText('A flood can reach your water')).toBeTruthy();
+      expect(await screen.findByText('Water sources for this field: Well 1.')).toBeTruthy();
+    });
+
+    it('says when no assessment lists the field', async () => {
+      farmHas([WELL]);
+      const { user } = setup({ kind: 'weather_event', role: 'manager' });
+      await floodForm(user);
+      await user.type(screen.getByLabelText(/^Field/), 'Z9');
+      expect(await screen.findByText(/No water assessment lists this field yet/)).toBeTruthy();
+    });
+
+    it('also finds the source the flood names', async () => {
+      farmHas([WELL]);
+      const { user } = setup({ kind: 'weather_event', role: 'manager' });
+      await floodForm(user);
+      await user.type(screen.getByLabelText(/^Field/), 'Z9');
+      await user.type(screen.getByLabelText(/^Water source it may have reached/), 'well 1');
+      expect(await screen.findByText('Water sources for this field: Well 1.')).toBeTruthy();
+    });
+
+    it('says nothing about water for other weather, and reads nothing', async () => {
+      const { user } = setup({ kind: 'weather_event', role: 'manager' });
+      await user.selectOptions(screen.getByLabelText(/^Event/), 'hail');
+      expect(screen.queryByText('A flood can reach your water')).toBeNull();
+      expect(listRecordsForReport).not.toHaveBeenCalled();
+    });
+
+    it('does not name sources before the farm’s assessments have been read', async () => {
+      listRecordsForReport.mockReturnValue(new Promise(() => {}));
+      const { user } = setup({ kind: 'weather_event', role: 'manager' });
+      await floodForm(user);
+      await user.type(screen.getByLabelText(/^Field/), 'A1');
+      expect(screen.getByText('A flood can reach your water')).toBeTruthy();
+      expect(screen.queryByText(/No water assessment lists this field yet/)).toBeNull();
+    });
+  });
+});

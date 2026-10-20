@@ -19,3 +19,15 @@ export function addDays(isoDate, days) {
 export function daysBetween(from, to) {
   return Math.round((toUtc(to) - toUtc(from)) / DAY_MS);
 }
+
+/**
+ * The same day of the month some years on; a leap day lands on the last day of February in a year that has none.
+ * @param {string} isoDate YYYY-MM-DD @param {number} years
+ */
+export function addYears(isoDate, years) {
+  const year = Number(isoDate.slice(0, 4)) + years;
+  const month = Number(isoDate.slice(5, 7));
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const day = Math.min(Number(isoDate.slice(8, 10)), lastDay);
+  return `${String(year).padStart(4, '0')}-${isoDate.slice(5, 7)}-${String(day).padStart(2, '0')}`;
+}

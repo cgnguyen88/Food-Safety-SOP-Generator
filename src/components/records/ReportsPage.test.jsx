@@ -47,7 +47,7 @@ describe('ReportsPage: the form', () => {
   it('lists the logs in the order they appear in the report', () => {
     renderPage();
     const labels = screen.getAllByRole('checkbox').map((box) => box.parentElement.textContent);
-    expect(labels).toEqual(['Training Log', 'Visitor Log', 'Illness & Injury Reports', 'Sanitizer Labels', 'Sanitizer Purchases', 'Sanitation Log', 'Water Tests', 'Soil Amendments', 'Wildlife Checks', 'Weather Events', 'Harvest Log', 'Packing & Cooling', 'Shipments', 'Corrective Actions', 'Notes']);
+    expect(labels).toEqual(['Training Log', 'Visitor Log', 'Illness & Injury Reports', 'Sanitizer Labels', 'Sanitizer Purchases', 'Sanitation Log', 'Water Assessments', 'Water Tests', 'Soil Amendments', 'Wildlife Checks', 'Weather Events', 'Harvest Log', 'Packing & Cooling', 'Shipments', 'Corrective Actions', 'Notes']);
   });
 
   it('shows the dates of this season and last season, from the farm’s season start', () => {

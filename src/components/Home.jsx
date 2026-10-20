@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import { ClipboardCheck, GraduationCap, Plus } from 'lucide-react';
+import { ClipboardCheck, GraduationCap, Plus, Waves } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { KIND_META } from '../domain/records/kinds.js';
 import { todayLocalIso } from '../domain/records/seasons.js';
 import { trainingCounts, trainingDueList } from '../domain/records/training.js';
+import { waterCounts, waterSources } from '../domain/records/waterAssessment.js';
 import { canSeeKind } from '../domain/records/workflow.js';
 import { telegramBotUsername } from '../lib/channels.js';
 import { ROUTES, logRoute } from '../lib/recordsRoute.js';
@@ -21,6 +22,7 @@ import * as ui from './records/ui.js';
 /** The records people add most often, in the order they are shown. */
 const QUICK_KINDS = ['harvest', 'sanitation_log', 'wildlife_check', 'shipment', 'visitor', 'training'];
 const TRAINING_KINDS = ['training'];
+const WATER_KINDS = ['weather_event', 'water_assessment'];
 
 const RESOURCES = [
   { name: 'Cornell PSA Resources', url: 'https://producesafetyalliance.cornell.edu/resources' },
@@ -59,14 +61,20 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
 
   const holds = useFieldHolds({ farmId: farm.id });
   const training = useFarmRecords({ farmId: farm.id, kinds: TRAINING_KINDS });
+  const water = useFarmRecords({ farmId: farm.id, kinds: WATER_KINDS });
   const [adding, setAdding] = useState(null); // null, or { kind, prefill }
 
   const today = todayLocalIso();
   const overdue = useMemo(() => trainingCounts(trainingDueList(training.records, { today })).overdue, [training.records, today]);
+  // A water source needs attention when a flood came after its last assessment, or its yearly review has passed.
+  const waterNeeds = useMemo(() => {
+    const counts = waterCounts(waterSources(water.records, { today }));
+    return counts.flood + counts.overdue;
+  }, [water.records, today]);
   const quickKinds = QUICK_KINDS.filter((kind) => canSeeKind(kind, role));
   // "All clear" is said only when everything was really read: a failed or cut-short read is not good news.
-  const incomplete = holds.truncated || training.truncated;
-  const allClear = reviewStatus === 'ready' && needsReviewCount === 0 && overdue === 0 && holds.status === 'ready' && holds.holds.length === 0 && training.status === 'ready' && !incomplete;
+  const incomplete = holds.truncated || training.truncated || water.truncated;
+  const allClear = reviewStatus === 'ready' && needsReviewCount === 0 && overdue === 0 && holds.status === 'ready' && holds.holds.length === 0 && training.status === 'ready' && water.status === 'ready' && waterNeeds === 0 && !incomplete;
   const hasProfile = Boolean(farmProfile?.farm_name);
 
   return (
@@ -91,8 +99,10 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
         <div style={{ display: 'grid', gap: 10, marginBottom: 26 }}>
           {needsReviewCount > 0 && <AttentionRow icon={ClipboardCheck} text={tt.review(needsReviewCount)} action={tt.reviewOpen} onClick={() => onNavigate(ROUTES.review)} />}
           {overdue > 0 && <AttentionRow icon={GraduationCap} text={tt.training(overdue)} action={tt.trainingOpen} onClick={() => onNavigate(ROUTES.training)} />}
+          {waterNeeds > 0 && <AttentionRow icon={Waves} text={tt.water(waterNeeds)} action={tt.waterOpen} onClick={() => onNavigate(ROUTES.water)} />}
           {reviewStatus === 'error' && <Notice text={tt.reviewError} />}
           {training.status === 'error' && <Notice text={tt.trainingError} action={tt.retry} onClick={training.reload} />}
+          {water.status === 'error' && <Notice text={tt.waterError} action={tt.retry} onClick={water.reload} />}
           {incomplete && <Notice text={tt.incomplete} />}
           {allClear && <div style={{ ...ui.card, padding: '14px 18px', color: '#166534', background: '#f0fdf4', borderColor: '#bbf7d0', fontSize: 14 }}>{tt.allClear}</div>}
         </div>
@@ -142,6 +152,7 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
               onChanged?.();
               holds.reload();
               training.reload();
+              water.reload();
               onNavigate(logRoute(kind));
             }}
           />

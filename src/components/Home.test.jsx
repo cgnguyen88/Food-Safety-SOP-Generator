@@ -92,6 +92,53 @@ describe('Home: what needs attention', () => {
     expect(onNavigate).toHaveBeenCalledWith('recordTraining');
   });
 
+  describe('water assessments', () => {
+    const well = (source, fields, date) => ({ id: `a-${source}`, kind: 'water_assessment', status: 'approved', record_date: date, created_at: `${date}T09:00:00Z`, payload: { source, fields_served: fields, conclusion: 'no_mitigation' } });
+    const floodOn = (field) => ({ id: `w-${field}`, kind: 'weather_event', status: 'approved', record_date: '2026-10-01', created_at: '2026-10-01T10:00:00Z', payload: { event_type: 'flood', field, crop_contact: 'no' } });
+
+    it('points to a water source that needs a new assessment after a flood', async () => {
+      farmHas([well('Well 1', 'A1', '2026-03-01'), floodOn('A1')]);
+      const { user, onNavigate } = setup();
+      expect(await screen.findByText('1 water source needs a new assessment')).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Open' }));
+      expect(onNavigate).toHaveBeenCalledWith('recordWater');
+      expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
+    });
+
+    it('counts the sources that are overdue as well as the ones a flood reached', async () => {
+      farmHas([well('Well 1', 'A1', '2026-03-01'), floodOn('A1'), well('Canal', 'B1', '2020-01-01'), well('Pond', 'C1', '2026-09-01')]);
+      setup();
+      expect(await screen.findByText('2 water sources need a new assessment')).toBeTruthy();
+    });
+
+    it('says nothing about water when every source is up to date, and still says all is well', async () => {
+      farmHas([well('Pond', 'C1', '2026-09-01')]);
+      setup();
+      expect(await screen.findByText('Nothing needs your attention right now.')).toBeTruthy();
+      expect(screen.queryByText(/water source/)).toBeNull();
+    });
+
+    it('says so, and offers another try, when the water assessments could not be read, and does not say all is well', async () => {
+      listRecordsForReport.mockImplementation(async ({ kinds }) => (kinds.includes('water_assessment') ? { data: null, error: { code: 'unknown' } } : { data: { records: [], truncated: false }, error: null }));
+      setup();
+      expect(await screen.findByText('Water assessments could not be checked right now.')).toBeTruthy();
+      expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
+    });
+
+    it('does not say all is well when the water records were cut short', async () => {
+      listRecordsForReport.mockImplementation(async ({ kinds }) => ({ data: { records: [], truncated: kinds.includes('water_assessment') }, error: null }));
+      setup();
+      expect(await screen.findByText(/very large number of records/)).toBeTruthy();
+      expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
+    });
+
+    it('speaks Spanish', async () => {
+      farmHas([well('Pozo', 'A1', '2026-03-01'), floodOn('A1')]);
+      setup({}, 'es');
+      expect(await screen.findByText('1 fuente de agua necesita una nueva evaluación')).toBeTruthy();
+    });
+  });
+
   it('lists the fields on hold, and starts the corrective action that clears one', async () => {
     farmHas([FLOOD]);
     const { user } = setup();

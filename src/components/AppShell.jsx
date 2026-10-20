@@ -16,6 +16,7 @@ function pageTitle(page, lang, nav) {
     [ROUTES.review]: nav.review,
     [ROUTES.fields]: nav.fields,
     [ROUTES.training]: nav.training,
+    [ROUTES.water]: nav.water,
     [ROUTES.trace]: nav.trace,
     [ROUTES.reports]: nav.reports,
     [ROUTES.history]: nav.history,

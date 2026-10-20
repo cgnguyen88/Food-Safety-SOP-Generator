@@ -1,3 +1,4 @@
+import { RECORD_KINDS } from '../domain/records/kinds.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 /**
@@ -93,7 +94,7 @@ describe('listRecordsForReport', () => {
     serve(rows(1));
     await listRecordsForReport({ farmId: 'farm-1' });
     const kinds = args(queries[0], 'in').find(([column]) => column === 'kind')[1];
-    expect(kinds).toHaveLength(15);
+    expect(kinds).toEqual([...RECORD_KINDS]);
   });
 
   it('gives an empty report, without asking the database, when no known kind is chosen', async () => {

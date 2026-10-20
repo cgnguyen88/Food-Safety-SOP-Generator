@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ClipboardCheck, ClipboardList, FileText, GraduationCap, Home, Library, LogOut, MapPin, Route, ShieldCheck, UserCog, X } from 'lucide-react';
+import { ClipboardCheck, ClipboardList, FileText, GraduationCap, Home, Library, LogOut, MapPin, Route, ShieldCheck, UserCog, Waves, X } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { ROUTES } from '../lib/recordsRoute.js';
 import { homeText } from './homeText.js';
@@ -13,7 +13,7 @@ const SOPS = 'sops';
 const LIBRARY_PAGES = [SOPS, 'sop', 'plan_generator'];
 /** The records pages that have no menu item of their own, shown under "All records". */
 const isRecordsHome = (page) => page === ROUTES.overview || page.startsWith('log:') || page.startsWith('view:') || page === ROUTES.history;
-const RECORDS_PAGES = [ROUTES.review, ROUTES.fields, ROUTES.training];
+const RECORDS_PAGES = [ROUTES.review, ROUTES.fields, ROUTES.water, ROUTES.training];
 const TRACE_PAGES = [ROUTES.trace, ROUTES.reports];
 
 // Each section has its own quiet accent, so the sections are easy to tell apart at a glance.
@@ -73,10 +73,11 @@ export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogou
             <NavItem icon={Library} label={tt.nav.sops} active={LIBRARY_PAGES.includes(activePage)} onClick={go(SOPS)} />
           </div>
 
-          <NavGroup id="records" label={tt.nav.groups.records} icon={ClipboardList} accent={RECORDS_ACCENT} count={4} forceOpen={isRecordsHome(activePage) || RECORDS_PAGES.includes(activePage)}>
+          <NavGroup id="records" label={tt.nav.groups.records} icon={ClipboardList} accent={RECORDS_ACCENT} count={5} forceOpen={isRecordsHome(activePage) || RECORDS_PAGES.includes(activePage)}>
             <NavItem icon={ClipboardList} label={tt.nav.records} active={isRecordsHome(activePage)} onClick={go(ROUTES.overview)} />
             <NavItem icon={ClipboardCheck} label={tt.nav.review} badge={needsReviewCount} active={activePage === ROUTES.review} onClick={go(ROUTES.review)} />
             <NavItem icon={MapPin} label={tt.nav.fields} active={activePage === ROUTES.fields} onClick={go(ROUTES.fields)} />
+            <NavItem icon={Waves} label={tt.nav.water} active={activePage === ROUTES.water} onClick={go(ROUTES.water)} />
             <NavItem icon={GraduationCap} label={tt.nav.training} active={activePage === ROUTES.training} onClick={go(ROUTES.training)} />
           </NavGroup>
 

@@ -33,8 +33,8 @@ describe('Sidebar', () => {
   it('is two pages and two sections: Home and SOPs & plan, then Records and Traceability, each a card that opens and closes', () => {
     setup();
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    expect(names(nav)).toEqual(['Home', 'SOPs & plan', 'Records', 'All records', 'Needs review', 'Fields', 'Training due', 'Traceability', 'Trace & recall', 'Reports']);
-    expect(names(section('Records')).slice(1)).toEqual(['All records', 'Needs review', 'Fields', 'Training due']);
+    expect(names(nav)).toEqual(['Home', 'SOPs & plan', 'Records', 'All records', 'Needs review', 'Fields', 'Water assessments', 'Training due', 'Traceability', 'Trace & recall', 'Reports']);
+    expect(names(section('Records')).slice(1)).toEqual(['All records', 'Needs review', 'Fields', 'Water assessments', 'Training due']);
     expect(names(section('Traceability')).slice(1)).toEqual(['Trace & recall', 'Reports']);
     expect(screen.getByRole('button', { name: /^Records/ }).getAttribute('aria-expanded')).toBe('true');
   });
@@ -43,17 +43,17 @@ describe('Sidebar', () => {
     const { user } = setup();
     await user.click(screen.getByRole('button', { name: /^Records/ }));
     expect(screen.queryByRole('button', { name: /^Fields/ })).toBeNull();
-    expect(within(section('Records')).getByText('4')).toBeTruthy();
+    expect(within(section('Records')).getByText('5')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: /^Records/ }));
     expect(screen.getByRole('button', { name: /^Fields/ })).toBeTruthy();
   });
 
   it('goes to each page', async () => {
     const { user, onNavigate } = setup();
-    for (const name of ['Home', 'All records', 'Needs review', 'Fields', 'Training due', 'Trace & recall', 'Reports', 'SOPs & plan']) {
+    for (const name of ['Home', 'All records', 'Needs review', 'Fields', 'Water assessments', 'Training due', 'Trace & recall', 'Reports', 'SOPs & plan']) {
       await user.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
     }
-    expect(onNavigate.mock.calls.map((c) => c[0])).toEqual(['home', 'farmRecords', 'needsReview', 'recordFields', 'recordTraining', 'recordTrace', 'recordReports', 'sops']);
+    expect(onNavigate.mock.calls.map((c) => c[0])).toEqual(['home', 'farmRecords', 'needsReview', 'recordFields', 'recordWater', 'recordTraining', 'recordTrace', 'recordReports', 'sops']);
   });
 
   it('marks the page that is open', () => {
@@ -66,6 +66,19 @@ describe('Sidebar', () => {
     localStorage.setItem('farmsafe_menu_section_traceability', 'false');
     setup({ activePage: 'recordReports' });
     expect(screen.getByRole('button', { name: /^Reports/ }).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('lets the section of the open page be closed, and keeps it closed while moving about inside it', async () => {
+    const { user, rerender } = setup({ activePage: 'recordFields' });
+    await user.click(screen.getByRole('button', { name: /^Records/ }));
+    expect(screen.getByRole('button', { name: /^Records/ }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('button', { name: /^Fields/ })).toBeNull();
+    rerender(
+      <LanguageContext.Provider value={{ lang: 'en', toggleLang: () => {} }}>
+        <Sidebar activePage="needsReview" currentUser={{ name: 'Ana Diaz' }} farmProfile={null} needsReviewCount={0} onNavigate={() => {}} onOpenProfile={() => {}} onLogout={() => {}} />
+      </LanguageContext.Provider>,
+    );
+    expect(screen.getByRole('button', { name: /^Records/ }).getAttribute('aria-expanded')).toBe('false');
   });
 
   it.each(['log:harvest', 'view:abc', 'changeHistory'])('keeps "All records" marked on %s', (page) => {
@@ -121,7 +134,7 @@ describe('Sidebar', () => {
   it('speaks Spanish', () => {
     setup({}, 'es');
     const nav = screen.getByRole('navigation', { name: 'Principal' });
-    expect(names(nav)).toEqual(['Inicio', 'POEs y plan', 'Registros', 'Todos los registros', 'Por revisar', 'Campos', 'Capacitación pendiente', 'Trazabilidad', 'Rastreo y retiro', 'Informes']);
+    expect(names(nav)).toEqual(['Inicio', 'POEs y plan', 'Registros', 'Todos los registros', 'Por revisar', 'Campos', 'Evaluaciones del agua', 'Capacitación pendiente', 'Trazabilidad', 'Rastreo y retiro', 'Informes']);
     expect(screen.getByRole('group', { name: 'Idioma' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Perfil de la granja' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeTruthy();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recordDay, addDays, daysBetween } from './dates.js';
+import { recordDay, addDays, addYears, daysBetween } from './dates.js';
 
 describe('recordDay', () => {
   it('is the date of the record', () => {
@@ -46,5 +46,18 @@ describe('daysBetween', () => {
   it('is not thrown off by a clock change or a month end', () => {
     expect(daysBetween('2026-03-01', '2026-04-01')).toBe(31);
     expect(daysBetween('2026-11-01', '2026-11-02')).toBe(1);
+  });
+});
+
+describe('addYears', () => {
+  it('is the same day of the same month, some years on', () => {
+    expect(addYears('2026-03-15', 1)).toBe('2027-03-15');
+    expect(addYears('2026-12-31', 1)).toBe('2027-12-31');
+    expect(addYears('2026-03-15', -1)).toBe('2025-03-15');
+  });
+
+  it('puts a leap day on the last day of February when the year has none', () => {
+    expect(addYears('2028-02-29', 1)).toBe('2029-02-28');
+    expect(addYears('2028-02-29', 4)).toBe('2032-02-29');
   });
 });

@@ -7,7 +7,7 @@
 
 export const RECORD_KINDS = Object.freeze([
   'sanitizer_label', 'sanitizer_purchase', 'sanitation_log',
-  'weather_event', 'wildlife_check', 'soil_amendment', 'water_test',
+  'weather_event', 'wildlife_check', 'soil_amendment', 'water_test', 'water_assessment',
   'training', 'visitor', 'illness_injury',
   'harvest', 'packing_cooling', 'shipment', 'corrective_action',
   'note',
@@ -25,6 +25,12 @@ const opt = (value, en, es) => Object.freeze({ value, en, es });
 const field = (key, type, en, es, extra = {}) => Object.freeze({ key, type, label: Object.freeze({ en, es }), ...extra });
 
 const YES_NO = Object.freeze([opt('yes', 'Yes', 'Sí'), opt('no', 'No', 'No')]);
+/** How worried a water assessment is about one thing it looks at. */
+const CONCERN = Object.freeze([
+  opt('low', 'Low concern', 'Poca preocupación'),
+  opt('some', 'Some concern', 'Alguna preocupación'),
+  opt('high', 'High concern', 'Mucha preocupación'),
+]);
 const SANITIZED = Object.freeze(['clean_sanitize', 'sanitize_only']);
 
 const notesField = () => field('notes', 'textarea', 'Notes', 'Notas');
@@ -104,6 +110,7 @@ export const KIND_FIELDS = Object.freeze({
       required: true,
       options: [opt('yes', 'Yes', 'Sí'), opt('no', 'No', 'No'), opt('unknown', 'Not sure', 'No se sabe')],
     }),
+    field('water_source', 'text', 'Water source it may have reached (if any)', 'Fuente de agua que pudo alcanzar (si hay)'),
     field('description', 'textarea', 'What happened', 'Qué pasó'),
     notesField(),
   ]),
@@ -162,6 +169,49 @@ export const KIND_FIELDS = Object.freeze({
         opt('pending', 'Waiting for the lab', 'Esperando al laboratorio'),
       ],
     }),
+    notesField(),
+  ]),
+  // A pre-harvest agricultural water assessment: one water source, looked at the way 21 CFR 112.43 asks (the source and how the
+  // water travels, what is near it, how it is applied, the crop, the weather, and test results). The person decides the conclusion.
+  water_assessment: Object.freeze([
+    field('source', 'text', 'Water source or system', 'Fuente o sistema de agua', { required: true }),
+    field('source_type', 'select', 'What kind of source it is', 'Qué tipo de fuente es', {
+      required: true,
+      options: [
+        opt('enclosed_groundwater', 'Groundwater: sealed, protected well', 'Agua subterránea: pozo sellado y protegido'),
+        opt('open_groundwater', 'Groundwater: open or unprotected well', 'Agua subterránea: pozo abierto o sin protección'),
+        opt('surface', 'Surface water: pond, river or stream', 'Agua superficial: estanque, río o arroyo'),
+        opt('canal', 'Open canal or ditch', 'Canal o zanja abierta'),
+        opt('public', 'Public water system', 'Sistema público de agua'),
+        opt('other', 'Other', 'Otro'),
+      ],
+    }),
+    field('fields_served', 'text', 'Fields this water is used on (separate with commas)', 'Campos donde se usa esta agua (separa con comas)', { required: true }),
+    field('application_method', 'select', 'How the water is applied', 'Cómo se aplica el agua', {
+      required: true,
+      options: [
+        opt('drip', 'Drip or underground (does not touch the harvested part)', 'Goteo o subterráneo (no toca la parte cosechada)'),
+        opt('furrow', 'Furrow or flood (some contact is possible)', 'Surco o inundación (puede haber contacto)'),
+        opt('overhead', 'Overhead or sprinkler (reaches the crop)', 'Aspersión o por encima (llega al cultivo)'),
+        opt('other', 'Other or a mix', 'Otro o una mezcla'),
+      ],
+    }),
+    field('days_before_harvest', 'number', 'Days between the last watering and harvest', 'Días entre el último riego y la cosecha'),
+    field('source_concern', 'select', 'The source and how the water travels (location, open or closed pipes)', 'La fuente y cómo viaja el agua (ubicación, tuberías abiertas o cerradas)', { required: true, options: CONCERN }),
+    field('nearby_concern', 'select', 'Animals, manure, compost or human waste on nearby land, and other water users', 'Animales, estiércol, composta o desechos humanos en terrenos cercanos, y otros usuarios del agua', { required: true, options: CONCERN }),
+    field('practice_concern', 'select', 'How the water is applied, and the time before harvest', 'Cómo se aplica el agua y el tiempo antes de la cosecha', { required: true, options: CONCERN }),
+    field('crop_concern', 'select', 'The crop (how easily germs stick to it or get inside)', 'El cultivo (qué tan fácil se pegan o entran los microbios)', { required: true, options: CONCERN }),
+    field('weather_concern', 'select', 'The weather: heavy rain, flooding, extreme heat or sun', 'El clima: lluvia intensa, inundaciones, calor o sol extremos', { required: true, options: CONCERN }),
+    field('testing_concern', 'select', 'Water test results', 'Resultados de análisis del agua', { required: true, options: [...CONCERN, opt('none', 'No test results', 'Sin resultados de análisis')] }),
+    field('conclusion', 'select', 'What you decided', 'Lo que decidiste', {
+      required: true,
+      options: [
+        opt('no_mitigation', 'No measures needed', 'No se necesitan medidas'),
+        opt('mitigation_needed', 'Measures needed', 'Se necesitan medidas'),
+      ],
+    }),
+    field('mitigation', 'textarea', 'The measures you will take, and by when', 'Las medidas que tomarás y para cuándo', { requiredWhen: { conclusion: 'mitigation_needed' } }),
+    field('assessed_by', 'text', 'Assessed by', 'Evaluado por'),
     notesField(),
   ]),
 
@@ -286,6 +336,7 @@ export const KIND_META = Object.freeze({
   wildlife_check: meta('Wildlife check', 'Revisión de fauna', 'Wildlife Checks', 'Revisiones de Fauna', 'PawPrint', '#a16207'),
   soil_amendment: meta('Soil amendment', 'Enmienda del suelo', 'Soil Amendments', 'Enmiendas del Suelo', 'Shovel', '#0f766e'),
   water_test: meta('Water test', 'Análisis de agua', 'Water Tests', 'Análisis de Agua', 'Droplets', '#2563eb'),
+  water_assessment: meta('Water assessment', 'Evaluación del agua', 'Water Assessments', 'Evaluaciones del Agua', 'Waves', '#0369a1'),
   training: meta('Training', 'Capacitación', 'Training Log', 'Registro de Capacitación', 'GraduationCap', '#7c3aed'),
   visitor: meta('Visitor', 'Visitante', 'Visitor Log', 'Registro de Visitantes', 'UserCheck', '#475569'),
   illness_injury: meta('Illness or injury', 'Enfermedad o lesión', 'Illness & Injury Reports', 'Reportes de Enfermedad y Lesiones', 'HeartPulse', '#dc2626'),
@@ -301,7 +352,7 @@ const group = (id, en, es, kinds) => Object.freeze({ id, label: Object.freeze({ 
 /** How the record kinds are grouped in the menu. Every kind appears in exactly one group. */
 export const KIND_GROUPS = Object.freeze([
   group('sanitation', 'Sanitation', 'Saneamiento', ['sanitation_log', 'sanitizer_label', 'sanitizer_purchase']),
-  group('field', 'Field & environment', 'Campo y ambiente', ['weather_event', 'wildlife_check', 'soil_amendment', 'water_test']),
+  group('field', 'Field & environment', 'Campo y ambiente', ['weather_event', 'wildlife_check', 'soil_amendment', 'water_test', 'water_assessment']),
   group('people', 'People', 'Personas', ['training', 'visitor', 'illness_injury']),
   group('harvest', 'Harvest & traceability', 'Cosecha y trazabilidad', ['harvest', 'packing_cooling', 'shipment', 'corrective_action']),
   group('other', 'Other', 'Otros', ['note']),

@@ -20,7 +20,7 @@ const setup = (props = {}, lang = 'en') => {
 
 const GROUPS = {
   Sanitation: ['Sanitation Log', 'Sanitizer Labels', 'Sanitizer Purchases'],
-  'Field & environment': ['Weather Events', 'Wildlife Checks', 'Soil Amendments', 'Water Tests'],
+  'Field & environment': ['Weather Events', 'Wildlife Checks', 'Soil Amendments', 'Water Tests', 'Water Assessments'],
   People: ['Training Log', 'Visitor Log', 'Illness & Injury Reports'],
   'Harvest & traceability': ['Harvest Log', 'Packing & Cooling', 'Shipments', 'Corrective Actions'],
   Other: ['Notes'],

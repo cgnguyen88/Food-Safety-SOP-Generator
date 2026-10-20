@@ -10,6 +10,8 @@ describe('recordsRoute', () => {
     expect(parseRecordsRoute(ROUTES.fields)).toEqual({ type: 'fields' });
     expect(parseRecordsRoute(ROUTES.training)).toEqual({ type: 'training' });
     expect(parseRecordsRoute(ROUTES.trace)).toEqual({ type: 'trace' });
+    expect(parseRecordsRoute(ROUTES.water)).toEqual({ type: 'water' });
+    expect(ROUTES.water).toBe('recordWater');
     expect(parseRecordsRoute(logRoute('sanitation_log'))).toEqual({ type: 'log', kind: 'sanitation_log' });
     expect(parseRecordsRoute(viewRoute('3f2a-91bc'))).toEqual({ type: 'view', viewId: '3f2a-91bc' });
   });

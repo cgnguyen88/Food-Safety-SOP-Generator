@@ -53,6 +53,7 @@ describe('AppShell on a phone', () => {
 
   it.each([
     ['home', 'Home'],
+    ['recordWater', 'Water assessments'],
     ['farmRecords', 'All records'],
     ['log:harvest', 'Harvest Log'],
     ['changeHistory', 'Change history'],

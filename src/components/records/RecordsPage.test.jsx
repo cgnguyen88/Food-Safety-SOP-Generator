@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { screen, cleanup, within } from '@testing-library/react';
+import { screen, cleanup, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithLang } from './testUtils.jsx';
 import { DEFAULT_SAVED_VIEWS } from '../../domain/records/savedViews.js';
@@ -117,6 +117,16 @@ describe('RecordsPage: fields', () => {
   it('does not read fields while there is no farm', () => {
     setup({ type: 'fields' }, { farm: null });
     expect(fieldsLib.listFields).not.toHaveBeenCalled();
+  });
+});
+
+describe('RecordsPage: water assessments', () => {
+  it('opens the water assessments page, with what the farm has approved', async () => {
+    const well = { id: 'a1', kind: 'water_assessment', status: 'approved', record_date: '2026-03-01', created_at: '2026-03-01T09:00:00Z', payload: { source: 'Well 1', fields_served: 'A1', conclusion: 'no_mitigation' } };
+    reportData.listRecordsForReport.mockResolvedValue({ data: { records: [well], truncated: false }, error: null });
+    setup({ type: 'water' });
+    expect(screen.getByRole('heading', { name: 'Water assessments' })).toBeTruthy();
+    await waitFor(() => expect(reportData.listRecordsForReport).toHaveBeenCalledWith(expect.objectContaining({ farmId: 'farm-1', kinds: ['weather_event', 'water_assessment'] })));
   });
 });
 

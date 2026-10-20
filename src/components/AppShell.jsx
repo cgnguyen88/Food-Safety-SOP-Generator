@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { KIND_META } from '../domain/records/kinds.js';
 import { ROUTES } from '../lib/recordsRoute.js';
@@ -80,6 +80,7 @@ export default function AppShell({ activePage, onNavigate, sidebar, children }) 
           <button ref={menuButton} type="button" className="mobile-topbar-button" aria-label={nav.openMenu} aria-expanded={drawerOpen} aria-controls="app-menu" onClick={() => setMenuOpen(true)}>
             <Menu size={22} aria-hidden="true" />
           </button>
+          <div aria-hidden="true" className="menu-mark"><ShieldCheck size={16} color="var(--u-navy)" strokeWidth={2.25} /></div>
           <span className="mobile-topbar-title">{pageTitle(activePage, lang, nav)}</span>
         </header>
       )}

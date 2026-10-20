@@ -4,7 +4,7 @@ export const HOME_TEXT = {
     appSub: 'UC ANR Food Safety System',
     nav: {
       home: 'Home',
-      groups: { records: 'Records', traceability: 'Traceability', library: 'Library' },
+      groups: { records: 'Records', traceability: 'Traceability' },
       records: 'All records',
       review: 'Needs review',
       fields: 'Fields',
@@ -18,6 +18,7 @@ export const HOME_TEXT = {
       label: 'Main',
       openMenu: 'Open menu',
       closeMenu: 'Close menu',
+      language: 'Language',
       history: 'Change history',
     },
     home: {
@@ -56,7 +57,7 @@ export const HOME_TEXT = {
     appSub: 'Sistema de Inocuidad Alimentaria UC ANR',
     nav: {
       home: 'Inicio',
-      groups: { records: 'Registros', traceability: 'Trazabilidad', library: 'Biblioteca' },
+      groups: { records: 'Registros', traceability: 'Trazabilidad' },
       records: 'Todos los registros',
       review: 'Por revisar',
       fields: 'Campos',
@@ -70,6 +71,7 @@ export const HOME_TEXT = {
       label: 'Principal',
       openMenu: 'Abrir menú',
       closeMenu: 'Cerrar menú',
+      language: 'Idioma',
       history: 'Historial de cambios',
     },
     home: {

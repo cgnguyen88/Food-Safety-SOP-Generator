@@ -6,7 +6,7 @@ export const RECORDS_TEXT = {
     ...RULES_TEXT.en,
     overview: {
       title: 'Records',
-      subtitle: 'Open a log to see its records, or tap + to add one.',
+      subtitle: 'Open a group to see its logs. Open a log to read it, or tap + to add a record.',
       needsReview: (n) => (n === 1 ? '1 record is waiting for review' : `${n} records are waiting for review`),
       openReview: 'Open review queue',
       addTitle: 'Logs',
@@ -234,7 +234,7 @@ export const RECORDS_TEXT = {
     ...RULES_TEXT.es,
     overview: {
       title: 'Registros',
-      subtitle: 'Abre un registro para ver sus entradas, o toca + para agregar una.',
+      subtitle: 'Abre un grupo para ver los registros que contiene. Abre uno para leerlo, o toca + para agregar una entrada.',
       needsReview: (n) => (n === 1 ? '1 registro espera revisión' : `${n} registros esperan revisión`),
       openReview: 'Abrir la lista de revisión',
       addTitle: 'Registros por tipo',

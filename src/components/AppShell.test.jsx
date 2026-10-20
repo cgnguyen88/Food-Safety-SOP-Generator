@@ -42,8 +42,9 @@ describe('AppShell on a computer', () => {
 describe('AppShell on a phone', () => {
   beforeEach(() => screenIsPhone(true));
 
-  it('shows a top bar with a menu button and the name of the page, and keeps the menu closed', () => {
+  it('shows a top bar with a menu button, the app’s mark and the name of the page, and keeps the menu closed', () => {
     renderShell({ activePage: 'recordTraining' });
+    expect(screen.getByRole('banner').querySelector('.menu-mark')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Open menu' }).getAttribute('aria-expanded')).toBe('false');
     expect(screen.getByRole('banner').textContent).toContain('Training due');
     expect(mainMenu()).toBeNull();

@@ -18,27 +18,51 @@ const setup = (props = {}, lang = 'en') => {
   return { user, onNavigate };
 };
 
+const GROUPS = {
+  Sanitation: ['Sanitation Log', 'Sanitizer Labels', 'Sanitizer Purchases'],
+  'Field & environment': ['Weather Events', 'Wildlife Checks', 'Soil Amendments', 'Water Tests'],
+  People: ['Training Log', 'Visitor Log', 'Illness & Injury Reports'],
+  'Harvest & traceability': ['Harvest Log', 'Packing & Cooling', 'Shipments', 'Corrective Actions'],
+  Other: ['Notes'],
+};
+const header = (name) => screen.getByRole('button', { name });
+const open = async (user, ...names) => {
+  for (const name of names) if (header(name).getAttribute('aria-expanded') === 'false') await user.click(header(name));
+};
+
 beforeEach(() => {
+  localStorage.clear();
   listRecordsForReport.mockReset();
   listRecordsForReport.mockResolvedValue({ data: { records: [], truncated: false }, error: null });
 });
 afterEach(cleanup);
 
 describe('RecordsOverview', () => {
-  it('lists every log in its group, each with a button to add to it', () => {
+  it('opens with a photo banner that names the page', () => {
     setup();
-    const groups = {
-      Sanitation: ['Sanitation Log', 'Sanitizer Labels', 'Sanitizer Purchases'],
-      'Field & environment': ['Weather Events', 'Wildlife Checks', 'Soil Amendments', 'Water Tests'],
-      People: ['Training Log', 'Visitor Log', 'Illness & Injury Reports'],
-      'Harvest & traceability': ['Harvest Log', 'Packing & Cooling', 'Shipments', 'Corrective Actions'],
-      Other: ['Notes'],
-    };
-    for (const [group, names] of Object.entries(groups)) {
+    const container = document.body;
+    expect(screen.getByRole('heading', { level: 1, name: 'Records' })).toBeTruthy();
+    expect(container.querySelector('.photo-banner--slim')).toBeTruthy();
+    expect(container.querySelector('.photo-banner').style.backgroundImage).toContain('/photos/produce.jpg');
+  });
+
+  it('puts the logs in groups named as written (not in capitals), and opens only the first group at first', () => {
+    setup();
+    for (const group of Object.keys(GROUPS)) expect(header(group).textContent.startsWith(group), group).toBe(true);
+    expect(header('Sanitation').getAttribute('aria-expanded')).toBe('true');
+    for (const group of Object.keys(GROUPS).slice(1)) expect(header(group).getAttribute('aria-expanded'), group).toBe('false');
+    expect(screen.getAllByRole('listitem').map((item) => item.textContent)).toEqual(GROUPS.Sanitation);
+  });
+
+  it('lists every log of a group, one under the other, each with a button to add to it', async () => {
+    const { user } = setup();
+    await open(user, ...Object.keys(GROUPS));
+    for (const [group, names] of Object.entries(GROUPS)) {
       const section = screen.getByRole('region', { name: group });
-      const logs = within(section).getAllByRole('button').filter((b) => !b.getAttribute('aria-label')).map((b) => b.textContent);
-      expect(logs, group).toEqual(names);
+      const rows = within(section).getAllByRole('listitem');
+      expect(rows.map((row) => within(row).getAllByRole('button')[0].textContent), group).toEqual(names);
       expect(within(section).getAllByRole('button', { name: /^Add / }), group).toHaveLength(names.length);
+      expect(within(section).getByText(String(names.length))).toBeTruthy();
     }
   });
 
@@ -50,26 +74,42 @@ describe('RecordsOverview', () => {
 
   it('starts a new record from the add button, with nothing filled in', async () => {
     const { user } = setup();
+    await open(user, 'Harvest & traceability');
     await user.click(screen.getByRole('button', { name: 'Add harvest' }));
     expect(screen.getByRole('dialog', { name: 'Add harvest' })).toBeTruthy();
     expect(screen.getByLabelText(/^Field \/ block/).value).toBe('');
   });
 
-  it('leaves illness and injury reports out for crew', () => {
-    setup({ role: 'crew' });
-    expect(screen.queryByRole('button', { name: 'Illness & Injury Reports' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Training Log' })).toBeTruthy();
+  it('remembers which groups were open', async () => {
+    const first = setup();
+    await open(first.user, 'People');
+    await first.user.click(header('Sanitation'));
+    cleanup();
+    setup();
+    expect(header('People').getAttribute('aria-expanded')).toBe('true');
+    expect(header('Sanitation').getAttribute('aria-expanded')).toBe('false');
   });
 
-  it('lists the saved views and opens one', async () => {
+  it('leaves illness and injury reports out for crew, and counts only what they can see', async () => {
+    const { user } = setup({ role: 'crew' });
+    await open(user, 'People');
+    expect(screen.queryByRole('button', { name: 'Illness & Injury Reports' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Training Log' })).toBeTruthy();
+    expect(within(screen.getByRole('region', { name: 'People' })).getByText('2')).toBeTruthy();
+  });
+
+  it('lists the saved views as a group of their own, closed at first, and opens one', async () => {
     const { user, onNavigate } = setup();
+    expect(header('Saved views').getAttribute('aria-expanded')).toBe('false');
+    expect(within(screen.getByRole('region', { name: 'Saved views' })).getByText(String(views.length))).toBeTruthy();
+    await open(user, 'Saved views');
     await user.click(screen.getByRole('button', { name: 'Signs of animals this season' }));
     expect(onNavigate).toHaveBeenCalledWith('view:view-1');
   });
 
-  it('shows no saved views heading when there are none', () => {
+  it('shows no saved views group when there are none', () => {
     setup({ savedViews: [] });
-    expect(screen.queryByRole('heading', { name: 'Saved views' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Saved views' })).toBeNull();
   });
 
   it('points to the review queue only when something is waiting', async () => {
@@ -82,9 +122,11 @@ describe('RecordsOverview', () => {
     expect(screen.queryByText(/waiting for review/)).toBeNull();
   });
 
-  it('speaks Spanish', () => {
-    setup({}, 'es');
-    expect(screen.getByRole('heading', { name: 'Registros por tipo' })).toBeTruthy();
+  it('speaks Spanish', async () => {
+    const { user } = setup({}, 'es');
+    expect(screen.getByRole('heading', { level: 1, name: 'Registros' })).toBeTruthy();
+    expect(header('Saneamiento')).toBeTruthy();
+    await open(user, 'Cosecha y trazabilidad');
     expect(screen.getByRole('button', { name: 'Agregar cosecha' })).toBeTruthy();
   });
 });

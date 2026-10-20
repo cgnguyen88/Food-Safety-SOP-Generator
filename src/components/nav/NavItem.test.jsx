@@ -44,6 +44,32 @@ describe('NavItem', () => {
     expect(screen.getByRole('button', { name: 'Seed Log' })).toBeTruthy();
   });
 
+  it('indents a sub-item, one step or two', () => {
+    setup({ indent: true });
+    expect(screen.getByRole('button', { name: 'Dashboard' }).style.paddingLeft).toBe('38px');
+    cleanup();
+    setup({ indent: 2 });
+    expect(screen.getByRole('button', { name: 'Dashboard' }).style.paddingLeft).toBe('50px');
+    cleanup();
+    setup();
+    expect(screen.getByRole('button', { name: 'Dashboard' }).style.paddingLeft).toBe('');
+  });
+
+  it('shows anything given for the end of the row, and says whether it is expanded', () => {
+    setup({ trailing: <span>more</span>, expanded: true });
+    const button = screen.getByRole('button', { name: /^Dashboard/ });
+    expect(within(button).getByText('more')).toBeTruthy();
+    expect(button.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('lets a long label wrap onto a second line when asked, and otherwise cuts it with an ellipsis', () => {
+    setup({ wrap: true });
+    expect(screen.getByText('Dashboard').style.whiteSpace).toBe('normal');
+    cleanup();
+    setup();
+    expect(screen.getByText('Dashboard').style.whiteSpace).toBe('nowrap');
+  });
+
   it('shows the full label as a tooltip when it is long', () => {
     setup({ label: 'Purchases without OMRI listing' });
     expect(screen.getByRole('button', { name: 'Purchases without OMRI listing' }).getAttribute('title')).toBe('Purchases without OMRI listing');

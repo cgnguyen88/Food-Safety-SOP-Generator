@@ -3,6 +3,7 @@ import { SOP_DATA } from '../data/sop-data.js';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { getLocalizedSop } from '../i18n/sop-translations.js';
 import { homeText } from './homeText.js';
+import PhotoBanner from './PhotoBanner.jsx';
 import * as ui from './records/ui.js';
 
 const row = { ...ui.card, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', textAlign: 'left', width: '100%', font: 'inherit' };
@@ -16,8 +17,8 @@ export default function SopLibrary({ onSelectSOP, onOpenPlan }) {
 
   return (
     <div style={ui.page}>
-      <h1 style={ui.h1}>{tt.title}</h1>
-      <p style={{ ...ui.subtitle, marginBottom: 22 }}>{tt.subtitle}</p>
+      <PhotoBanner image="/photos/qr-phone.jpg" title={tt.title} subtitle={tt.subtitle} />
+      <div style={{ height: 22 }} />
 
       <button type="button" onClick={onOpenPlan} style={{ ...row, marginBottom: 26, background: '#eff6ff', borderColor: '#bfdbfe' }}>
         <FileCheck2 size={22} color="#1d4ed8" aria-hidden="true" />

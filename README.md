@@ -69,6 +69,10 @@ message is one model call, limited per person and per day (`AGENT_RATE_LIMIT_*`)
 Add the same variables as `.env.example` in the Vercel project (Settings → Environment Variables). Only the two
 `VITE_SUPABASE_*` values are public; everything else is server-only and must not have a `VITE_` prefix.
 
+## Photos
+
+The pictures in `public/photos/` (the researcher on the home page, the produce on the Records page, the phone with a QR code on the SOPs page) are from [Unsplash](https://unsplash.com), used under the [Unsplash License](https://unsplash.com/license). They are kept inside the app, resized, so no page loads an image from another site.
+
 ## Tests
 
 ```bash

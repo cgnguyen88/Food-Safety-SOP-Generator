@@ -30,6 +30,7 @@ const setup = (route, props = {}, lang = 'en') => {
 };
 
 beforeEach(() => {
+  localStorage.clear();
   Object.values(records).forEach((fn) => fn.mockReset());
   Object.values(reportData).forEach((fn) => fn.mockReset());
   Object.values(fieldsLib).forEach((fn) => fn.mockReset());
@@ -68,18 +69,21 @@ describe('RecordsPage: overview', () => {
 
   it('lets people start a new record of any kind', async () => {
     const { user } = setup({ type: 'overview' });
+    await user.click(screen.getByRole('button', { name: 'Harvest & traceability' }));
     await user.click(screen.getByRole('button', { name: 'Add harvest' }));
     expect(await screen.findByRole('dialog', { name: 'Add harvest' })).toBeTruthy();
   });
 
   it('opens a log from the Records home', async () => {
     const { user, onNavigate } = setup({ type: 'overview' });
+    await user.click(screen.getByRole('button', { name: 'Harvest & traceability' }));
     await user.click(screen.getByRole('button', { name: 'Harvest Log' }));
     expect(onNavigate).toHaveBeenCalledWith('log:harvest');
   });
 
   it('lists the saved views and opens one', async () => {
     const { user, onNavigate } = setup({ type: 'overview' });
+    await user.click(screen.getByRole('button', { name: 'Saved views' }));
     await user.click(screen.getByRole('button', { name: 'Sanitizer checks out of range' }));
     expect(onNavigate).toHaveBeenCalledWith('view:view-0');
   });
@@ -104,6 +108,7 @@ describe('RecordsPage: fields', () => {
 
   it('reads the fields once for the whole records area, not once per screen', async () => {
     const { user } = setup({ type: 'overview' });
+    await user.click(screen.getByRole('button', { name: 'Harvest & traceability' }));
     await user.click(screen.getByRole('button', { name: 'Add harvest' }));
     await screen.findByRole('dialog', { name: 'Add harvest' });
     expect(fieldsLib.listFields).toHaveBeenCalledTimes(1);

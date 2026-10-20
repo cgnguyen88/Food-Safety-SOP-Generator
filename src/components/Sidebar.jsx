@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { ClipboardCheck, ClipboardList, FileText, GraduationCap, Home, Library, MapPin, Route, UserCog, X } from 'lucide-react';
+import { ClipboardCheck, ClipboardList, FileText, GraduationCap, Home, Library, LogOut, MapPin, Route, ShieldCheck, UserCog, X } from 'lucide-react';
 import { useLanguage } from '../i18n/LanguageContext.jsx';
 import { ROUTES } from '../lib/recordsRoute.js';
 import { homeText } from './homeText.js';
+import NavGroup from './nav/NavGroup.jsx';
 import NavItem from './nav/NavItem.jsx';
 
 const HOME = 'home';
@@ -12,10 +13,20 @@ const SOPS = 'sops';
 const LIBRARY_PAGES = [SOPS, 'sop', 'plan_generator'];
 /** The records pages that have no menu item of their own, shown under "All records". */
 const isRecordsHome = (page) => page === ROUTES.overview || page.startsWith('log:') || page.startsWith('view:') || page === ROUTES.history;
+const RECORDS_PAGES = [ROUTES.review, ROUTES.fields, ROUTES.training];
+const TRACE_PAGES = [ROUTES.trace, ROUTES.reports];
+
+// Each section has its own quiet accent, so the sections are easy to tell apart at a glance.
+const RECORDS_ACCENT = '#4fd1a5';
+const TRACE_ACCENT = '#5bbcf0';
+
+const initialsOf = (name) => (name ? name.split(' ').filter(Boolean).map((word) => word[0]).join('').slice(0, 2).toUpperCase() : '?');
 
 /**
- * The side menu: Home, then the records pages, then traceability, then the SOP library. Short enough to see at a
- * glance, with nothing to open or close.
+ * The side menu, as a dark "liquid glass" panel: Home and the SOP library, then two sections that open and close
+ * (the records pages, and traceability), with the language, the farm profile and the account in a card at the foot.
+ * Its look comes from the `.side-menu` rules in global.js. On a phone (`drawer`) it slides in over the page; while it is
+ * closed it is out of reach of keyboards and screen readers, and when it opens the focus goes to its close button.
  */
 export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogout, currentUser, farmProfile, needsReviewCount = 0, drawer = false, open = false, onClose }) {
   const { lang, toggleLang } = useLanguage();
@@ -33,62 +44,69 @@ export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogou
   return (
     <>
     {drawer && open && <div className="menu-scrim no-print" aria-hidden="true" onClick={onClose} />}
-    <nav id="app-menu" aria-label={tt.nav.label} className={className} inert={hidden || undefined} aria-hidden={hidden || undefined}>
-      <div style={{ padding: '20px 20px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <div>
-          <div style={{ fontFamily: 'Lora,serif', fontSize: 22, fontWeight: 700, lineHeight: 1.1 }}>FarmSafe</div>
-          <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,.65)', marginTop: 3 }}>{tt.appSub}</div>
-        </div>
-        <button
-          type="button"
-          onClick={toggleLang}
-          title={tt.nav.switchLanguage}
-          aria-label={tt.nav.switchLanguage}
-          style={{ padding: '6px 12px', borderRadius: 20, border: '1.5px solid var(--u-gold)', background: 'transparent', color: 'var(--u-gold)', cursor: 'pointer', fontSize: 12, fontWeight: 800, letterSpacing: 0.4, flexShrink: 0 }}
-        >
-          {lang === 'en' ? 'ES' : 'EN'}
-        </button>
-        {drawer && (
-          <button ref={closeButton} type="button" className="menu-icon-button" onClick={onClose} aria-label={tt.nav.closeMenu}>
-            <X size={20} aria-hidden="true" />
-          </button>
-        )}
+    <aside id="app-menu" className={className} inert={hidden || undefined} aria-hidden={hidden || undefined}>
+      {/* A faint, still wash of colour behind the glass, so the blur has something to soften. Purely decorative. */}
+      <div className="menu-backdrop" aria-hidden="true">
+        <span className="menu-orb menu-orb-sky" />
+        <span className="menu-orb menu-orb-green" />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 12px 16px' }}>
-        <NavItem icon={Home} label={tt.nav.home} active={activePage === HOME} onClick={go(HOME)} />
-
-        <div className="nav-subhead" style={{ marginTop: 14 }}>{tt.nav.groups.records}</div>
-        <NavItem icon={ClipboardList} label={tt.nav.records} active={isRecordsHome(activePage)} onClick={go(ROUTES.overview)} />
-        <NavItem icon={ClipboardCheck} label={tt.nav.review} badge={needsReviewCount} active={activePage === ROUTES.review} onClick={go(ROUTES.review)} />
-        <NavItem icon={MapPin} label={tt.nav.fields} active={activePage === ROUTES.fields} onClick={go(ROUTES.fields)} />
-        <NavItem icon={GraduationCap} label={tt.nav.training} active={activePage === ROUTES.training} onClick={go(ROUTES.training)} />
-
-        <div className="nav-subhead" style={{ marginTop: 14 }}>{tt.nav.groups.traceability}</div>
-        <NavItem icon={Route} label={tt.nav.trace} active={activePage === ROUTES.trace} onClick={go(ROUTES.trace)} />
-        <NavItem icon={FileText} label={tt.nav.reports} active={activePage === ROUTES.reports} onClick={go(ROUTES.reports)} />
-
-        <div className="nav-subhead" style={{ marginTop: 14 }}>{tt.nav.groups.library}</div>
-        <NavItem icon={Library} label={tt.nav.sops} active={LIBRARY_PAGES.includes(activePage)} onClick={go(SOPS)} />
-      </div>
-
-      <div style={{ padding: '12px 12px 14px', borderTop: '1px solid rgba(255,255,255,.15)' }}>
-        <NavItem icon={UserCog} label={farmProfile?.farm_name ? farmProfile.farm_name.slice(0, 24) : tt.nav.profile} onClick={onOpenProfile} />
-        {currentUser && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px 4px' }}>
-            <div aria-hidden="true" style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, background: 'var(--u-gold)', color: 'var(--u-navy-d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>
-              {currentUser.name?.charAt(0).toUpperCase() || 'U'}
+      <div className="menu-panel">
+        <div style={{ padding: '18px 16px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div aria-hidden="true" className="menu-mark">
+              <ShieldCheck size={17} color="var(--u-navy)" strokeWidth={2.25} />
             </div>
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.name}</div>
-            </div>
-            <button type="button" onClick={onLogout} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,.65)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline', padding: 0 }}>
-              {tt.nav.signOut}
-            </button>
+            <span style={{ flex: 1, color: '#fff', fontFamily: 'Lora, serif', fontWeight: 700, fontSize: 17, letterSpacing: '-0.01em' }}>FarmSafe</span>
+            {drawer && (
+              <button ref={closeButton} type="button" className="menu-icon-button" onClick={onClose} aria-label={tt.nav.closeMenu}>
+                <X size={18} aria-hidden="true" />
+              </button>
+            )}
           </div>
-        )}
+          <div style={{ marginTop: 6, color: 'var(--menu-muted)', fontSize: 11.5 }}>{tt.appSub}</div>
+        </div>
+
+        <nav className="menu-nav" aria-label={tt.nav.label} style={{ flex: 1, overflowY: 'auto', padding: '2px 8px 24px' }}>
+          <div>
+            <NavItem icon={Home} label={tt.nav.home} active={activePage === HOME} onClick={go(HOME)} />
+            <NavItem icon={Library} label={tt.nav.sops} active={LIBRARY_PAGES.includes(activePage)} onClick={go(SOPS)} />
+          </div>
+
+          <NavGroup id="records" label={tt.nav.groups.records} icon={ClipboardList} accent={RECORDS_ACCENT} count={4} forceOpen={isRecordsHome(activePage) || RECORDS_PAGES.includes(activePage)}>
+            <NavItem icon={ClipboardList} label={tt.nav.records} active={isRecordsHome(activePage)} onClick={go(ROUTES.overview)} />
+            <NavItem icon={ClipboardCheck} label={tt.nav.review} badge={needsReviewCount} active={activePage === ROUTES.review} onClick={go(ROUTES.review)} />
+            <NavItem icon={MapPin} label={tt.nav.fields} active={activePage === ROUTES.fields} onClick={go(ROUTES.fields)} />
+            <NavItem icon={GraduationCap} label={tt.nav.training} active={activePage === ROUTES.training} onClick={go(ROUTES.training)} />
+          </NavGroup>
+
+          <NavGroup id="traceability" label={tt.nav.groups.traceability} icon={Route} accent={TRACE_ACCENT} count={2} forceOpen={TRACE_PAGES.includes(activePage)}>
+            <NavItem icon={Route} label={tt.nav.trace} active={activePage === ROUTES.trace} onClick={go(ROUTES.trace)} />
+            <NavItem icon={FileText} label={tt.nav.reports} active={activePage === ROUTES.reports} onClick={go(ROUTES.reports)} />
+          </NavGroup>
+        </nav>
+
+        <div className="menu-footer">
+          <div className="menu-segment" role="group" aria-label={tt.nav.language} style={{ marginBottom: 8 }}>
+            {[['en', 'EN'], ['es', 'ES']].map(([code, text]) => (
+              <button key={code} type="button" aria-pressed={lang === code} onClick={() => { if (lang !== code) toggleLang(); }}>{text}</button>
+            ))}
+          </div>
+
+          <NavItem icon={UserCog} label={farmProfile?.farm_name ? farmProfile.farm_name.slice(0, 24) : tt.nav.profile} onClick={onOpenProfile} />
+
+          {currentUser && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px 0' }}>
+              <div aria-hidden="true" className="menu-avatar">{initialsOf(currentUser.name)}</div>
+              <div style={{ flex: 1, minWidth: 0, color: 'rgba(255,255,255,0.92)', fontSize: 12.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.name}</div>
+              <button type="button" className="menu-icon-button" onClick={onLogout} aria-label={tt.nav.signOut} title={tt.nav.signOut}>
+                <LogOut size={15} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-    </nav>
+    </aside>
     </>
   );
 }

@@ -8,6 +8,7 @@ import { canSeeKind } from '../domain/records/workflow.js';
 import { telegramBotUsername } from '../lib/channels.js';
 import { ROUTES, logRoute } from '../lib/recordsRoute.js';
 import { homeText } from './homeText.js';
+import PhotoBanner from './PhotoBanner.jsx';
 import { KIND_ICONS } from './records/icons.js';
 import FieldHoldsBanner from './records/FieldHoldsBanner.jsx';
 import RecordForm from './records/RecordForm.jsx';
@@ -71,8 +72,8 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
   return (
     <RecordsProviders farm={farm} lotCodeFormat={lotCodeFormat}>
       <div style={ui.page}>
-        <h1 style={ui.h1}>{tt.title(farmProfile?.farm_name ?? farm.name)}</h1>
-        <p style={{ ...ui.subtitle, marginBottom: 22 }}>{tt.subtitle}</p>
+        <PhotoBanner size="hero" image="/photos/researcher.jpg" eyebrow={homeText(lang).appSub} title={tt.title(farmProfile?.farm_name ?? farm.name)} subtitle={tt.subtitle} />
+        <div style={{ height: 24 }} />
 
         {!hasProfile && (
           <div style={{ ...ui.card, borderColor: '#bfdbfe', background: '#eff6ff', padding: '14px 18px', marginBottom: 22, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>

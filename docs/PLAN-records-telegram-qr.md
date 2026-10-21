@@ -98,12 +98,17 @@ with its newest approved assessment and when it is next due (a year on); a sourc
 (an approved weather event) came after it was last assessed and hit a field it waters, or named it. Floods are tied in three
 places: the flood form names the assessed sources for its field, a flood's detail lists the water it may have reached with
 one click to assess each again, and an assessment shows floods of the last year on its fields. Home points to sources that
-need an assessment. A source that is not used any more is taken off the list with a "Not used any more" assessment (the
-decision, with nothing else to fill in). Fields and sources are matched loosely ("A-2", "a2", "A2 and B1", accents).
-Owner to do: run `20261021000000_water_assessments.sql` (it adds the kind to the database's list).
-Known limit: the database's protection of a field's name (it cannot be renamed or deleted while records use it) looks at
-each record's `field`, not at the list of fields an assessment waters, so a field named only in an assessment can still be
-renamed; the assessment form warns about names that are not in the field list.
+need an assessment. Water sources are a list the farm keeps, like fields (table `water_sources`: kind, the fields it waters, notes,
+archive): the water page lists each source with its condition (last assessment and next review, decision, last water test,
+status), a source on the list that was never assessed needs an assessment, an archived one is left out, and names that records
+use but the list does not have are offered to be added. The assessment, water test and flood forms pick the source from the
+list. While any record names a source its name cannot change and it cannot be deleted (enforced in the database, as for fields).
+Fields and sources are matched loosely ("A-2", "a2", "A2 and B1", accents). The Telegram agent is told the source names.
+Owner to do: run `20261021000000_water_assessments.sql` and then `20261021000001_water_sources.sql` (the second adds the list and
+registers the sources already in the records; until it is applied the page says so and works from the records alone).
+Known limit: a flood that names several water sources in one box ("Well 1, Pond") is tied to each of them in the app, but the
+database's protection of a source's name only looks at a whole name, so a source named only inside such a list can still be
+renamed. The assessment form warns about fields that are not in the field list.
 
 ### Phase 3: Telegram capture
 Copy the Organic channel and agent code (two-step linking, review queue, photo reading), with tools for the food safety

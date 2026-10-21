@@ -22,7 +22,7 @@
 -- renamed or deleted can slip through; it keeps its text and shows as "not in your list". Nothing is lost.
 -- Safe to re-run.
 
--- ─── Which source a record names ─────────────────────────────────────────────
+-- --- Which source a record names ---------------------------------------------
 
 -- An assessment and a water test name their source in `source`; a flood names the one it may have reached in
 -- `water_source`. Anything else, and anything that is not text, names none.
@@ -40,7 +40,7 @@ as $$
   end
 $$;
 
--- ─── The table ───────────────────────────────────────────────────────────────
+-- --- The table ---------------------------------------------------------------
 
 create table if not exists public.water_sources (
   id            uuid primary key default gen_random_uuid(),
@@ -72,7 +72,7 @@ create index if not exists records_farm_water_source_key_idx
   on public.records (farm_id, left(public.field_key(public.record_water_source(kind, payload)), 128))
   where public.record_water_source(kind, payload) is not null;
 
--- ─── Keeping a source's name while records use it ────────────────────────────
+-- --- Keeping a source's name while records use it ----------------------------
 
 create or replace function public.water_source_is_referenced(p_farm_id uuid, p_name text)
 returns boolean
@@ -144,7 +144,7 @@ create trigger water_sources_limit
   before insert on public.water_sources
   for each row execute function public.water_sources_limit();
 
--- ─── Fields named in an assessment or a water source ─────────────────────────
+-- --- Fields named in an assessment or a water source -------------------------
 
 -- The field list's rule (a field that records use cannot be renamed or deleted) now also counts a field listed in an
 -- assessment's "fields this water is used on" or in a water source's fields. The list is split the way the app splits it:
@@ -182,7 +182,7 @@ as $$
   );
 $$;
 
--- ─── Row level security ──────────────────────────────────────────────────────
+-- --- Row level security ------------------------------------------------------
 
 alter table public.water_sources enable row level security;
 
@@ -207,7 +207,7 @@ create policy water_sources_delete_manager on public.water_sources
   for delete to authenticated
   using (public.has_farm_role(farm_id, array['owner', 'manager']));
 
--- ─── Privileges (column-level: defense in depth) ─────────────────────────────
+-- --- Privileges (column-level: defense in depth) -----------------------------
 
 revoke all on public.water_sources from anon, authenticated;
 grant select on public.water_sources to authenticated;
@@ -224,7 +224,7 @@ revoke all on function public.water_sources_limit() from public, anon, authentic
 -- `field_is_referenced` was already closed to everyone in the fields migration, and stays so: `create or replace` keeps
 -- its privileges.)
 
--- ─── The water sources a farm already uses ───────────────────────────────────
+-- --- The water sources a farm already uses -----------------------------------
 
 -- Registers every water source named in a farm's APPROVED records (a draft or a rejected record has not been reviewed, so
 -- its text is not turned into a source), once per name, spelled the way the records spell it most often, with the kind

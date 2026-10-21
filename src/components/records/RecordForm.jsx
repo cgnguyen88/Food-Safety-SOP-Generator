@@ -7,7 +7,7 @@ import { canReview } from '../../domain/records/workflow.js';
 import { applySanitationCheck, checkSanitizerConcentration } from '../../domain/records/sanitation.js';
 import { holdFor } from '../../domain/records/holds.js';
 import { findField } from '../../domain/records/fields.js';
-import { fieldNamesIn, recentFloods, sourcesServing, waterSources } from '../../domain/records/waterAssessment.js';
+import { fieldNamesIn, latestWaterTest, recentFloods, sourcesServing, waterSources } from '../../domain/records/waterAssessment.js';
 import { createRecord, updateRecord } from '../../lib/records.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
@@ -17,14 +17,14 @@ import FieldPicker from './FieldPicker.jsx';
 import LotCodeTools from './LotCodeTools.jsx';
 import Modal from './Modal.jsx';
 import SanitizerHint from './SanitizerHint.jsx';
-import { ConcernSummary, FloodWaterNote, PublicWaterNote, RecentFloodsNote, UnlistedFieldsNote, WATER_SECTION_STARTS, WaterSectionHeading } from './WaterHints.jsx';
+import { ConcernSummary, FloodWaterNote, LatestTestNote, PublicWaterNote, RecentFloodsNote, UnlistedFieldsNote, WATER_SECTION_STARTS, WaterSectionHeading } from './WaterHints.jsx';
 import WaterSourcePicker from './WaterSourcePicker.jsx';
 import useFarmRecords from './useFarmRecords.js';
 import useFieldHolds from './useFieldHolds.js';
 
 const SANITIZER_LABELS = ['sanitizer_label'];
 /** What the water hints read: floods, and the farm's water assessments. */
-const WATER_KINDS = ['weather_event', 'water_assessment'];
+const WATER_KINDS = ['weather_event', 'water_assessment', 'water_test'];
 /** The box in which each kind of record names a water source. */
 const WATER_SOURCE_KEYS = Object.freeze({ water_assessment: 'source', water_test: 'source', weather_event: 'water_source' });
 
@@ -130,6 +130,10 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
   const unlistedFields = useMemo(
     () => (assessing && pickFromFarmFields ? fieldNamesIn(values.fields_served).filter((name) => !findField(name, farmFields)) : []),
     [assessing, pickFromFarmFields, values.fields_served, farmFields],
+  );
+  const lastTest = useMemo(
+    () => (assessing ? latestWaterTest(water.records, values.source, { today: waterToday }) : null),
+    [assessing, water.records, values.source, waterToday],
   );
   const sourcesForFlood = useMemo(
     () => (recordingFlood ? sourcesServing(waterSources(water.records, { today: waterToday, registry: farmWaterSources }), { field: values.field, waterSource: values.water_source }) : []),
@@ -245,7 +249,7 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
         if (assessing && key === 'source_type' && values.source_type === 'public') return [node, <PublicWaterNote key="public-water" />];
         if (assessing && key === 'fields_served') return [node, <UnlistedFieldsNote key="unlisted-fields" names={unlistedFields} />];
         if (assessing && key === 'weather_concern') return [node, <RecentFloodsNote key="recent-floods" status={water.status} floods={recentFloodList} truncated={water.truncated} />];
-        if (assessing && key === 'testing_concern') return [node, <ConcernSummary key="concerns" values={values} onUse={(conclusion) => setValues((current) => ({ ...current, conclusion }))} />];
+        if (assessing && key === 'testing_concern') return [node, <LatestTestNote key="latest-test" test={lastTest} />, <ConcernSummary key="concerns" values={values} onUse={(conclusion) => setValues((current) => ({ ...current, conclusion }))} />];
         if (recordingFlood && key === 'water_source') return [node, <FloodWaterNote key="flood-water" status={water.status} sources={sourcesForFlood} searched={!blank(values.field) || !blank(values.water_source)} truncated={water.truncated} />];
         return [node];
       })}

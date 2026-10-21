@@ -66,6 +66,11 @@ describe('WaterSourceDetail: what the source is and how it stands', () => {
     expect(within(screen.getByRole('region', { name: 'Floods since it was last assessed' })).getByText('2026-06-10 (A2)')).toBeTruthy();
   });
 
+  it('says a new assessment clears the floods, and that a water test does not', () => {
+    setup({ records: RECORDS, registry: [WELL] });
+    expect(within(screen.getByRole('region', { name: 'Floods since it was last assessed' })).getByText('Record a new assessment to clear this. A water test helps you rate it, but does not replace it.')).toBeTruthy();
+  });
+
   it('lists its assessments and its water tests, newest first', () => {
     setup({ records: RECORDS, registry: [WELL] });
     const assessments = within(screen.getByRole('region', { name: 'Assessments' })).getAllByRole('listitem').map((li) => li.textContent);

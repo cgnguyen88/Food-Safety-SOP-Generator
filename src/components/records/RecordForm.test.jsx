@@ -834,6 +834,22 @@ describe('RecordForm: water assessments', () => {
     expect(await screen.findByText('Flood in the last year that may have reached this water: 2026-06-10 (A1). Think about it when you rate the weather.')).toBeTruthy();
   });
 
+  it('shows the latest water test of the source, to weigh when the test results are rated', async () => {
+    farmHas([{ id: 't1', kind: 'water_test', status: 'approved', record_date: '2026-10-05', created_at: '2026-10-05T09:00:00Z', payload: { source: 'Well 1', result: 'pass', result_value: 3 } }]);
+    const { user } = assessment();
+    await user.type(screen.getByLabelText(LABEL.source), 'well 1');
+    expect(await screen.findByText('Last water test of this source: 2026-10-05, meets the standard (3). Think about it when you rate the test results.')).toBeTruthy();
+  });
+
+  it('says nothing about a water test when the source has none, or no source is named', async () => {
+    farmHas([{ id: 't1', kind: 'water_test', status: 'approved', record_date: '2026-10-05', created_at: '2026-10-05T09:00:00Z', payload: { source: 'Canal', result: 'pass' } }]);
+    const { user } = assessment();
+    await user.type(screen.getByLabelText(LABEL.source), 'Well 1');
+    await waitFor(() => expect(listRecordsForReport).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(screen.queryByText(/Last water test of this source/)).toBeNull();
+  });
+
   it('says nothing about floods on other fields', async () => {
     farmHas([FLOOD]);
     const { user } = assessment();

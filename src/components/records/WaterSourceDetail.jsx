@@ -84,6 +84,7 @@ export default function WaterSourceDetail({ row, records, entry, canManage, canR
           <ul style={listStyle}>
             {row.floods.map((flood) => <li key={flood.id} style={itemStyle}><span>{water.form.floodItem(flood.date, flood.field)}</span></li>)}
           </ul>
+          <p style={{ fontSize: 12, color: '#64748b', margin: '6px 0 0' }}>{water.floodClears}</p>
         </section>
       )}
 

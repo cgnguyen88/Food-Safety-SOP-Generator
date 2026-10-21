@@ -109,6 +109,23 @@ function datedBy(records, kind, today) {
     .filter(({ day }) => day !== '' && day <= today);
 }
 
+const summaryOfTest = (found) => (found ? { id: found.record.id, date: found.day, result: found.record.payload.result, value: found.record.payload.result_value ?? null } : null);
+
+/**
+ * The newest approved water test of a source (its name matched loosely) not dated after `today`: for weighing the test
+ * results when the source is assessed. Null when there is none, or no source is named.
+ *
+ * @param {object[]} records
+ * @param {unknown} source
+ * @param {{ today: string }} options
+ * @returns {{ id: string, date: string, result: string | undefined, value: number | null } | null}
+ */
+export function latestWaterTest(records, source, { today }) {
+  const key = looseKey(source);
+  if (key === '') return null;
+  return summaryOfTest(newestBySource(datedBy(records, 'water_test', today), (record) => looseKey(record.payload.source)).get(key));
+}
+
 /**
  * One row for each water source: the farm's list of water sources (when it has one) and every source an approved
  * assessment names. Each has its newest approved assessment, when it is next due (a year on), whether a flood since then
@@ -164,7 +181,7 @@ export function waterSources(records, { today, registry = [], includeArchived = 
       archived,
       sourceType: entry?.source_type ?? assessed?.record.payload.source_type ?? null,
       notes: entry?.notes ?? null,
-      lastTest: test ? { id: test.record.id, date: test.day, result: test.record.payload.result, value: test.record.payload.result_value ?? null } : null,
+      lastTest: summaryOfTest(test),
     };
 
     if (!assessed) return [{ ...base, recordId: null, assessedOn: null, assessedAt: null, nextReview: null, daysLeft: null, conclusion: undefined, status: archived ? 'archived' : 'not_assessed', floods: [] }];

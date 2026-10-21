@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithLang } from './testUtils.jsx';
-import { ConcernSummary, FloodWaterNote, RecentFloodsNote } from './WaterHints.jsx';
+import { ConcernSummary, FloodWaterNote, LatestTestNote, RecentFloodsNote } from './WaterHints.jsx';
 
 afterEach(cleanup);
 
@@ -143,5 +143,27 @@ describe('FloodWaterNote', () => {
     renderWithLang(<FloodWaterNote status="ready" sources={[{ key: 'pozo', name: 'Pozo 1' }]} />, 'es');
     expect(screen.getByRole('status').textContent).toContain('Una inundación puede llegar a tu agua');
     expect(screen.getByRole('status').textContent).toContain('Fuentes de agua de este campo: Pozo 1.');
+  });
+});
+
+describe('LatestTestNote', () => {
+  it('names the latest water test of the source, so it can be weighed when the test results are rated', () => {
+    renderWithLang(<LatestTestNote test={{ id: 't1', date: '2026-10-20', result: 'pass', value: 3 }} />);
+    expect(screen.getByRole('status').textContent).toBe('Last water test of this source: 2026-10-20, meets the standard (3). Think about it when you rate the test results.');
+  });
+
+  it('says a test that did not meet the standard, and leaves out a value that was not given', () => {
+    renderWithLang(<LatestTestNote test={{ id: 't1', date: '2026-04-01', result: 'fail', value: null }} />);
+    expect(screen.getByRole('status').textContent).toBe('Last water test of this source: 2026-04-01, does not meet the standard. Think about it when you rate the test results.');
+  });
+
+  it('says nothing when there is no test', () => {
+    const { container } = renderWithLang(<LatestTestNote test={null} />);
+    expect(container.textContent).toBe('');
+  });
+
+  it('speaks Spanish', () => {
+    renderWithLang(<LatestTestNote test={{ id: 't1', date: '2026-10-20', result: 'pass', value: 3 }} />, 'es');
+    expect(screen.getByRole('status').textContent).toContain('Último análisis del agua de esta fuente: 2026-10-20, cumple la norma (3).');
   });
 });

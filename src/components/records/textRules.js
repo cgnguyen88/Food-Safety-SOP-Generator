@@ -153,6 +153,7 @@ export const RULES_TEXT = {
       assess: 'Assess',
       assessFor: (name) => `Assess: ${name}`,
       floodOn: (floods) => `${floods.length === 1 ? 'Flood on' : 'Floods on'} ${floods.map((f) => (f.field ? `${f.date} (${f.field})` : f.date)).join(', ')}`,
+      floodClears: 'Record a new assessment to clear this. A water test helps you rate it, but does not replace it.',
       dueIn: (days) => (days === 0 ? 'Due today' : days > 0 ? (days === 1 ? 'in 1 day' : `in ${days} days`) : days === -1 ? '1 day ago' : `${-days} days ago`),
       reassess: 'Assess again',
       reassessFor: (name) => `Assess again: ${name}`,
@@ -177,6 +178,7 @@ export const RULES_TEXT = {
         factors: { source_concern: 'the source', nearby_concern: 'what is near the water', practice_concern: 'how it is applied', crop_concern: 'the crop', weather_concern: 'the weather', testing_concern: 'the test results' },
         floods: (list, n = 1) => (n === 1 ? `Flood in the last year that may have reached this water: ${list}. Think about it when you rate the weather.` : `Floods in the last year that may have reached this water: ${list}. Think about them when you rate the weather.`),
         floodItem: (date, field) => (field ? `${date} (${field})` : date),
+        latestTest: (date, result, value) => `Last water test of this source: ${date}, ${result}${value === null || value === undefined || value === '' ? '' : ` (${value})`}. Think about it when you rate the test results.`,
         floodsError: 'Floods could not be checked right now, so one may have happened that is not shown here.',
         notInList: (names) => `Not in your field list: ${names}. Use the names under Fields, separated by commas, so a flood on one of these fields is tied to this water.`,
         sections: {
@@ -419,6 +421,7 @@ export const RULES_TEXT = {
       assess: 'Evaluar',
       assessFor: (name) => `Evaluar: ${name}`,
       floodOn: (floods) => `${floods.length === 1 ? 'Inundación del' : 'Inundaciones del'} ${floods.map((f) => (f.field ? `${f.date} (${f.field})` : f.date)).join(', ')}`,
+      floodClears: 'Registra una nueva evaluación para quitar esto. Un análisis del agua te ayuda a calificar, pero no la reemplaza.',
       dueIn: (days) => (days === 0 ? 'Vence hoy' : days > 0 ? (days === 1 ? 'en 1 día' : `en ${days} días`) : days === -1 ? 'hace 1 día' : `hace ${-days} días`),
       reassess: 'Evaluar de nuevo',
       reassessFor: (name) => `Evaluar de nuevo: ${name}`,
@@ -443,6 +446,7 @@ export const RULES_TEXT = {
         factors: { source_concern: 'la fuente', nearby_concern: 'lo que hay cerca del agua', practice_concern: 'cómo se aplica', crop_concern: 'el cultivo', weather_concern: 'el clima', testing_concern: 'los resultados de análisis' },
         floods: (list, n = 1) => (n === 1 ? `Hubo una inundación en el último año que pudo alcanzar esta agua: ${list}. Tenla en cuenta al calificar el clima.` : `Hubo inundaciones en el último año que pudieron alcanzar esta agua: ${list}. Tenlas en cuenta al calificar el clima.`),
         floodItem: (date, field) => (field ? `${date} (${field})` : date),
+        latestTest: (date, result, value) => `Último análisis del agua de esta fuente: ${date}, ${result}${value === null || value === undefined || value === '' ? '' : ` (${value})`}. Tenlo en cuenta al calificar los resultados de análisis.`,
         floodsError: 'Ahora no se pudieron revisar las inundaciones, así que podría haber una que no aparece aquí.',
         notInList: (names) => `No están en tu lista de campos: ${names}. Usa los nombres de Campos, separados por comas, para que una inundación en alguno de estos campos se relacione con esta agua.`,
         sections: {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CONCERN_KEYS, assessConcerns, fieldNamesIn, floodLinks, prefillForSource, prefillFromAssessment, recentFloods, sourceHistory, sourcesServing, unregisteredWaterSources, waterCounts, waterSources,
+  CONCERN_KEYS, assessConcerns, fieldNamesIn, floodLinks, latestWaterTest, prefillForSource, prefillFromAssessment, recentFloods, sourceHistory, sourcesServing, unregisteredWaterSources, waterCounts, waterSources,
 } from './waterAssessment.js';
 
 let n = 0;
@@ -563,5 +563,25 @@ describe('prefillForSource: starting an assessment of a source on the page', () 
     const last = assessment({ source_type: undefined, fields_served: undefined });
     const [row] = waterSources([last], { today: TODAY, registry: [reg('Well 1', { source_type: 'canal', fields_served: 'Z9' })] });
     expect(prefillForSource(row, [last])).toMatchObject({ source: 'Well 1', source_type: 'canal', fields_served: 'Z9' });
+  });
+});
+
+describe('latestWaterTest: the newest water test of a source being assessed', () => {
+  const test = (source, date, result = 'pass', extra = {}) => ({ id: `t${(n += 1)}`, kind: 'water_test', status: 'approved', record_date: date, created_at: `${date}T09:00:00Z`, payload: { source, result, result_value: 3 }, ...extra });
+
+  it('is the newest approved test of the source, however its name is spelled', () => {
+    const records = [test('Well 1', '2026-04-01', 'fail'), test('well  #1', '2026-06-15', 'pass'), test('Canal', '2026-06-20')];
+    expect(latestWaterTest(records, 'WELL 1', { today: TODAY })).toEqual({ id: expect.any(String), date: '2026-06-15', result: 'pass', value: 3 });
+  });
+
+  it('leaves out tests that are not approved or are dated after today, and other kinds of record', () => {
+    const records = [test('Well 1', '2026-06-01', 'pass'), test('Well 1', '2026-06-20', 'fail', { status: 'draft' }), test('Well 1', '2026-12-01', 'fail'), assessment({ source: 'Well 1' })];
+    expect(latestWaterTest(records, 'Well 1', { today: TODAY }).date).toBe('2026-06-01');
+  });
+
+  it('is nothing when there is none, or no source has been named', () => {
+    expect(latestWaterTest([test('Canal', '2026-06-01')], 'Well 1', { today: TODAY })).toBeNull();
+    expect(latestWaterTest([test('Canal', '2026-06-01')], '', { today: TODAY })).toBeNull();
+    expect(latestWaterTest([test('Canal', '2026-06-01')], undefined, { today: TODAY })).toBeNull();
   });
 });

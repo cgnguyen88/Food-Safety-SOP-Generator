@@ -100,9 +100,16 @@ describe('WaterSourcesPage: what it shows', () => {
       '2026-03-01Next review 2027-03-01 (in 133 days)',
       'No measures needed',
       '2026-09-01: Meets the standard',
-      'Assess againFlood on 2026-06-10 (A2)',
+      'Assess againFlood on 2026-06-10 (A2)Record a new assessment to clear this. A water test helps you rate it, but does not replace it.',
     ]);
     expect(cells(rowOf('Canal')).slice(2, 5)).toEqual(['2025-10-01Next review 2026-10-01 (18 days ago)', 'Measures needed', '—']);
+  });
+
+  it('says a new assessment clears the flood, and that a water test alone does not', async () => {
+    setup();
+    await screen.findByText('1 overdue');
+    expect(within(rowOf('Well 1')).getByText('Record a new assessment to clear this. A water test helps you rate it, but does not replace it.')).toBeTruthy();
+    expect(within(rowOf('Canal')).queryByText(/Record a new assessment to clear this/)).toBeNull();
   });
 
   it('shows a source that was never assessed, with its kind and fields from the list, as needing an assessment', async () => {

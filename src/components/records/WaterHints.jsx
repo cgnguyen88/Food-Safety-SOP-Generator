@@ -119,3 +119,12 @@ export function UnlistedFieldsNote({ names }) {
   if (names.length === 0) return null;
   return <p role="status" style={{ ...NOTE, ...TONE.warn }}>{tt.form.notInList(names.join(', '))}</p>;
 }
+
+/** Under the test results rating: the latest water test of the source being assessed, to weigh when rating. @param {{ test: { date: string, result?: string, value?: number | null } | null }} props */
+export function LatestTestNote({ test }) {
+  const { lang, tt } = useText();
+  if (!test) return null;
+  const label = test.result ? optionLabel('water_test', 'result', test.result, lang) : '';
+  const result = label.charAt(0).toLocaleLowerCase(lang) + label.slice(1);
+  return <p role="status" style={{ ...NOTE, ...TONE.info }}>{tt.form.latestTest(test.date, result, test.value)}</p>;
+}

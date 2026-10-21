@@ -40,7 +40,12 @@ export default function WaterSourceRow({ row, listKnown, canRecord, onAssess, on
       <td data-label={tt.columns.test} style={{ ...td, ...muted }}>{row.lastTest ? tt.test(row.lastTest.date, result(row.lastTest.result)) : tt.none}</td>
       <td data-label={tt.columns.status} style={td}>
         <span style={{ ...STATUS_TONE[row.status], padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600 }}>{tt.status[row.status]}</span>
-        {row.floods.length > 0 && <div style={{ fontSize: 12, color: '#991b1b', marginTop: 4 }}>{tt.floodOn(row.floods)}</div>}
+        {row.floods.length > 0 && (
+          <>
+            <div style={{ fontSize: 12, color: '#991b1b', marginTop: 4 }}>{tt.floodOn(row.floods)}</div>
+            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2, maxWidth: 260, whiteSpace: 'normal' }}>{tt.floodClears}</div>
+          </>
+        )}
       </td>
       <td className="stack-actions" style={{ ...td, whiteSpace: 'nowrap' }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

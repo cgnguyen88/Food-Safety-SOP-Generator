@@ -178,6 +178,8 @@ describe('WaterSourcesPage: water sources in the records that are not on the lis
     await waitFor(() => expect(sourcesLib.addWaterSources).toHaveBeenCalledWith('farm-1', [{ name: 'Stray pond', uses: 1, source_type: 'surface', fields_served: 'F1' }]));
     expect(await screen.findByText('1 water source added.')).toBeTruthy();
     expect(reload).toHaveBeenCalled();
+    // The notice goes away until the list has been read again, so the same names are not offered twice.
+    expect(screen.queryByRole('button', { name: 'Add them to the list' })).toBeNull();
   });
 
   it('says how many were left for another go, and says if it could not add them', async () => {
@@ -276,6 +278,127 @@ describe('WaterSourcesPage: adding and assessing', () => {
     expect(screen.getByText('Only an owner or manager can change the list of water sources.')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'New assessment' }));
     expect(await screen.findByRole('button', { name: 'Submit for review' })).toBeTruthy();
+  });
+});
+
+describe('WaterSourcesPage: a source’s details, and changing the list from them', () => {
+  const openDetails = async (user, name) => {
+    await screen.findByText('1 overdue');
+    await user.click(within(rowOf(name)).getByRole('button', { name: `Details: ${name}` }));
+    return screen.findByRole('dialog', { name });
+  };
+
+  it('opens a source’s details, and closes them', async () => {
+    const { user } = setup();
+    const dialog = await openDetails(user, 'Well 1');
+    expect(within(dialog).getByText('Kind of source')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('starts an assessment from the details, closing them', async () => {
+    const { user } = setup();
+    const dialog = await openDetails(user, 'Canal');
+    await user.click(within(dialog).getByRole('button', { name: 'Assess again' }));
+    const form = await screen.findByRole('dialog', { name: 'Add water assessment' });
+    expect(within(form).getByLabelText(/^Water source or system/).value).toBe('Canal');
+    expect(screen.queryByRole('dialog', { name: 'Canal' })).toBeNull();
+  });
+
+  it('edits a source, with its name fixed while records use it, then reads the list again and tells the parent', async () => {
+    sourcesLib.updateWaterSource.mockResolvedValue({ data: REGISTRY[1], error: null });
+    const { user, reload, onChanged } = setup();
+    const dialog = await openDetails(user, 'Canal');
+    await user.click(within(dialog).getByRole('button', { name: 'Edit' }));
+    const form = await screen.findByRole('dialog', { name: 'Edit water source' });
+    expect(within(form).getByLabelText('Name').readOnly).toBe(true);
+    await user.click(within(form).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(sourcesLib.updateWaterSource).toHaveBeenCalledWith('s-Canal', expect.objectContaining({ name: 'Canal' })));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(onChanged).toHaveBeenCalled();
+  });
+
+  it('lets the name of a source no record uses be changed', async () => {
+    const { user } = setup();
+    const dialog = await openDetails(user, 'New well');
+    await user.click(within(dialog).getByRole('button', { name: 'Edit' }));
+    const form = await screen.findByRole('dialog', { name: 'Edit water source' });
+    expect(within(form).getByLabelText('Name').readOnly).toBe(false);
+  });
+
+  it('archives a source, and restores one, from the details', async () => {
+    sourcesLib.setWaterSourceActive.mockResolvedValue({ data: {}, error: null });
+    const { user, reload } = setup();
+    const dialog = await openDetails(user, 'New well');
+    await user.click(within(dialog).getByRole('button', { name: 'Archive' }));
+    await waitFor(() => expect(sourcesLib.setWaterSourceActive).toHaveBeenCalledWith('s-New well', false));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it('restores an archived source', async () => {
+    sourcesLib.setWaterSourceActive.mockResolvedValue({ data: {}, error: null });
+    const { user } = setup();
+    await screen.findByText('1 overdue');
+    await user.selectOptions(screen.getByLabelText('Show'), 'archived');
+    await user.click(within(rowOf('Old well')).getByRole('button', { name: 'Details: Old well' }));
+    await user.click(await screen.findByRole('button', { name: 'Restore' }));
+    await waitFor(() => expect(sourcesLib.setWaterSourceActive).toHaveBeenCalledWith('s-Old well', true));
+  });
+
+  it('deletes a source no record uses, after asking, and closes the details', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    sourcesLib.deleteWaterSource.mockResolvedValue({ data: null, error: null });
+    const { user, reload } = setup();
+    const dialog = await openDetails(user, 'New well');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(window.confirm).toHaveBeenCalledWith('Delete the water source “New well”? This cannot be undone.');
+    await waitFor(() => expect(sourcesLib.deleteWaterSource).toHaveBeenCalledWith('s-New well'));
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('deletes nothing when the person does not confirm', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { user } = setup();
+    const dialog = await openDetails(user, 'New well');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(sourcesLib.deleteWaterSource).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'New well' })).toBeTruthy();
+  });
+
+  it('explains, without asking or deleting, that a source records use cannot be deleted', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { user } = setup();
+    const dialog = await openDetails(user, 'Canal');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect((await screen.findAllByRole('alert')).map((a) => a.textContent).join(' ')).toContain('Records use this water source, so it cannot be deleted. Archive it instead.');
+    expect(confirm).not.toHaveBeenCalled();
+    expect(sourcesLib.deleteWaterSource).not.toHaveBeenCalled();
+  });
+
+  it('says why when the database refuses a delete because records use the source (a draft, say)', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    sourcesLib.deleteWaterSource.mockResolvedValue({ data: null, error: { code: 'in_use' } });
+    const { user } = setup();
+    const dialog = await openDetails(user, 'New well');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect((await screen.findAllByRole('alert')).map((a) => a.textContent).join(' ')).toContain('Records use this water source, so it cannot be deleted. Archive it instead.');
+    expect(screen.getByRole('dialog', { name: 'New well' })).toBeTruthy();
+  });
+
+  it('gives crew the details, to read and to assess from, but no way to change the list', async () => {
+    const { user } = setup({ role: 'crew' });
+    const dialog = await openDetails(user, 'Canal');
+    expect(within(dialog).getByRole('button', { name: 'Assess again' })).toBeTruthy();
+    for (const name of ['Edit', 'Archive', 'Delete']) expect(within(dialog).queryByRole('button', { name })).toBeNull();
+  });
+
+  it('says why when archiving fails', async () => {
+    sourcesLib.setWaterSourceActive.mockResolvedValue({ data: null, error: { code: 'forbidden' } });
+    const { user } = setup();
+    const dialog = await openDetails(user, 'New well');
+    await user.click(within(dialog).getByRole('button', { name: 'Archive' }));
+    expect((await screen.findAllByRole('alert')).map((a) => a.textContent).join(' ')).toContain('Only an owner or manager can change water sources.');
   });
 });
 

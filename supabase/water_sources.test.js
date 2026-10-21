@@ -193,6 +193,15 @@ describe('migration: water sources', () => {
       await expect(as(owner, `delete from public.fields where farm_id = $1 and name = 'Peon'`, [farmA])).rejects.toThrow(/used by records/i);
     });
 
+    it('does not count a list that is not text, and does not look past its first 2000 characters', async () => {
+      await as(owner, `insert into public.fields (farm_id, name) values ($1, 'NotText'), ($1, 'Far'), ($1, 'Near')`, [farmA]);
+      await db.query(`insert into public.records (farm_id, kind, status, payload, created_by) values ($1, 'water_assessment', 'approved', $2::jsonb, $3)`, [farmA, JSON.stringify({ source: 'Odd 1', fields_served: { list: 'NotText' } }), owner]);
+      await assessed(farmA, 'Odd 2', {}, { fields_served: `Near, ${'x'.repeat(2100)}, Far` });
+      await as(owner, `update public.fields set name = 'NotText renamed' where farm_id = $1 and name = 'NotText'`, [farmA]);
+      await as(owner, `update public.fields set name = 'Far renamed' where farm_id = $1 and name = 'Far'`, [farmA]);
+      await expect(as(owner, `update public.fields set name = 'Near renamed' where farm_id = $1 and name = 'Near'`, [farmA])).rejects.toThrow(/used by records/i);
+    });
+
     it('can be renamed once nothing lists them', async () => {
       await as(owner, `insert into public.fields (farm_id, name) values ($1, 'Unlisted')`, [farmA]);
       await as(owner, `update public.fields set name = 'Unlisted renamed' where farm_id = $1 and name = 'Unlisted'`, [farmA]);

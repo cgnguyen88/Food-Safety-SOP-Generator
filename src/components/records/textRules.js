@@ -233,7 +233,7 @@ export const RULES_TEXT = {
         too_many: 'A farm can have at most 200 water sources. Delete the ones you no longer use.',
         forbidden: 'Only an owner or manager can change water sources.',
         unknown: 'Something went wrong. Please try again.',
-        not_set_up: 'Water sources are not set up on the server yet. Ask whoever looks after your database to apply the latest database update, then try again.',
+        not_set_up: 'Water sources are not set up on the server yet. In Supabase, open the SQL Editor and run the database update 20261021000001_water_sources.sql, then press Try again.',
       },
       detail: {
         status: 'Status',
@@ -499,7 +499,7 @@ export const RULES_TEXT = {
         too_many: 'Una granja puede tener como máximo 200 fuentes de agua. Elimina las que ya no uses.',
         forbidden: 'Solo un dueño o gerente puede cambiar las fuentes de agua.',
         unknown: 'Algo salió mal. Intenta de nuevo.',
-        not_set_up: 'Las fuentes de agua todavía no están configuradas en el servidor. Pide a quien se encarga de tu base de datos que aplique la última actualización y vuelve a intentarlo.',
+        not_set_up: 'Las fuentes de agua todavía no están configuradas en el servidor. En Supabase, abre el Editor SQL y ejecuta la actualización 20261021000001_water_sources.sql; luego presiona Intentar de nuevo.',
       },
       detail: {
         status: 'Estado',

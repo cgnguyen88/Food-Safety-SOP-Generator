@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { KIND_FIELDS, RECORD_KINDS } from './kinds.js';
 import { toCsv } from './csv.js';
 import {
-  REPORT_KIND_ORDER, REPORT_TEXT, buildReport, recordsToCsvRows, reviewChecks, describePeriod, reportFileName, reportStatuses, operationFromFarmProfile,
+  MAX_FIELDS_ACROSS, RECORDS_PER_TABLE, REPORT_KIND_ORDER, REPORT_TEXT, buildReport, recordsToCsvRows, recordTables, reviewChecks, describePeriod, reportFileName, reportStatuses, operationFromFarmProfile,
 } from './report.js';
 
 // Approved at local noon on 2 June: the local date is 2026-06-02 wherever the tests run.
@@ -356,6 +356,88 @@ describe('buildReport: the page header', () => {
   it('carries the report text for the renderers', () => {
     expect(buildReport({ ...base, lang: 'es', records: [] }).text).toBe(REPORT_TEXT.es);
     expect(buildReport({ ...base, lang: 'fr', records: [] }).text).toBe(REPORT_TEXT.en);
+  });
+});
+
+const assessed = (date, source, extra = {}) => rec('water_assessment', date, {
+  source, source_type: 'groundwater_protected', fields_served: 'A1, A2', application_method: 'drip',
+  source_concern: 'low', nearby_concern: 'some', practice_concern: 'low', crop_concern: 'low', weather_concern: 'low', testing_concern: 'low',
+  conclusion: 'no_mitigation', ...extra,
+});
+
+describe('buildReport: a log with many fields reads by date', () => {
+  it('lays a log with more than the limit of fields out by date, and a short one as a plain table', () => {
+    const report = buildReport({ ...base, records: [assessed('2026-03-01', 'Well 1'), clean('2026-07-01')] });
+    const layouts = Object.fromEntries(report.sections.map((section) => [section.kind, section.layout]));
+    expect(layouts).toEqual({ sanitation_log: 'table', water_assessment: 'by_date' });
+    expect(MAX_FIELDS_ACROSS).toBe(8);
+  });
+
+  it('counts the fields that have something in them, not every field the form has', () => {
+    const sparse = rec('water_assessment', '2026-03-01', { source: 'Well 1', conclusion: 'no_mitigation' });
+    expect(buildReport({ ...base, records: [sparse] }).sections[0].layout).toBe('table');
+  });
+
+  it('does not count the date, status or approved columns', () => {
+    const sixFields = clean('2026-07-01', { notes: 'ok' });
+    const report = buildReport({ ...base, records: [sixFields], includeUnapproved: true });
+    expect(report.sections[0].columns.length).toBeGreaterThan(MAX_FIELDS_ACROSS);
+    expect(report.sections[0].layout).toBe('table');
+  });
+});
+
+describe('recordTables', () => {
+  const section = (records, lang = 'en') => buildReport({ ...base, lang, records }).sections.find((one) => one.kind === 'water_assessment');
+
+  it('makes each record a column headed by its date, with the name of every field down the side', () => {
+    const [table] = recordTables(section([assessed('2026-03-01', 'Well 1'), assessed('2026-06-10', 'Canal', { conclusion: 'mitigation_needed', mitigation: 'Fence the bank' })]));
+    expect(table.dates).toEqual(['2026-03-01', '2026-06-10']);
+    const byLabel = Object.fromEntries(table.rows.map((row) => [row.label, row.values]));
+    expect(byLabel['Water source or system']).toEqual(['Well 1', 'Canal']);
+    expect(byLabel['Fields this water is used on (separate with commas)']).toEqual(['A1, A2', 'A1, A2']);
+    expect(byLabel['The measures you will take, and by when']).toEqual(['', 'Fence the bank']);
+    expect(table.rows.map((row) => row.label)).not.toContain('Date');
+  });
+
+  it('keeps the order of the fields and the approval date at the end', () => {
+    const [table] = recordTables(section([assessed('2026-03-01', 'Well 1')]));
+    expect(table.rows[0].label).toBe('Water source or system');
+    expect(table.rows.at(-1).label).toBe('Approved');
+    expect(table.rows.at(-1).values).toEqual(['2026-06-02']);
+  });
+
+  it('leaves a field blank for a record that did not fill it in', () => {
+    const [table] = recordTables(section([assessed('2026-03-01', 'Well 1'), assessed('2026-06-10', 'Canal', { notes: 'Checked after the rain' })]));
+    expect(Object.fromEntries(table.rows.map((row) => [row.label, row.values])).Notes).toEqual(['', 'Checked after the rain']);
+  });
+
+  it('splits the records into several tables when there are more than fit across', () => {
+    const records = Array.from({ length: RECORDS_PER_TABLE * 2 + 1 }, (_, index) => assessed(`2026-0${index + 1}-01`, `Well ${index + 1}`));
+    const tables = recordTables(section(records));
+    expect(tables.map((table) => table.dates.length)).toEqual([RECORDS_PER_TABLE, RECORDS_PER_TABLE, 1]);
+    expect(tables.map((table) => table.continued)).toEqual([false, true, true]);
+    expect(tables.flatMap((table) => table.dates)).toEqual(records.map((record) => record.record_date));
+    expect(tables.every((table) => table.rows.every((row) => row.values.length === table.dates.length))).toBe(true);
+  });
+
+  it('can be told how many to put side by side', () => {
+    const records = ['2026-01-01', '2026-02-01', '2026-03-01'].map((date, index) => assessed(date, `Well ${index}`));
+    expect(recordTables(section(records), 2).map((table) => table.dates.length)).toEqual([2, 1]);
+    expect(recordTables(section(records), 0).map((table) => table.dates.length)).toEqual([1, 1, 1]);
+  });
+
+  it('heads a record with no date as undated, in the report language', () => {
+    expect(recordTables(section([assessed(null, 'Well 1')]))[0].dates).toEqual(['No date']);
+    expect(recordTables(section([assessed(null, 'Well 1')], 'es'))[0].dates).toEqual(['Sin fecha']);
+  });
+
+  it('reads the labels in the language of the report', () => {
+    const [table] = recordTables(section([assessed('2026-03-01', 'Well 1')], 'es'));
+    expect(table.rows[0].label).toBe('Fuente o sistema de agua');
+  });
+
+  it('is no tables at all when there is nothing in the log', () => {
+    expect(recordTables({ kind: 'water_assessment', columns: [{ key: 'record_date', label: 'Date' }], rows: [] })).toEqual([]);
   });
 });
 

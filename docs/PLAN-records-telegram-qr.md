@@ -75,6 +75,11 @@ Word, CSV and print, with checks before hand-over; five default saved views; a f
 photo capture and Telegram (Phase 3), the Organic app's stock page and OMRI check. Owner to do: run the two
 `20261019...` migrations.
 
+Reports (2026-10-20): Reports is a menu page of its own (with Trace & recall), no longer inside a Traceability section. A log
+with more than 8 filled-in fields (the water assessment has 15) is written by date in the report, the Word file and the print-out:
+each record is a column headed by its date, the field names run down the side, and 4 records share a table before it carries on
+in the next ("continued"), each table kept whole on a page. Shorter logs and the CSV stay one record per row.
+
 ### Phase 2: rules that connect records
 Sanitizer label → sanitation log pass/fail; field holds and their clearing; training due list; lot code generator from the
 farm's own format (SOP #9, tokens such as `{FARM}-{CROP}-{YYYYMMDD}-{FIELD}`, a suffix when a code would repeat);

@@ -4,7 +4,7 @@ export const HOME_TEXT = {
     appSub: 'UC ANR Food Safety System',
     nav: {
       home: 'Home',
-      groups: { records: 'Records', traceability: 'Traceability' },
+      groups: { records: 'Records' },
       records: 'All records',
       review: 'Needs review',
       fields: 'Fields',
@@ -61,7 +61,7 @@ export const HOME_TEXT = {
     appSub: 'Sistema de Inocuidad Alimentaria UC ANR',
     nav: {
       home: 'Inicio',
-      groups: { records: 'Registros', traceability: 'Trazabilidad' },
+      groups: { records: 'Registros' },
       records: 'Todos los registros',
       review: 'Por revisar',
       fields: 'Campos',

@@ -1,7 +1,61 @@
 import { useId } from 'react';
+import { recordTables } from '../../domain/records/report.js';
 
 /** Columns that hold a date: these never wrap, so a date is not split over two lines. */
 const DATE_COLUMNS = new Set(['record_date', 'approved']);
+
+/** One record per row, the fields across: for a log with few fields. */
+function RowTable({ section, labelledBy, rows }) {
+  return (
+    <table aria-labelledby={labelledBy}>
+      <thead>
+        <tr>
+          {section.columns.map((column) => <th key={column.key} scope="col">{column.label}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, rowIndex) => (
+          <tr key={rowIndex}>
+            {row.map((value, columnIndex) => {
+              const { key } = section.columns[columnIndex];
+              return DATE_COLUMNS.has(key)
+                ? <td key={key} className="report-date">{value}</td>
+                : <td key={key} style={{ whiteSpace: 'pre-wrap' }}>{value}</td>;
+            })}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/**
+ * One record per column, headed by its date, with the fields down the side: for a log with many fields, which across the
+ * page would be squeezed too narrow to read. Records beyond what fits across carry on in a table below, each kept whole on a page.
+ */
+function DateTables({ section, labelledBy, rows, text }) {
+  return recordTables({ ...section, rows }).map((table, index) => (
+    <div key={index} className="report-chunk">
+      {table.continued && <p className="report-continued">{`${section.title} — ${text.continued}`}</p>}
+      <table className="report-by-date" aria-labelledby={labelledBy}>
+        <thead>
+          <tr>
+            <th scope="col">{section.columns[0].label}</th>
+            {table.dates.map((date, dateIndex) => <th key={dateIndex} scope="col">{date}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row) => (
+            <tr key={row.key}>
+              <th scope="row">{row.label}</th>
+              {row.values.map((value, valueIndex) => <td key={valueIndex} style={{ whiteSpace: 'pre-wrap' }}>{value}</td>)}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ));
+}
 
 /**
  * A report (see domain/records/report.js) as a page. The same component is the on-screen preview and
@@ -52,25 +106,9 @@ export default function ReportView({ report, maxRows }) {
       {report.sections.map((section) => (
         <section key={section.kind} className="report-section">
           <h2 id={`${id}-${section.kind}`}>{`${section.title} — ${text.count(section.count)}`}</h2>
-          <table aria-labelledby={`${id}-${section.kind}`}>
-            <thead>
-              <tr>
-                {section.columns.map((column) => <th key={column.key} scope="col">{column.label}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {shownRows(section.rows).map((row, rowIndex) => (
-                <tr key={rowIndex}>
-                  {row.map((value, columnIndex) => {
-                    const { key } = section.columns[columnIndex];
-                    return DATE_COLUMNS.has(key)
-                      ? <td key={key} className="report-date">{value}</td>
-                      : <td key={key} style={{ whiteSpace: 'pre-wrap' }}>{value}</td>;
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {section.layout === 'by_date'
+            ? <DateTables section={section} labelledBy={`${id}-${section.kind}`} rows={shownRows(section.rows)} text={text} />
+            : <RowTable section={section} labelledBy={`${id}-${section.kind}`} rows={shownRows(section.rows)} />}
         </section>
       ))}
 

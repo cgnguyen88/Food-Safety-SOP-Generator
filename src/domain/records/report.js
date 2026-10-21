@@ -31,6 +31,8 @@ export const REPORT_TEXT = Object.freeze({
     scope: { approved: 'Approved records only', all: 'Includes records not yet approved' },
     period: { all: 'All dates', range: (from, to) => `${from} to ${to}`, from: (date) => `From ${date}`, upTo: (date) => `Up to ${date}` },
     columns: { date: 'Date', type: 'Type', status: 'Status', source: 'Source', approved: 'Approved' },
+    undated: 'No date',
+    continued: 'continued',
     status: { draft: 'Draft', needs_info: 'Needs info', pending_review: 'Needs review', approved: 'Approved', rejected: 'Rejected', voided: 'Voided' },
     source: { manual: 'Entered by hand', web_upload: 'Web upload', telegram: 'Telegram', whatsapp: 'WhatsApp', email: 'Email', import: 'Imported' },
     count: (n) => (n === 1 ? '1 record' : `${n} records`),
@@ -47,6 +49,8 @@ export const REPORT_TEXT = Object.freeze({
     scope: { approved: 'Solo registros aprobados', all: 'Incluye registros aún no aprobados' },
     period: { all: 'Todas las fechas', range: (from, to) => `${from} a ${to}`, from: (date) => `Desde ${date}`, upTo: (date) => `Hasta ${date}` },
     columns: { date: 'Fecha', type: 'Tipo', status: 'Estado', source: 'Origen', approved: 'Aprobado' },
+    undated: 'Sin fecha',
+    continued: 'continuación',
     status: { draft: 'Borrador', needs_info: 'Faltan datos', pending_review: 'Por revisar', approved: 'Aprobado', rejected: 'Rechazado', voided: 'Anulado' },
     source: { manual: 'Ingresado a mano', web_upload: 'Carga web', telegram: 'Telegram', whatsapp: 'WhatsApp', email: 'Correo', import: 'Importado' },
     count: (n) => (n === 1 ? '1 registro' : `${n} registros`),
@@ -125,6 +129,15 @@ function reportCell(record, field, lang) {
   return tidyLines(cleanText(base));
 }
 
+/**
+ * A log with more fields than this is laid out by date: across a page its columns would be squeezed too narrow to read, so
+ * each record becomes a column headed by its date, with the fields listed down the side (see `recordTables`).
+ */
+export const MAX_FIELDS_ACROSS = 8;
+
+/** How many records of a log laid out by date go side by side in one table; more are carried over to a table below. */
+export const RECORDS_PER_TABLE = 4;
+
 function buildSection(kind, records, includeUnapproved, lang, text) {
   const sorted = [...records].sort(byDateThenCreated);
   const fields = fieldsOf(kind).filter((field) => sorted.some((r) => present(r.payload?.[field.key]) || (UNIT_OF[field.key] && present(r.payload?.[UNIT_OF[field.key]]))));
@@ -144,7 +157,32 @@ function buildSection(kind, records, includeUnapproved, lang, text) {
     ...(columns.some((c) => c.key === 'approved') ? [approvedOn(r)] : []),
   ]);
 
-  return { kind, title: KIND_META[kind].plural[lang], count: sorted.length, columns, rows };
+  const layout = fields.length > MAX_FIELDS_ACROSS ? 'by_date' : 'table';
+  return { kind, title: KIND_META[kind].plural[lang], count: sorted.length, layout, undated: text.undated, columns, rows };
+}
+
+/**
+ * A section laid out by date as tables: the records side by side, each a column headed by its date, with the name of every
+ * field down the left. At most `perTable` records share a table; the rest go in the tables below, marked `continued`.
+ * Each table holds only the dates it shows, so every one reads on its own.
+ *
+ * @param {{ columns: Array<{ key: string, label: string }>, rows: Array<Array<string | number>>, undated?: string }} section
+ * @param {number} [perTable]
+ * @returns {Array<{ continued: boolean, dates: string[], rows: Array<{ key: string, label: string, values: Array<string | number> }> }>}
+ */
+export function recordTables(section, perTable = RECORDS_PER_TABLE) {
+  const size = Math.max(1, Math.floor(perTable) || 1);
+  const fieldColumns = section.columns.slice(1);
+  const tables = [];
+  for (let start = 0; start < section.rows.length; start += size) {
+    const chunk = section.rows.slice(start, start + size);
+    tables.push({
+      continued: start > 0,
+      dates: chunk.map((row) => row[0] || section.undated || ''),
+      rows: fieldColumns.map((column, index) => ({ key: column.key, label: column.label, values: chunk.map((row) => row[index + 1]) })),
+    });
+  }
+  return tables;
 }
 
 /**

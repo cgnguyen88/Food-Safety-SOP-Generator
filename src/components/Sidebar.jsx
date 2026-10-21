@@ -14,17 +14,15 @@ const LIBRARY_PAGES = [SOPS, 'sop', 'plan_generator'];
 /** The records pages that have no menu item of their own, shown under "All records". */
 const isRecordsHome = (page) => page === ROUTES.overview || page.startsWith('log:') || page.startsWith('view:') || page === ROUTES.history;
 const RECORDS_PAGES = [ROUTES.review, ROUTES.fields, ROUTES.water, ROUTES.training];
-const TRACE_PAGES = [ROUTES.trace, ROUTES.reports];
 
-// Each section has its own quiet accent, so the sections are easy to tell apart at a glance.
+// The records section has its own quiet accent.
 const RECORDS_ACCENT = '#4fd1a5';
-const TRACE_ACCENT = '#5bbcf0';
 
 const initialsOf = (name) => (name ? name.split(' ').filter(Boolean).map((word) => word[0]).join('').slice(0, 2).toUpperCase() : '?');
 
 /**
- * The side menu, as a dark "liquid glass" panel: Home and the SOP library, then two sections that open and close
- * (the records pages, and traceability), with the language, the farm profile and the account in a card at the foot.
+ * The side menu, as a dark "liquid glass" panel: Home and the SOP library, the records pages in a section that opens and
+ * closes, then trace & recall and reports as pages of their own, with the language, the farm profile and the account in a card at the foot.
  * Its look comes from the `.side-menu` rules in global.js. On a phone (`drawer`) it slides in over the page; while it is
  * closed it is out of reach of keyboards and screen readers, and when it opens the focus goes to its close button.
  */
@@ -81,10 +79,10 @@ export default function Sidebar({ activePage, onNavigate, onOpenProfile, onLogou
             <NavItem icon={GraduationCap} label={tt.nav.training} active={activePage === ROUTES.training} onClick={go(ROUTES.training)} />
           </NavGroup>
 
-          <NavGroup id="traceability" label={tt.nav.groups.traceability} icon={Route} accent={TRACE_ACCENT} count={2} forceOpen={TRACE_PAGES.includes(activePage)}>
+          <div>
             <NavItem icon={Route} label={tt.nav.trace} active={activePage === ROUTES.trace} onClick={go(ROUTES.trace)} />
             <NavItem icon={FileText} label={tt.nav.reports} active={activePage === ROUTES.reports} onClick={go(ROUTES.reports)} />
-          </NavGroup>
+          </div>
         </nav>
 
         <div className="menu-footer">

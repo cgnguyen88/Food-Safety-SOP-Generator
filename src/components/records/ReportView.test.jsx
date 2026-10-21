@@ -119,3 +119,70 @@ describe('ReportView', () => {
     expect(container.querySelector('.report-doc')).not.toBeNull();
   });
 });
+
+const assessed = (date, source, extra = {}) => rec('water_assessment', date, {
+  source, source_type: 'groundwater_protected', fields_served: 'A1, A2', application_method: 'drip',
+  source_concern: 'low', nearby_concern: 'some', practice_concern: 'low', crop_concern: 'low', weather_concern: 'low', testing_concern: 'low',
+  conclusion: 'no_mitigation', ...extra,
+});
+const SOURCE = 'Water source or system';
+
+describe('ReportView: a log with many fields', () => {
+  it('shows each record as a column headed by its date, with the name of every field down the side', () => {
+    render(<ReportView report={make([assessed('2026-03-01', 'Well 1'), assessed('2026-06-10', 'Canal')])} />);
+    const table = screen.getByRole('table', { name: /Water Assessments/ });
+    expect(within(table).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Date', '2026-03-01', '2026-06-10']);
+    const rows = within(table).getAllByRole('row').slice(1);
+    const rowHeadings = rows.map((row) => within(row).getByRole('rowheader').textContent);
+    expect(rowHeadings.slice(0, 2)).toEqual([SOURCE, 'What kind of source it is']);
+    expect(rowHeadings.at(-1)).toBe('Approved');
+    const sourceRow = rows[rowHeadings.indexOf(SOURCE)];
+    expect(within(sourceRow).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['Well 1', 'Canal']);
+  });
+
+  it('lists the fields once down the side rather than once per record', () => {
+    render(<ReportView report={make([assessed('2026-03-01', 'Well 1'), assessed('2026-06-10', 'Canal'), assessed('2026-07-10', 'Pond')])} />);
+    expect(screen.getAllByRole('rowheader', { name: SOURCE })).toHaveLength(1);
+    expect(screen.getAllByRole('table')).toHaveLength(2); // the summary and the log
+  });
+
+  it('carries on in another table when there are more records than fit across, and says so', () => {
+    const records = Array.from({ length: 6 }, (_, index) => assessed(`2026-0${index + 1}-01`, `Well ${index + 1}`));
+    const { container } = render(<ReportView report={make(records)} />);
+    const tables = screen.getAllByRole('table', { name: /Water Assessments/ });
+    expect(tables).toHaveLength(2);
+    expect(within(tables[0]).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Date', '2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01']);
+    expect(within(tables[1]).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Date', '2026-05-01', '2026-06-01']);
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
+    expect(screen.getByText('Water Assessments — continued')).toBeTruthy();
+    expect(container.querySelectorAll('.report-chunk')).toHaveLength(2);
+  });
+
+  it('shows only the first records in a preview', () => {
+    const records = Array.from({ length: 6 }, (_, index) => assessed(`2026-0${index + 1}-01`, `Well ${index + 1}`));
+    render(<ReportView report={make(records)} maxRows={2} />);
+    const tables = screen.getAllByRole('table', { name: /Water Assessments/ });
+    expect(tables).toHaveLength(1);
+    expect(within(tables[0]).getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Date', '2026-01-01', '2026-02-01']);
+  });
+
+  it('puts a short log in an ordinary table with the dates down the side, as before', () => {
+    render(<ReportView report={make([clean('2026-07-01')])} />);
+    const table = screen.getByRole('table', { name: /Sanitation Log/ });
+    expect(within(table).queryAllByRole('rowheader')).toHaveLength(0);
+    expect(within(table).getAllByRole('columnheader')[0].textContent).toBe('Date');
+  });
+
+  it('reads in Spanish', () => {
+    const records = Array.from({ length: 5 }, (_, index) => assessed(index === 4 ? null : `2026-0${index + 1}-01`, `Pozo ${index + 1}`));
+    render(<ReportView report={make(records, { lang: 'es' })} />);
+    expect(screen.getByText('Evaluaciones del Agua — continuación')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Sin fecha' })).toBeTruthy();
+    expect(screen.getAllByRole('rowheader', { name: 'Fuente o sistema de agua' }).length).toBeGreaterThan(0);
+  });
+
+  it('keeps a table together on one page when it is printed', () => {
+    const { container } = render(<ReportView report={make([assessed('2026-03-01', 'Well 1')])} />);
+    expect(container.querySelector('.report-chunk table')).not.toBeNull();
+  });
+});

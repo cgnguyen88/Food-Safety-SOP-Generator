@@ -115,13 +115,13 @@ describe('buildReportDocument', () => {
   });
 
   it('gives every column room for its longest word, and the columns fill the page exactly', async () => {
-    const everything = { product: 'Sani-Clean', epa_reg_no: '1234-56', active_ingredient: 'Peracetic acid', approved_use: 'food_contact', ppm_min: 80, ppm_max: 200, contact_time: '60 seconds', ppe: 'Gloves, goggles', notes: 'Mix fresh each morning.\nCheck with strips.' };
+    const everything = { product: 'Sani-Clean', epa_reg_no: '1234-56', active_ingredient: 'Peracetic acid', approved_use: 'food_contact', ppm_min: 80, ppm_max: 200, contact_time: '60 seconds', ppe: 'Gloves, goggles' };
     const { document } = await parts(make([rec('sanitizer_label', '2026-07-01', everything), rec('sanitizer_label', '2026-07-02', everything)]));
     const widths = [...document.matchAll(/<w:gridCol w:w="(\d+)"/g)].map((m) => Number(m[1]));
     const tables = document.split('<w:tbl>').slice(1).map((t) => [...t.matchAll(/<w:gridCol w:w="(\d+)"/g)].map((m) => Number(m[1])));
     const wide = tables.reduce((a, b) => (b.length > a.length ? b : a), []);
     expect(widths.length).toBeGreaterThan(0);
-    expect(wide).toHaveLength(11);
+    expect(wide).toHaveLength(10);
     expect(wide.reduce((a, b) => a + b, 0)).toBe(14400);
     // A full date, and the word "Approved" with a date under it, must not be squeezed into a few characters a line.
     expect(wide[0]).toBeGreaterThanOrEqual(1200);
@@ -133,11 +133,11 @@ describe('buildReportDocument', () => {
     const long = (c) => c.repeat(30);
     const { document } = await parts(make([rec('sanitizer_label', '2026-07-01', {
       product: long('a'), epa_reg_no: long('b'), active_ingredient: long('c'), approved_use: 'food_contact', ppm_min: 80, ppm_max: 200,
-      contact_time: long('d'), ppe: long('e'), notes: long('g'),
+      contact_time: long('d'), ppe: long('e'),
     })]));
     const tables = document.split('<w:tbl>').slice(1).map((t) => [...t.matchAll(/<w:gridCol w:w="(\d+)"/g)].map((m) => Number(m[1])));
     const wide = tables.reduce((a, b) => (b.length > a.length ? b : a), []);
-    expect(wide).toHaveLength(11);
+    expect(wide).toHaveLength(10);
     expect(wide.reduce((a, b) => a + b, 0)).toBe(14400);
     expect(Math.min(...wide)).toBeGreaterThan(500);
   });
@@ -185,6 +185,68 @@ describe('buildReportDocument', () => {
     const everything = { product: 'Sani', epa_reg_no: '1', active_ingredient: 'x', approved_use: 'both', ppm_min: 1, ppm_max: 2, contact_time: 't', ppe: 'p', notes: 'word '.repeat(300) };
     const { buffer } = await parts(make([rec('sanitizer_label', '2026-07-01', everything)]));
     expect(buffer.length).toBeGreaterThan(1000);
+  });
+});
+
+const assessed = (date, source, extra = {}) => rec('water_assessment', date, {
+  source, source_type: 'groundwater_protected', fields_served: 'A1, A2', application_method: 'drip',
+  source_concern: 'low', nearby_concern: 'some', practice_concern: 'low', crop_concern: 'low', weather_concern: 'low', testing_concern: 'low',
+  conclusion: 'no_mitigation', ...extra,
+});
+const FIRST_FIELD = 'Water source or system';
+const tablesWith = (document, text) => document.split('<w:tbl>').slice(1).filter((table) => table.includes(text));
+const gridOf = (table) => [...table.matchAll(/<w:gridCol w:w="(\d+)"/g)].map((m) => Number(m[1]));
+
+describe('buildReportDocument: a log with many fields reads by date', () => {
+  it('writes each record as a column headed by its date, with the name of every field down the side', async () => {
+    const { document } = await parts(make([assessed('2026-03-01', 'Well 1'), assessed('2026-06-10', 'Canal')]));
+    const [table] = tablesWith(document, FIRST_FIELD);
+    for (const text of ['Date', '2026-03-01', '2026-06-10', 'Well 1', 'Canal', 'What kind of source it is', 'Approved']) expect(table, text).toContain(text);
+    expect(gridOf(table)).toHaveLength(3);
+  });
+
+  it('lists each field once, not once per record', async () => {
+    const { document } = await parts(make([assessed('2026-03-01', 'Well 1'), assessed('2026-06-10', 'Canal'), assessed('2026-07-10', 'Pond')]));
+    expect(document.split('What kind of source it is')).toHaveLength(2);
+  });
+
+  it('carries on in another table when there are more records than fit across, with the heading repeated', async () => {
+    const records = Array.from({ length: 6 }, (_, index) => assessed(`2026-0${index + 1}-01`, `Well ${index + 1}`));
+    const { document } = await parts(make(records));
+    const tables = tablesWith(document, FIRST_FIELD);
+    expect(tables).toHaveLength(2);
+    expect(gridOf(tables[0])).toHaveLength(5);
+    expect(gridOf(tables[1])).toHaveLength(3);
+    expect(document).toContain('Water Assessments — continued');
+    for (const table of tables) expect(table.match(/<w:tblHeader/g)).toHaveLength(1);
+  });
+
+  it('gives the field names the same width in every table, so the tables line up', async () => {
+    const records = Array.from({ length: 5 }, (_, index) => assessed(`2026-0${index + 1}-01`, `Well ${index + 1}`));
+    const { document } = await parts(make(records));
+    const [first, second] = tablesWith(document, FIRST_FIELD).map(gridOf);
+    expect(first[0]).toBe(second[0]);
+    expect(first[1]).toBe(second[1]);
+  });
+
+  it('fits the page, and does not split a row across pages', async () => {
+    const records = Array.from({ length: 4 }, (_, index) => assessed(`2026-0${index + 1}-01`, `Well ${index + 1}`));
+    const { document } = await parts(make(records));
+    const [table] = tablesWith(document, FIRST_FIELD);
+    expect(gridOf(table).reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(14400);
+    expect(Math.min(...gridOf(table))).toBeGreaterThanOrEqual(1500);
+    expect(table.match(/<w:cantSplit/g)).toHaveLength(13); // the heading, then 11 fields and the approval date
+  });
+
+  it('writes a short log as before, with the dates down the side', async () => {
+    const { document } = await parts(make([clean('2026-07-01')]));
+    expect(tablesWith(document, 'Concentration (ppm)')).toHaveLength(1);
+  });
+
+  it('writes a record with no date under "No date", in the language of the report', async () => {
+    const { document } = await parts(make([assessed(null, 'Pozo 1')], { lang: 'es' }));
+    expect(document).toContain('Sin fecha');
+    expect(document).toContain('Fuente o sistema de agua');
   });
 });
 

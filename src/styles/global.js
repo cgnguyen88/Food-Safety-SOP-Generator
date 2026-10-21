@@ -358,6 +358,10 @@ export const GLOBAL_CSS = `
   .report-doc th { text-align: left; background: #e2e8f0; font-weight: 600; padding: 5px 7px; border: 1px solid #cbd5e1; }
   .report-doc td { padding: 5px 7px; border: 1px solid #cbd5e1; vertical-align: top; overflow-wrap: anywhere; }
   .report-doc td.report-date { white-space: nowrap; }
+  .report-doc .report-chunk { break-inside: avoid; margin: 0 0 14px; }
+  .report-doc .report-continued { margin: 4px 0 6px; font-size: 11px; font-weight: 600; color: #475569; break-after: avoid; }
+  .report-doc .report-by-date { table-layout: fixed; }
+  .report-doc .report-by-date th[scope="row"] { width: 28%; background: #f8fafc; color: #334155; font-weight: 600; }
   .report-doc .report-summary { width: auto; min-width: 280px; margin-bottom: 8px; }
   .report-doc .report-note { color: #64748b; font-style: italic; margin: 10px 0; }
   .report-sign { display: grid; grid-template-columns: 5fr 5fr 3fr; gap: 24px; margin-top: 40px; font-size: 11px; color: #475569; break-inside: avoid; }

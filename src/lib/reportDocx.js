@@ -3,6 +3,7 @@ import {
   Table, TableCell, TableLayoutType, TableRow, TextRun, WidthType,
 } from 'docx';
 import { saveAs } from 'file-saver';
+import { RECORDS_PER_TABLE, recordTables } from '../domain/records/report.js';
 
 /**
  * Writes a report model (see domain/records/report.js) as a Word file: landscape pages, tables whose
@@ -21,6 +22,7 @@ const FONT = 'Calibri';
 const SIZE = { body: 18, small: 16, heading: 26, title: 36 };
 const COLORS = { ink: '0F172A', muted: '64748B', headerFill: 'E2E8F0', line: 'CBD5E1' };
 const THIN_LINE = { style: BorderStyle.SINGLE, size: 4, color: COLORS.line };
+const GRID_BORDERS = { top: THIN_LINE, bottom: THIN_LINE, left: THIN_LINE, right: THIN_LINE, insideHorizontal: THIN_LINE, insideVertical: THIN_LINE };
 const NO_BORDER = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const NO_BORDERS = { top: NO_BORDER, bottom: NO_BORDER, left: NO_BORDER, right: NO_BORDER };
 
@@ -87,9 +89,39 @@ function dataTable(columns, rows) {
     width: { size: CONTENT_WIDTH, type: WidthType.DXA },
     columnWidths: widths,
     layout: TableLayoutType.FIXED,
-    borders: { top: THIN_LINE, bottom: THIN_LINE, left: THIN_LINE, right: THIN_LINE, insideHorizontal: THIN_LINE, insideVertical: THIN_LINE },
+    borders: GRID_BORDERS,
     rows: [headerRow, ...bodyRows],
   });
+}
+
+/** The field names' column, the same in every table of a log so they line up; each record's column is as wide as the page allows for `RECORDS_PER_TABLE`. */
+const FIELD_NAME_WIDTH = 3000;
+const RECORD_WIDTH = Math.floor((CONTENT_WIDTH - FIELD_NAME_WIDTH) / RECORDS_PER_TABLE);
+
+/** One table of a log read by date (see `recordTables`): a column for each record headed by its date, the field names down the side. */
+function dateTable(table, cornerLabel) {
+  const widths = [FIELD_NAME_WIDTH, ...table.dates.map(() => RECORD_WIDTH)];
+  const headerRow = new TableRow({ tableHeader: true, cantSplit: true, children: [cornerLabel, ...table.dates].map((label, i) => cell(label, widths[i], { header: true })) });
+  const bodyRows = table.rows.map((row) => new TableRow({
+    cantSplit: true,
+    children: [cell(row.label, widths[0], { header: true }), ...row.values.map((value, i) => cell(value, widths[i + 1]))],
+  }));
+  return new Table({
+    width: { size: sum(widths), type: WidthType.DXA },
+    columnWidths: widths,
+    layout: TableLayoutType.FIXED,
+    borders: GRID_BORDERS,
+    rows: [headerRow, ...bodyRows],
+  });
+}
+
+/** A log's tables. Each carried-over table gets a line above it, which also keeps Word from joining two tables into one. */
+function sectionTables(section, text) {
+  if (section.layout !== 'by_date') return [dataTable(section.columns, section.rows)];
+  return recordTables(section).flatMap((table) => [
+    ...(table.continued ? [new Paragraph({ keepNext: true, spacing: { before: 200, after: 80 }, children: runs(`${section.title} — ${text.continued}`, { bold: true, color: COLORS.muted }) })] : []),
+    dateTable(table, section.columns[0].label),
+  ]);
 }
 
 function headerTable(header) {
@@ -112,7 +144,7 @@ function summaryTable(report) {
     width: { size: widths[0] + widths[1], type: WidthType.DXA },
     columnWidths: widths,
     layout: TableLayoutType.FIXED,
-    borders: { top: THIN_LINE, bottom: THIN_LINE, left: THIN_LINE, right: THIN_LINE, insideHorizontal: THIN_LINE, insideVertical: THIN_LINE },
+    borders: GRID_BORDERS,
     rows: [
       new TableRow({ tableHeader: true, children: columns.map((c, i) => cell(c.label, widths[i], { header: true })) }),
       ...rows.map((row) => new TableRow({ children: row.map((value, i) => cell(value, widths[i])) })),
@@ -186,7 +218,7 @@ export function buildReportDocument(report) {
   for (const section of report.sections) {
     body.push(
       new Paragraph({ heading: HeadingLevel.HEADING_2, keepNext: true, spacing: { before: 240, after: 100 }, children: runs(`${section.title} — ${text.count(section.count)}`, { bold: true, size: SIZE.heading }) }),
-      dataTable(section.columns, section.rows),
+      ...sectionTables(section, text),
     );
   }
 

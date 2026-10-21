@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  CONCERN_KEYS, assessConcerns, fieldNamesIn, floodLinks, prefillFromAssessment, recentFloods, sourcesServing, waterCounts, waterSources,
+  CONCERN_KEYS, assessConcerns, fieldNamesIn, floodLinks, prefillForSource, prefillFromAssessment, recentFloods, sourceHistory, sourcesServing, unregisteredWaterSources, waterCounts, waterSources,
 } from './waterAssessment.js';
 
 let n = 0;
@@ -242,7 +242,7 @@ describe('waterCounts and prefillFromAssessment', () => {
       assessment({ source: 'C', fields_served: 'C1' }, { record_date: '2025-07-15', created_at: '2025-07-15T00:00:00Z' }),
       assessment({ source: 'D', fields_served: 'D1' }),
     ], { today: TODAY });
-    expect(waterCounts(rows)).toEqual({ flood: 1, overdue: 1, due_soon: 1, current: 1 });
+    expect(waterCounts(rows)).toEqual({ flood: 1, overdue: 1, not_assessed: 0, due_soon: 1, current: 1 });
   });
 
   it('starts a new assessment from the last one’s answers, but leaves the decision to be made again', () => {
@@ -359,28 +359,209 @@ describe('naming fields and sources the way people write them', () => {
   });
 });
 
-describe('a water source that is not used any more', () => {
-  const retired = (source = 'Well 1', date = '2026-05-01') => assessment({ source, conclusion: 'retired' }, { record_date: date, created_at: `${date}T09:00:00Z` });
+describe('waterSources with the farm’s list of water sources', () => {
+  const reg = (name, extra = {}) => ({ id: `s-${name}`, name, source_type: null, fields_served: null, notes: null, is_active: true, ...extra });
+  const rowsOf = (records, registry) => waterSources(records, { today: TODAY, registry });
+  const test = (source, date, result = 'pass', extra = {}) => ({ id: `t${(n += 1)}`, kind: 'water_test', status: 'approved', record_date: date, created_at: `${date}T09:00:00Z`, payload: { source, result, result_value: 5 }, ...extra });
 
-  it('leaves the list once its newest assessment says so, however overdue or flooded it was', () => {
-    const old = assessment({}, { record_date: '2024-01-01', created_at: '2024-01-01T00:00:00Z' });
-    expect(waterSources([old, flood('A1'), retired()], { today: TODAY })).toEqual([]);
+  it('lists a source on the farm’s list that was never assessed, as needing an assessment', () => {
+    const [row] = rowsOf([], [reg('Well 1', { fields_served: 'A1, A2', source_type: 'enclosed_groundwater' })]);
+    expect(row).toMatchObject({ name: 'Well 1', status: 'not_assessed', registered: true, sourceId: 's-Well 1', fields: ['A1', 'A2'], sourceType: 'enclosed_groundwater', assessedOn: null, nextReview: null, daysLeft: null, recordId: null, floods: [] });
   });
 
-  it('is not brought back by a flood, only by a newer assessment that says it is in use', () => {
-    expect(waterSources([assessment(), retired(), flood('A1', { record_date: '2026-06-20', created_at: '2026-06-20T09:00:00Z' })], { today: TODAY })).toEqual([]);
-    const again = assessment({}, { record_date: '2026-06-01', created_at: '2026-06-01T09:00:00Z' });
-    expect(waterSources([assessment(), retired(), again], { today: TODAY }).map((r) => [r.name, r.status])).toEqual([['Well 1', 'current']]);
+  it('marks a source as on the list, with its id, whether or not it has been assessed', () => {
+    const [row] = rowsOf([assessment()], [reg('well 1')]);
+    expect(row).toMatchObject({ registered: true, sourceId: 's-well 1', status: 'current', name: 'well 1' });
   });
 
-  it('only takes that source off the list, and an unapproved or future retirement changes nothing', () => {
-    const rows = waterSources([assessment({ source: 'Canal', fields_served: 'B1' }), retired('Well 1'), assessment(), retired('Canal', '2026-08-01')], { today: TODAY });
-    expect(rows.map((r) => r.name)).toEqual(['Canal']);
-    expect(waterSources([assessment(), { ...retired(), status: 'pending_review' }], { today: TODAY })).toHaveLength(1);
+  it('says so when an assessed source is not on the list, and still lists it', () => {
+    const [row] = rowsOf([assessment({ source: 'Old pond', fields_served: 'C1' })], []);
+    expect(row).toMatchObject({ name: 'Old pond', registered: false, sourceId: null, status: 'current' });
   });
 
-  it('is not tied to floods', () => {
-    const rows = waterSources([retired(), assessment({ source: 'Canal', fields_served: 'B1' })], { today: TODAY });
-    expect(sourcesServing(rows, { field: 'A1' })).toEqual([]);
+  it('spells a source as the list spells it, and matches assessments to it loosely', () => {
+    const [row] = rowsOf([assessment({ source: 'Well #1' })], [reg('Well 1')]);
+    expect(row).toMatchObject({ name: 'Well 1', registered: true });
+  });
+
+  it('leaves out a source that is archived, however it was assessed or flooded', () => {
+    expect(rowsOf([assessment(), flood('A1')], [reg('Well 1', { is_active: false })])).toEqual([]);
+  });
+
+  it('ties a flood to a source through the fields on the list as well as the fields it was assessed for', () => {
+    const [row] = rowsOf([assessment({ fields_served: 'A1' }), flood('B7')], [reg('Well 1', { fields_served: 'B7' })]);
+    expect(row.status).toBe('flood');
+    expect(row.fields).toEqual(['B7']);
+  });
+
+  it('shows the fields it was assessed for when the list does not give any', () => {
+    const [row] = rowsOf([assessment({ fields_served: 'A1, A2' })], [reg('Well 1')]);
+    expect(row.fields).toEqual(['A1', 'A2']);
+  });
+
+  it('takes the kind of source from the list, or else from the newest assessment', () => {
+    expect(rowsOf([assessment({ source_type: 'surface' })], [reg('Well 1', { source_type: 'canal' })])[0].sourceType).toBe('canal');
+    expect(rowsOf([assessment({ source_type: 'surface' })], [reg('Well 1')])[0].sourceType).toBe('surface');
+    expect(rowsOf([assessment({ source_type: 'surface' })], [])[0].sourceType).toBe('surface');
+  });
+
+  it('puts a flood first, then overdue, then never assessed, then due soon, then up to date', () => {
+    const rows = rowsOf([
+      assessment({ source: 'Flooded', fields_served: 'B1' }),
+      assessment({ source: 'Overdue', fields_served: 'C1' }, { record_date: '2025-01-01', created_at: '2025-01-01T00:00:00Z' }),
+      assessment({ source: 'Soon', fields_served: 'D1' }, { record_date: '2025-07-15', created_at: '2025-07-15T00:00:00Z' }),
+      assessment({ source: 'Fine', fields_served: 'E1' }),
+      flood('B1'),
+    ], [reg('New well')]);
+    expect(rows.map((r) => [r.name, r.status])).toEqual([['Flooded', 'flood'], ['Overdue', 'overdue'], ['New well', 'not_assessed'], ['Soon', 'due_soon'], ['Fine', 'current']]);
+  });
+
+  it('counts the sources that were never assessed', () => {
+    expect(waterCounts(rowsOf([assessment({ fields_served: 'Z1' })], [reg('New well'), reg('Newer well')]))).toEqual({ flood: 0, overdue: 0, not_assessed: 2, due_soon: 0, current: 1 });
+  });
+
+  it('keeps each source’s newest approved water test that is not dated in the future', () => {
+    const rows = rowsOf([
+      assessment(),
+      test('Well 1', '2026-04-01', 'fail'),
+      test('well 1', '2026-06-01', 'pass'),
+      test('Well 1', '2026-08-01', 'fail', { status: 'draft' }),
+      test('Well 1', '2026-12-01', 'fail'),
+      test('Other', '2026-06-02'),
+    ], []);
+    expect(rows[0].lastTest).toEqual({ id: expect.any(String), date: '2026-06-01', result: 'pass', value: 5 });
+  });
+
+  it('has no last test when there are none for it', () => {
+    expect(rowsOf([assessment()], [])[0].lastTest).toBeNull();
+    expect(rowsOf([], [reg('New well')])[0].lastTest).toBeNull();
+  });
+
+  it('shows the last water test of a source that was never assessed', () => {
+    expect(rowsOf([test('New well', '2026-06-01', 'fail')], [reg('New well')])[0].lastTest).toMatchObject({ date: '2026-06-01', result: 'fail' });
+  });
+
+  it('is unchanged for a farm that has no list yet', () => {
+    const [row] = waterSources([assessment()], { today: TODAY });
+    expect(row).toMatchObject({ name: 'Well 1', status: 'current', registered: false });
+  });
+
+  it('ties a flood to a source that was never assessed as needing an assessment', () => {
+    const rows = rowsOf([], [reg('New well', { fields_served: 'A1' })]);
+    const links = floodLinks(flood('A1'), rows);
+    expect(links.map((l) => [l.source.name, l.needsAssessment])).toEqual([['New well', true]]);
+  });
+});
+
+describe('unregisteredWaterSources: names in the records that are not on the farm’s list', () => {
+  const reg = (name) => ({ id: `s-${name}`, name, is_active: true });
+  const test = (source, date = '2026-06-01', status = 'approved') => ({ id: `t${(n += 1)}`, kind: 'water_test', status, record_date: date, created_at: `${date}T09:00:00Z`, payload: { source, result: 'pass' } });
+
+  it('lists the sources that approved assessments, tests and floods name, most used first, with the newest assessment’s kind and fields', () => {
+    const records = [
+      assessment({ source: 'Old well', source_type: 'open_groundwater', fields_served: 'A1' }, { record_date: '2025-04-01', created_at: '2025-04-01T00:00:00Z' }),
+      assessment({ source: 'old WELL', source_type: 'surface', fields_served: 'A1' }, { record_date: '2025-05-01', created_at: '2025-05-01T00:00:00Z' }),
+      assessment({ source: 'old WELL', source_type: 'enclosed_groundwater', fields_served: 'A1, A2' }),
+      test('Pond'), test('pond'), test('Pond '),
+      flood('B1', {}, { water_source: 'Canal' }),
+    ];
+    expect(unregisteredWaterSources(records, [])).toEqual([
+      { name: 'Pond', uses: 3, source_type: undefined, fields_served: undefined },
+      { name: 'old WELL', uses: 3, source_type: 'enclosed_groundwater', fields_served: 'A1, A2' },
+      { name: 'Canal', uses: 1, source_type: undefined, fields_served: undefined },
+    ]);
+  });
+
+  it('leaves out names that are on the list however they are spelled, archived ones too', () => {
+    const records = [assessment({ source: 'Well #1' }), test('POND'), test('Canal')];
+    expect(unregisteredWaterSources(records, [reg('Well 1'), { ...reg('Pond'), is_active: false }]).map((u) => u.name)).toEqual(['Canal']);
+  });
+
+  it('leaves out records that are not approved, lists of sources, names that are too long, and records of other kinds', () => {
+    const records = [
+      test('Draft only', '2026-06-01', 'draft'), test('Voided only', '2026-06-01', 'voided'),
+      flood('B1', {}, { water_source: 'Well 1, Pond' }), test('x'.repeat(61)), test('   '),
+      { id: 'n1', kind: 'note', status: 'approved', payload: { text: 'x', source: 'Not water' } },
+    ];
+    expect(unregisteredWaterSources(records, [])).toEqual([]);
+  });
+});
+
+describe('archived water sources and a source’s history', () => {
+  const reg = (name, extra = {}) => ({ id: `s-${name}`, name, source_type: null, fields_served: null, notes: null, is_active: true, ...extra });
+  const test = (source, date, result = 'pass', extra = {}) => ({ id: `t${(n += 1)}`, kind: 'water_test', status: 'approved', record_date: date, created_at: `${date}T09:00:00Z`, payload: { source, result }, ...extra });
+
+  it('leaves archived sources out unless they are asked for, and then marks them', () => {
+    const registry = [reg('Old well', { is_active: false }), reg('Well 1')];
+    const records = [assessment({ source: 'Old well', fields_served: 'C1' }), assessment()];
+    expect(waterSources(records, { today: TODAY, registry }).map((r) => r.name)).toEqual(['Well 1']);
+    const rows = waterSources(records, { today: TODAY, registry, includeArchived: true });
+    expect(rows.map((r) => [r.name, r.archived, r.status])).toEqual([['Well 1', false, 'current'], ['Old well', true, 'archived']]);
+  });
+
+  it('shows an archived source that was never assessed, when asked', () => {
+    const [row] = waterSources([], { today: TODAY, registry: [reg('Old well', { is_active: false })], includeArchived: true });
+    expect(row).toMatchObject({ name: 'Old well', archived: true, status: 'archived', recordId: null });
+  });
+
+  it('does not count archived sources', () => {
+    const rows = waterSources([assessment()], { today: TODAY, registry: [reg('Old well', { is_active: false })], includeArchived: true });
+    expect(waterCounts(rows)).toEqual({ flood: 0, overdue: 0, not_assessed: 0, due_soon: 0, current: 1 });
+  });
+
+  it('does not tie a flood to an archived source', () => {
+    const rows = waterSources([assessment(), flood('A1')], { today: TODAY, registry: [reg('Well 1', { is_active: false })], includeArchived: true });
+    expect(rows[0]).toMatchObject({ archived: true, status: 'archived', floods: [] });
+  });
+
+  it('lists a source’s approved assessments and water tests, newest first, however its name is spelled', () => {
+    const a1 = assessment({ source: 'well #1' }, { record_date: '2025-03-01', created_at: '2025-03-01T00:00:00Z' });
+    const a2 = assessment();
+    const t1 = test('Well 1', '2026-04-01');
+    const t2 = test('WELL 1', '2026-06-01', 'fail');
+    const history = sourceHistory([a1, a2, t1, t2, assessment({ source: 'Canal' }), test('Canal', '2026-05-01'), assessment({}, { status: 'draft' }), test('Well 1', '2026-07-01', 'pass', { status: 'voided' }), flood('A1')], 'well1');
+    expect(history.assessments.map((r) => r.id)).toEqual([a2.id, a1.id]);
+    expect(history.tests.map((r) => r.id)).toEqual([t2.id, t1.id]);
+    expect(history.floods).toEqual([]);
+  });
+
+  it('has an empty history for a source nothing names', () => {
+    expect(sourceHistory([assessment()], 'nothing')).toEqual({ assessments: [], tests: [], floods: [] });
+  });
+
+  it('lists the floods that name a source, one of several or the only one, but not those that merely hit its fields', () => {
+    const named = flood('B7', {}, { water_source: 'Pond, well 1' });
+    const alone = flood('B8', { record_date: '2026-07-01' }, { water_source: 'Well 1' });
+    const history = sourceHistory([named, alone, flood('A1'), flood('A1', { status: 'draft' }, { water_source: 'Well 1' })], 'well1');
+    expect(history.floods.map((r) => r.id)).toEqual([alone.id, named.id]);
+  });
+});
+
+describe('prefillForSource: starting an assessment of a source on the page', () => {
+  const reg = (name, extra = {}) => ({ id: `s-${name}`, name, source_type: null, fields_served: null, notes: null, is_active: true, ...extra });
+
+  it('starts a source that was never assessed from what the list says about it', () => {
+    const [row] = waterSources([], { today: TODAY, registry: [reg('New well', { source_type: 'canal', fields_served: 'B1, B2' })] });
+    expect(prefillForSource(row, [])).toEqual({ source: 'New well', source_type: 'canal', fields_served: 'B1, B2' });
+  });
+
+  it('gives just the name for a source the list knows nothing else about', () => {
+    const [row] = waterSources([], { today: TODAY, registry: [reg('New well')] });
+    expect(prefillForSource(row, [])).toEqual({ source: 'New well' });
+  });
+
+  it('starts an assessed source from its last answers, which win over the list, with the name as the list spells it and no decision', () => {
+    const last = assessment({ source: 'Well #1', fields_served: 'A1', source_type: 'surface', conclusion: 'mitigation_needed', mitigation: 'x', assessed_by: 'Ana' });
+    const registry = [reg('Well 1', { source_type: 'canal', fields_served: 'Z9' })];
+    const [row] = waterSources([last], { today: TODAY, registry });
+    const prefill = prefillForSource(row, [last]);
+    expect(prefill).toMatchObject({ source: 'Well 1', source_type: 'surface', fields_served: 'A1', assessed_by: 'Ana', ...calm });
+    for (const key of ['conclusion', 'mitigation', 'notes']) expect(prefill, key).not.toHaveProperty(key);
+  });
+
+  it('fills in from the list what the last assessment did not say', () => {
+    const last = assessment({ source_type: undefined, fields_served: undefined });
+    const [row] = waterSources([last], { today: TODAY, registry: [reg('Well 1', { source_type: 'canal', fields_served: 'Z9' })] });
+    expect(prefillForSource(row, [last])).toMatchObject({ source: 'Well 1', source_type: 'canal', fields_served: 'Z9' });
   });
 });

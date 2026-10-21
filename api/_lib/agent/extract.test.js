@@ -79,6 +79,22 @@ describe('extractRecords: the request', () => {
     ]);
   });
 
+  it('tells the model the farm’s water source names too, as data, right after the field names', async () => {
+    const c = fakeClient({ content: [] });
+    await run(c, { text: 'agua del pozo' }, { fieldNames: ['B2'], waterSourceNames: ['Well 1', 'North canal'] });
+    expect(c.create.mock.calls[0][0].messages[0].content).toEqual([
+      { type: 'text', text: 'Farm fields (data): ["B2"]' },
+      { type: 'text', text: 'Farm water sources (data): ["Well 1","North canal"]' },
+      { type: 'text', text: 'agua del pozo' },
+    ]);
+  });
+
+  it('adds nothing for water sources when the farm has none', async () => {
+    const c = fakeClient({ content: [] });
+    await run(c, { text: 'x' }, { waterSourceNames: [] });
+    expect(c.create.mock.calls[0][0].messages[0].content).toEqual([{ type: 'text', text: 'x' }]);
+  });
+
   it('adds nothing for a farm with no fields, or when no names are given', async () => {
     for (const fieldNames of [undefined, [], ['', null]]) {
       const c = fakeClient({ content: [] });

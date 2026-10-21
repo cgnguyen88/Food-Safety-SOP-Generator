@@ -34,7 +34,7 @@ describe('questionsFor', () => {
   it('has a proper question for every detail a record can be missing, so none falls back on a label that reads badly', () => {
     for (const lang of ['en', 'es']) {
       for (const [kind, fields] of Object.entries(KIND_FIELDS)) {
-        for (const f of fields.filter((x) => x.required || x.requiredWhen || x.requiredUnless)) {
+        for (const f of fields.filter((x) => x.required || x.requiredWhen)) {
           const { text } = questionsFor(kind, [f.key], lang);
           // The fallback question quotes the field's label; a written question does not.
           const fallback = lang === 'es' ? `¿Cuál es ${f.label.es}?` : `What is the ${f.label.en}?`;
@@ -170,6 +170,16 @@ describe('applyReply', () => {
     const text = c.create.mock.calls[0][0].messages[0].content;
     expect(text.indexOf('"field":"B7"')).toBeLessThan(text.indexOf('Farm fields (data): ["B2","North 40"]'));
     expect(text.indexOf('Farm fields (data)')).toBeLessThan(text.indexOf('en el b2'));
+  });
+
+  it('tells the model the farm’s water source names, after the field names and before the reply', async () => {
+    const c = client([]);
+    const draft = { kind: 'water_assessment', record_date: '2026-10-19', payload: { source: 'the well' } };
+    await applyReply({ anthropic: c.anthropic, config, draft, replyText: 'the first one', today: TODAY, lang: 'en', fieldNames: ['B2'], waterSourceNames: ['Well 1', 'Well 2'] });
+    const text = c.create.mock.calls[0][0].messages[0].content;
+    expect(text).toContain('Farm water sources (data): ["Well 1","Well 2"]');
+    expect(text.indexOf('Farm fields (data)')).toBeLessThan(text.indexOf('Farm water sources (data)'));
+    expect(text.indexOf('Farm water sources (data)')).toBeLessThan(text.indexOf('the first one'));
   });
 
   it('adds no field line when the farm has no fields', async () => {

@@ -9,6 +9,7 @@ vi.mock('../../lib/records.js', () => ({
   listRecords: vi.fn(), listSavedViewRecords: vi.fn(), listRevisions: vi.fn(), createRecord: vi.fn(), updateRecord: vi.fn(), setRecordStatus: vi.fn(),
 }));
 vi.mock('../../lib/reportData.js', () => ({ listRecordsForReport: vi.fn(), listSavedViewRecordsForReport: vi.fn() }));
+vi.mock('../../lib/waterSources.js', () => ({ listWaterSources: vi.fn(async () => ({ data: [], error: null })) }));
 vi.mock('../../lib/fields.js', () => ({ listFields: vi.fn(), createField: vi.fn(), updateField: vi.fn(), setFieldActive: vi.fn(), deleteField: vi.fn(), addFieldsByName: vi.fn() }));
 vi.mock('../../lib/reportCsv.js', () => ({ downloadCsv: vi.fn() }));
 vi.mock('../../lib/reportDocx.js', () => ({ downloadReportDocx: vi.fn() }));
@@ -121,12 +122,12 @@ describe('RecordsPage: fields', () => {
 });
 
 describe('RecordsPage: water assessments', () => {
-  it('opens the water assessments page, with what the farm has approved', async () => {
+  it('opens the water sources page, with what the farm has approved', async () => {
     const well = { id: 'a1', kind: 'water_assessment', status: 'approved', record_date: '2026-03-01', created_at: '2026-03-01T09:00:00Z', payload: { source: 'Well 1', fields_served: 'A1', conclusion: 'no_mitigation' } };
     reportData.listRecordsForReport.mockResolvedValue({ data: { records: [well], truncated: false }, error: null });
     setup({ type: 'water' });
-    expect(screen.getByRole('heading', { name: 'Water assessments' })).toBeTruthy();
-    await waitFor(() => expect(reportData.listRecordsForReport).toHaveBeenCalledWith(expect.objectContaining({ farmId: 'farm-1', kinds: ['weather_event', 'water_assessment'] })));
+    expect(screen.getByRole('heading', { name: 'Water sources' })).toBeTruthy();
+    await waitFor(() => expect(reportData.listRecordsForReport).toHaveBeenCalledWith(expect.objectContaining({ farmId: 'farm-1', kinds: ['weather_event', 'water_assessment', 'water_test'] })));
   });
 });
 

@@ -25,8 +25,6 @@ const opt = (value, en, es) => Object.freeze({ value, en, es });
 const field = (key, type, en, es, extra = {}) => Object.freeze({ key, type, label: Object.freeze({ en, es }), ...extra });
 
 const YES_NO = Object.freeze([opt('yes', 'Yes', 'Sí'), opt('no', 'No', 'No')]);
-/** A water assessment's questions are asked of a source that is still in use; one that is not used any more needs only its name. */
-const NOT_IN_USE = Object.freeze({ conclusion: 'retired' });
 /** How worried a water assessment is about one thing it looks at. */
 const CONCERN = Object.freeze([
   opt('low', 'Low concern', 'Poca preocupación'),
@@ -178,7 +176,7 @@ export const KIND_FIELDS = Object.freeze({
   water_assessment: Object.freeze([
     field('source', 'text', 'Water source or system', 'Fuente o sistema de agua', { required: true }),
     field('source_type', 'select', 'What kind of source it is', 'Qué tipo de fuente es', {
-      requiredUnless: NOT_IN_USE,
+      required: true,
       options: [
         opt('enclosed_groundwater', 'Groundwater: sealed, protected well', 'Agua subterránea: pozo sellado y protegido'),
         opt('open_groundwater', 'Groundwater: open or unprotected well', 'Agua subterránea: pozo abierto o sin protección'),
@@ -188,9 +186,9 @@ export const KIND_FIELDS = Object.freeze({
         opt('other', 'Other', 'Otro'),
       ],
     }),
-    field('fields_served', 'textarea', 'Fields this water is used on (separate with commas)', 'Campos donde se usa esta agua (separa con comas)', { requiredUnless: NOT_IN_USE }),
+    field('fields_served', 'textarea', 'Fields this water is used on (separate with commas)', 'Campos donde se usa esta agua (separa con comas)', { required: true }),
     field('application_method', 'select', 'How the water is applied', 'Cómo se aplica el agua', {
-      requiredUnless: NOT_IN_USE,
+      required: true,
       options: [
         opt('drip', 'Drip or underground (does not touch the harvested part)', 'Goteo o subterráneo (no toca la parte cosechada)'),
         opt('furrow', 'Furrow or flood (some contact is possible)', 'Surco o inundación (puede haber contacto)'),
@@ -199,18 +197,17 @@ export const KIND_FIELDS = Object.freeze({
       ],
     }),
     field('days_before_harvest', 'number', 'Days between the last watering and harvest', 'Días entre el último riego y la cosecha'),
-    field('source_concern', 'select', 'The source and how the water travels (location, open or closed pipes)', 'La fuente y cómo viaja el agua (ubicación, tuberías abiertas o cerradas)', { requiredUnless: NOT_IN_USE, options: CONCERN }),
-    field('nearby_concern', 'select', 'Animals, manure, compost or human waste on nearby land, and other water users', 'Animales, estiércol, composta o desechos humanos en terrenos cercanos, y otros usuarios del agua', { requiredUnless: NOT_IN_USE, options: CONCERN }),
-    field('practice_concern', 'select', 'How the water is applied, and the time before harvest', 'Cómo se aplica el agua y el tiempo antes de la cosecha', { requiredUnless: NOT_IN_USE, options: CONCERN }),
-    field('crop_concern', 'select', 'The crop (how easily germs stick to it or get inside)', 'El cultivo (qué tan fácil se pegan o entran los microbios)', { requiredUnless: NOT_IN_USE, options: CONCERN }),
-    field('weather_concern', 'select', 'The weather: heavy rain, flooding, extreme heat or sun', 'El clima: lluvia intensa, inundaciones, calor o sol extremos', { requiredUnless: NOT_IN_USE, options: CONCERN }),
-    field('testing_concern', 'select', 'Water test results', 'Resultados de análisis del agua', { requiredUnless: NOT_IN_USE, options: [...CONCERN, opt('none', 'No test results', 'Sin resultados de análisis')] }),
+    field('source_concern', 'select', 'The source and how the water travels (location, open or closed pipes)', 'La fuente y cómo viaja el agua (ubicación, tuberías abiertas o cerradas)', { required: true, options: CONCERN }),
+    field('nearby_concern', 'select', 'Animals, manure, compost or human waste on nearby land, and other water users', 'Animales, estiércol, composta o desechos humanos en terrenos cercanos, y otros usuarios del agua', { required: true, options: CONCERN }),
+    field('practice_concern', 'select', 'How the water is applied, and the time before harvest', 'Cómo se aplica el agua y el tiempo antes de la cosecha', { required: true, options: CONCERN }),
+    field('crop_concern', 'select', 'The crop (how easily germs stick to it or get inside)', 'El cultivo (qué tan fácil se pegan o entran los microbios)', { required: true, options: CONCERN }),
+    field('weather_concern', 'select', 'The weather: heavy rain, flooding, extreme heat or sun', 'El clima: lluvia intensa, inundaciones, calor o sol extremos', { required: true, options: CONCERN }),
+    field('testing_concern', 'select', 'Water test results', 'Resultados de análisis del agua', { required: true, options: [...CONCERN, opt('none', 'No test results', 'Sin resultados de análisis')] }),
     field('conclusion', 'select', 'What you decided', 'Lo que decidiste', {
       required: true,
       options: [
         opt('no_mitigation', 'No measures needed', 'No se necesitan medidas'),
         opt('mitigation_needed', 'Measures needed', 'Se necesitan medidas'),
-        opt('retired', 'Not used any more', 'Ya no se usa'),
       ],
     }),
     field('mitigation', 'textarea', 'The measures you will take, and by when', 'Las medidas que tomarás y para cuándo', { requiredWhen: { conclusion: 'mitigation_needed' } }),
@@ -368,8 +365,7 @@ const meets = (value, wanted) => (Array.isArray(wanted) ? wanted.includes(value)
  * Keys of the fields that must be filled before a record can be reviewed, given what is known so
  * far. Some fields are required only in some cases (a sanitizing step needs the sanitizer and its
  * concentration; signs of animals need a description and a no-harvest zone); those are the
- * follow-up questions the Telegram agent asks. `requiredUnless` is the other way round: required, except in that case
- * (a water source that is not used any more is not rated).
+ * follow-up questions the Telegram agent asks.
  *
  * @param {string} kind
  * @param {Record<string, unknown>} payload
@@ -377,9 +373,7 @@ const meets = (value, wanted) => (Array.isArray(wanted) ? wanted.includes(value)
  */
 export function requiredFieldKeys(kind, payload) {
   return KIND_FIELDS[kind]
-    .filter((f) => f.required
-      || (f.requiredWhen && Object.entries(f.requiredWhen).every(([k, v]) => meets(payload?.[k], v)))
-      || (f.requiredUnless && !Object.entries(f.requiredUnless).some(([k, v]) => meets(payload?.[k], v))))
+    .filter((f) => f.required || (f.requiredWhen && Object.entries(f.requiredWhen).every(([k, v]) => meets(payload?.[k], v))))
     .map((f) => f.key);
 }
 

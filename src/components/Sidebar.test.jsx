@@ -33,8 +33,8 @@ describe('Sidebar', () => {
   it('is two pages and two sections: Home and SOPs & plan, then Records and Traceability, each a card that opens and closes', () => {
     setup();
     const nav = screen.getByRole('navigation', { name: 'Main' });
-    expect(names(nav)).toEqual(['Home', 'SOPs & plan', 'Records', 'All records', 'Needs review', 'Fields', 'Water assessments', 'Training due', 'Traceability', 'Trace & recall', 'Reports']);
-    expect(names(section('Records')).slice(1)).toEqual(['All records', 'Needs review', 'Fields', 'Water assessments', 'Training due']);
+    expect(names(nav)).toEqual(['Home', 'SOPs & plan', 'Records', 'All records', 'Needs review', 'Fields', 'Water sources', 'Training due', 'Traceability', 'Trace & recall', 'Reports']);
+    expect(names(section('Records')).slice(1)).toEqual(['All records', 'Needs review', 'Fields', 'Water sources', 'Training due']);
     expect(names(section('Traceability')).slice(1)).toEqual(['Trace & recall', 'Reports']);
     expect(screen.getByRole('button', { name: /^Records/ }).getAttribute('aria-expanded')).toBe('true');
   });
@@ -50,7 +50,7 @@ describe('Sidebar', () => {
 
   it('goes to each page', async () => {
     const { user, onNavigate } = setup();
-    for (const name of ['Home', 'All records', 'Needs review', 'Fields', 'Water assessments', 'Training due', 'Trace & recall', 'Reports', 'SOPs & plan']) {
+    for (const name of ['Home', 'All records', 'Needs review', 'Fields', 'Water sources', 'Training due', 'Trace & recall', 'Reports', 'SOPs & plan']) {
       await user.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }));
     }
     expect(onNavigate.mock.calls.map((c) => c[0])).toEqual(['home', 'farmRecords', 'needsReview', 'recordFields', 'recordWater', 'recordTraining', 'recordTrace', 'recordReports', 'sops']);
@@ -134,7 +134,7 @@ describe('Sidebar', () => {
   it('speaks Spanish', () => {
     setup({}, 'es');
     const nav = screen.getByRole('navigation', { name: 'Principal' });
-    expect(names(nav)).toEqual(['Inicio', 'POEs y plan', 'Registros', 'Todos los registros', 'Por revisar', 'Campos', 'Evaluaciones del agua', 'Capacitación pendiente', 'Trazabilidad', 'Rastreo y retiro', 'Informes']);
+    expect(names(nav)).toEqual(['Inicio', 'POEs y plan', 'Registros', 'Todos los registros', 'Por revisar', 'Campos', 'Fuentes de agua', 'Capacitación pendiente', 'Trazabilidad', 'Rastreo y retiro', 'Informes']);
     expect(screen.getByRole('group', { name: 'Idioma' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Perfil de la granja' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Cerrar sesión' })).toBeTruthy();

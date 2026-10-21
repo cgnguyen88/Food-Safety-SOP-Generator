@@ -9,7 +9,7 @@ import { checkRateLimits, describeUpstreamError, redact } from '../httpUtils.js'
 import { buildReplyPatch, farmToday, presentRecord } from '../agent/captureRows.js';
 import { PipelineError, runCapture } from '../agent/capturePipeline.js';
 import { extractRecords } from '../agent/extract.js';
-import { readFieldNames } from '../agent/fieldNames.js';
+import { readFieldNames, readWaterSourceNames } from '../agent/fieldNames.js';
 import { applyReply } from '../agent/followup.js';
 import { channelText } from './channelText.js';
 import { TelegramApiError } from './telegramApi.js';
@@ -90,6 +90,9 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
 
   /** The linked farm's field names, to help the model spell a field the way the farm does (none if they cannot be read). */
   const fieldNamesOf = (farmId) => readFieldNames(store.listFieldNames ? () => store.listFieldNames({ farmId }) : undefined, logger);
+
+  /** The linked farm's water source names, for the same reason (none if they cannot be read, for instance before the database update that adds them). */
+  const waterSourceNamesOf = (farmId) => readWaterSourceNames(store.listWaterSourceNames ? () => store.listWaterSourceNames({ farmId }) : undefined, logger);
 
   /** The farm's approved sanitizer labels, or null when they cannot be read (then no result is set). */
   async function readSanitizerLabels(farmId) {
@@ -237,6 +240,7 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
       draft: { kind: target.kind, record_date: target.record_date, payload: target.payload },
       replyText: update.text, today: day, allowedKeys: target.missing_fields ?? [],
       fieldNames: await fieldNamesOf(identity.farmId),
+      waterSourceNames: await waterSourceNamesOf(identity.farmId),
     });
 
     if (result.applied.length === 0) {
@@ -319,6 +323,7 @@ export function createChannelHandler({ config, store, telegram, getAnthropic, ex
           uploadAttachments: ({ captureHash, attachments: files, restricted }) => store.uploadAttachments({ farmId, captureHash, attachments: files, restricted }),
           insertRecords: (rows) => store.insertRecords(rows),
           listFieldNames: store.listFieldNames ? () => store.listFieldNames({ farmId }) : undefined,
+          listWaterSourceNames: store.listWaterSourceNames ? () => store.listWaterSourceNames({ farmId }) : undefined,
           listSanitizerLabels: store.listSanitizerLabels ? () => store.listSanitizerLabels({ farmId }) : undefined,
         },
         extract, anthropic, config, userId, farmId, role: identity.role, text: update.text, attachments, day, source: PROVIDER, logger,

@@ -65,8 +65,8 @@ describe('record vocabulary', () => {
 
   it('only makes a field conditionally required on a select field of the same kind, with values it can take', () => {
     for (const kind of RECORD_KINDS) {
-      for (const f of KIND_FIELDS[kind].filter((x) => x.requiredWhen || x.requiredUnless)) {
-        for (const [key, wanted] of Object.entries(f.requiredWhen ?? f.requiredUnless)) {
+      for (const f of KIND_FIELDS[kind].filter((x) => x.requiredWhen)) {
+        for (const [key, wanted] of Object.entries(f.requiredWhen)) {
           const on = KIND_FIELDS[kind].find((x) => x.key === key);
           expect(on?.type, `${kind}.${f.key} depends on ${key}`).toBe('select');
           for (const value of [wanted].flat()) expect(on.options.map((o) => o.value), `${kind}.${f.key}`).toContain(value);
@@ -122,10 +122,6 @@ describe('the water assessment record', () => {
     for (const conclusion of ['no_mitigation', 'mitigation_needed']) expect(requiredFieldKeys('water_assessment', { conclusion })).toEqual(expect.arrayContaining(everything));
   });
 
-  it('needs nothing more than the source when the decision is that it is not used any more', () => {
-    expect(requiredFieldKeys('water_assessment', { conclusion: 'retired' })).toEqual(['source', 'conclusion']);
-  });
-
   it('asks what will be done, and by when, only when the conclusion is that measures are needed', () => {
     expect(requiredFieldKeys('water_assessment', { conclusion: 'no_mitigation' })).not.toContain('mitigation');
     expect(requiredFieldKeys('water_assessment', { conclusion: 'mitigation_needed' })).toContain('mitigation');
@@ -141,8 +137,6 @@ describe('the water assessment record', () => {
   it('has a short conclusion in each language for the record’s title', () => {
     expect(optionLabel('water_assessment', 'conclusion', 'mitigation_needed', 'en')).toBe('Measures needed');
     expect(optionLabel('water_assessment', 'conclusion', 'no_mitigation', 'es')).toBe('No se necesitan medidas');
-    expect(optionLabel('water_assessment', 'conclusion', 'retired', 'en')).toBe('Not used any more');
-    expect(optionLabel('water_assessment', 'conclusion', 'retired', 'es')).toBe('Ya no se usa');
   });
 
   it('is listed with the field and environment records, next to water tests', () => {

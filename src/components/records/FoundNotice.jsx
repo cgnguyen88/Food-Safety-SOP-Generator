@@ -5,10 +5,13 @@ import * as ui from './ui.js';
 /** The most unregistered names listed in the notice (all of them are added by its button). */
 const NAMES_SHOWN = 10;
 
-/** "N field names in your records are not in this list", with the names and a button that adds them all. */
-export default function FoundNotice({ found, adding, onAdd }) {
+/**
+ * "N field names in your records are not in this list", with the names and a button that adds them all. Give it another
+ * list's `text` (title, body, add, adding, uses) for the same notice about something else (the water sources).
+ */
+export default function FoundNotice({ found, adding, onAdd, text }) {
   const { lang: rawLang } = useLanguage();
-  const tt = recordsText(rawLang === 'es' ? 'es' : 'en').fields.found;
+  const tt = text ?? recordsText(rawLang === 'es' ? 'es' : 'en').fields.found;
 
   return (
     <div style={{ ...ui.card, padding: '14px 16px', margin: '0 0 16px', background: '#fffbeb', borderColor: '#fde68a' }}>

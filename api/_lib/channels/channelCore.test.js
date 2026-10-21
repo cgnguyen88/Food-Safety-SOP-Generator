@@ -593,6 +593,34 @@ describe('one message, one charge per model call', () => {
   });
 });
 
+describe('the farm’s water sources', () => {
+  it('are told to the model when a photo or message is read, for the linked farm', async () => {
+    store.listWaterSourceNames = vi.fn(async () => ['Well 1', 'Canal']);
+    await run(update({ text: 'water assessment for the well' }));
+    expect(store.listWaterSourceNames).toHaveBeenCalledWith({ farmId: FARM });
+    expect(extract).toHaveBeenCalledWith(expect.objectContaining({ waterSourceNames: ['Well 1', 'Canal'] }));
+  });
+
+  it('are told to the model when an answer to a question is read', async () => {
+    store.listWaterSourceNames = vi.fn(async () => ['Well 1']);
+    store.latestOpenRecord.mockResolvedValue(openRecord());
+    await run(update({ text: 'the first well, low concern' }));
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ waterSourceNames: ['Well 1'] }));
+  });
+
+  it('are left out, and the record still filed, when the list cannot be read (the database update may not be applied yet)', async () => {
+    store.listWaterSourceNames = vi.fn(async () => { throw new Error('relation "water_sources" does not exist'); });
+    await run(update({ text: 'water assessment for the well' }));
+    expect(extract.mock.calls[0][0].waterSourceNames).toEqual([]);
+    expect(store.insertRecords).toHaveBeenCalled();
+  });
+
+  it('are simply not told when the store has no list', async () => {
+    await run(update({ text: 'water assessment for the well' }));
+    expect(extract.mock.calls[0][0].waterSourceNames).toEqual([]);
+  });
+});
+
 describe('the farm’s fields', () => {
   it('are told to the model when a photo or message is read, for the linked farm', async () => {
     store.listFieldNames = vi.fn(async () => ['B2', 'North 40']);

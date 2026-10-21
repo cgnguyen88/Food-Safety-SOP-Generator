@@ -3,7 +3,7 @@ import { evaluateRecord } from '../../../src/domain/records/schemas.js';
 import { buildReplySystem } from './prompts.js';
 import { buildRecordTools, toolNameForKind } from './tools.js';
 import { isObject, withoutBlank } from './sanitize.js';
-import { fieldListLine } from './fieldNames.js';
+import { fieldListLine, waterSourceListLine } from './fieldNames.js';
 
 /** Ask for at most this many details per message; the rest follow in the next round. */
 export const MAX_QUESTIONS = 3;
@@ -55,7 +55,7 @@ const QUESTIONS = {
     crop_concern: 'How worried are you about the crop (low, some or high)?',
     weather_concern: 'How worried are you about the weather, such as heavy rain or flooding (low, some or high)?',
     testing_concern: 'How worried are you about the water test results (low, some or high, or no test results)?',
-    conclusion: 'What did you decide: are measures needed to protect the water, or not (or is the source not used any more)?',
+    conclusion: 'What did you decide: are measures needed to protect the water, or not?',
     mitigation: 'What measures will you take, and by when?',
   },
   es: {
@@ -104,7 +104,7 @@ const QUESTIONS = {
     crop_concern: '¿Qué tanto te preocupa el cultivo (poca, alguna o mucha)?',
     weather_concern: '¿Qué tanto te preocupa el clima, como la lluvia intensa o las inundaciones (poca, alguna o mucha)?',
     testing_concern: '¿Qué tanto te preocupan los resultados de los análisis del agua (poca, alguna o mucha, o sin resultados)?',
-    conclusion: '¿Qué decidiste: se necesitan medidas para proteger el agua, o no (o ya no se usa la fuente)?',
+    conclusion: '¿Qué decidiste: se necesitan medidas para proteger el agua, o no?',
     mitigation: '¿Qué medidas tomarás y para cuándo?',
   },
 };
@@ -146,18 +146,19 @@ export function questionsFor(kind, missing, lang) {
  *   signal?: AbortSignal,
  *   allowedKeys?: string[],
  *   fieldNames?: string[],
+ *   waterSourceNames?: string[],
  * }} args
  *   `allowedKeys` (payload keys, and/or 'record_date') limits what a reply may change; anything
  *   else the model returns is ignored and reported in `rejected`. Omit it to allow every field.
  */
-export async function applyReply({ anthropic, config, draft, replyText, today, signal, allowedKeys, fieldNames }) {
+export async function applyReply({ anthropic, config, draft, replyText, today, signal, allowedKeys, fieldNames, waterSourceNames }) {
   const reply = typeof replyText === 'string' ? replyText.trim() : '';
   if (reply === '') throw new Error('A reply is required.');
 
   const { kind } = draft;
   const tool = buildRecordTools({ strict: config.agent.strictTools }).find((t) => t.name === toolNameForKind(kind));
   const current = JSON.stringify({ kind, record_date: draft.record_date ?? null, payload: draft.payload ?? {} });
-  const fieldLine = fieldListLine(fieldNames);
+  const namesBlock = [fieldListLine(fieldNames), waterSourceListLine(waterSourceNames)].filter(Boolean).join('\n');
 
   const response = await anthropic.messages.create(
     {
@@ -167,7 +168,7 @@ export async function applyReply({ anthropic, config, draft, replyText, today, s
       tools: [tool],
       tool_choice: { type: 'auto' },
       output_config: { effort: config.agent.effort },
-      messages: [{ role: 'user', content: `Current record (JSON):\n${current}\n\n${fieldLine ? `${fieldLine}\n\n` : ''}Worker's reply:\n${reply}` }],
+      messages: [{ role: 'user', content: `Current record (JSON):\n${current}\n\n${namesBlock ? `${namesBlock}\n\n` : ''}Worker's reply:\n${reply}` }],
     },
     { timeout: config.agent.requestTimeoutMs, ...(signal ? { signal } : {}) },
   );

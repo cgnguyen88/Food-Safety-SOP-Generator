@@ -14,6 +14,7 @@ import { KIND_ICONS } from './records/icons.js';
 import FieldHoldsBanner from './records/FieldHoldsBanner.jsx';
 import RecordForm from './records/RecordForm.jsx';
 import RecordsProviders from './records/RecordsProviders.jsx';
+import { useLoadWaterSources } from './records/farmWaterSources.js';
 import TelegramConnect from './records/TelegramConnect.jsx';
 import useFarmRecords from './records/useFarmRecords.js';
 import useFieldHolds from './records/useFieldHolds.js';
@@ -62,19 +63,22 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
   const holds = useFieldHolds({ farmId: farm.id });
   const training = useFarmRecords({ farmId: farm.id, kinds: TRAINING_KINDS });
   const water = useFarmRecords({ farmId: farm.id, kinds: WATER_KINDS });
+  const waterList = useLoadWaterSources(farm.id);
+  // Before the database has a list of water sources (its update not yet applied), the records alone say what needs attention.
+  const waterListUsable = waterList.status === 'ready' || waterList.errorCode === 'not_set_up';
   const [adding, setAdding] = useState(null); // null, or { kind, prefill }
 
   const today = todayLocalIso();
   const overdue = useMemo(() => trainingCounts(trainingDueList(training.records, { today })).overdue, [training.records, today]);
-  // A water source needs attention when a flood came after its last assessment, or its yearly review has passed.
+  // A water source needs attention when a flood came after its last assessment, its yearly review has passed, or it was never assessed.
   const waterNeeds = useMemo(() => {
-    const counts = waterCounts(waterSources(water.records, { today }));
-    return counts.flood + counts.overdue;
-  }, [water.records, today]);
+    const counts = waterCounts(waterSources(water.records, { today, registry: waterList.sources }));
+    return counts.flood + counts.overdue + counts.not_assessed;
+  }, [water.records, waterList.sources, today]);
   const quickKinds = QUICK_KINDS.filter((kind) => canSeeKind(kind, role));
   // "All clear" is said only when everything was really read: a failed or cut-short read is not good news.
   const incomplete = holds.truncated || training.truncated || water.truncated;
-  const allClear = reviewStatus === 'ready' && needsReviewCount === 0 && overdue === 0 && holds.status === 'ready' && holds.holds.length === 0 && training.status === 'ready' && water.status === 'ready' && waterNeeds === 0 && !incomplete;
+  const allClear = reviewStatus === 'ready' && needsReviewCount === 0 && overdue === 0 && holds.status === 'ready' && holds.holds.length === 0 && training.status === 'ready' && water.status === 'ready' && waterListUsable && waterNeeds === 0 && !incomplete;
   const hasProfile = Boolean(farmProfile?.farm_name);
 
   return (
@@ -103,6 +107,7 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
           {reviewStatus === 'error' && <Notice text={tt.reviewError} />}
           {training.status === 'error' && <Notice text={tt.trainingError} action={tt.retry} onClick={training.reload} />}
           {water.status === 'error' && <Notice text={tt.waterError} action={tt.retry} onClick={water.reload} />}
+          {waterList.status === 'error' && waterList.errorCode !== 'not_set_up' && <Notice text={tt.waterError} action={tt.retry} onClick={waterList.reload} />}
           {incomplete && <Notice text={tt.incomplete} />}
           {allClear && <div style={{ ...ui.card, padding: '14px 18px', color: '#166534', background: '#f0fdf4', borderColor: '#bbf7d0', fontSize: 14 }}>{tt.allClear}</div>}
         </div>
@@ -153,6 +158,7 @@ export default function Home({ farm, farmProfile, role, lotCodeFormat, needsRevi
               holds.reload();
               training.reload();
               water.reload();
+              waterList.reload();
               onNavigate(logRoute(kind));
             }}
           />

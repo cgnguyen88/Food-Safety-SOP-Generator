@@ -115,28 +115,28 @@ describe('FloodWaterNote', () => {
 
   it('says no assessment lists the field when none does', () => {
     renderWithLang(<FloodWaterNote status="ready" searched sources={[]} />);
-    expect(screen.getByRole('status').textContent).toContain('No water assessment lists this field yet.');
+    expect(screen.getByRole('status').textContent).toContain('No water source is listed for this field yet.');
   });
 
   it('does not say that before a field or water source has been given', () => {
     renderWithLang(<FloodWaterNote status="ready" sources={[]} />);
     expect(screen.getByRole('status').textContent).toContain('A flood can reach your water');
-    expect(screen.getByRole('status').textContent).not.toContain('No water assessment lists');
+    expect(screen.getByRole('status').textContent).not.toContain('No water source is listed');
   });
 
   it('says the list may be incomplete, rather than that none is listed, when the records were cut short', () => {
     renderWithLang(<FloodWaterNote status="ready" searched truncated sources={[]} />);
-    expect(screen.getByRole('status').textContent).not.toContain('No water assessment lists');
+    expect(screen.getByRole('status').textContent).not.toContain('No water source is listed');
     expect(screen.getByRole('status').textContent).toContain('You have so many records that some could not be read, so this may not show everything.');
   });
 
   it('does not claim to know the sources while still reading, or when it could not', () => {
     renderWithLang(<FloodWaterNote status="loading" sources={[]} />);
     expect(screen.getByRole('status').textContent).not.toContain('Water sources for this field');
-    expect(screen.getByRole('status').textContent).not.toContain('No water assessment lists');
+    expect(screen.getByRole('status').textContent).not.toContain('No water source is listed');
     cleanup();
     renderWithLang(<FloodWaterNote status="error" sources={[]} />);
-    expect(screen.getByRole('status').textContent).not.toContain('No water assessment lists');
+    expect(screen.getByRole('status').textContent).not.toContain('No water source is listed');
   });
 
   it('speaks Spanish', () => {

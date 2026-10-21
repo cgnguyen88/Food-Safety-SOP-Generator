@@ -10,6 +10,7 @@ const { createRecord, updateRecord } = await import('../../lib/records.js');
 const { listRecordsForReport } = await import('../../lib/reportData.js');
 const { default: RecordForm } = await import('./RecordForm.jsx');
 const { FarmFieldsContext } = await import('./farmFields.js');
+const { FarmWaterSourcesContext } = await import('./farmWaterSources.js');
 const { LotCodeSettingsContext } = await import('./lotCodeSettings.js');
 
 const FARM = 'farm-1';
@@ -819,18 +820,6 @@ describe('RecordForm: water assessments', () => {
     expect(screen.getByLabelText(/^The measures you will take/).getAttribute('aria-required')).toBe('true');
   });
 
-  it('needs only the source when the decision is that it is not used any more, and says nothing about the ratings', async () => {
-    createRecord.mockResolvedValue({ data: { id: 'new' }, error: null });
-    const { user, onSaved } = assessment();
-    await user.type(screen.getByLabelText(LABEL.source), 'Old well');
-    await user.selectOptions(screen.getByLabelText(LABEL.conclusion), 'retired');
-    expect(screen.queryByText(/Still needed/)).toBeNull();
-    expect(screen.queryByText('Rate every factor to see what your answers add up to.')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Save & approve' }));
-    await waitFor(() => expect(onSaved).toHaveBeenCalled());
-    expect(createRecord).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved', payload: expect.objectContaining({ source: 'Old well', conclusion: 'retired', source_concern: '' }) }));
-  });
-
   it('reminds that a public water system may not need an assessment', async () => {
     const { user } = assessment();
     expect(screen.queryByText(/A public water system may not need a written assessment/)).toBeNull();
@@ -943,7 +932,7 @@ describe('RecordForm: water assessments', () => {
       await waitFor(() => expect(listRecordsForReport).toHaveBeenCalled());
       await new Promise((resolve) => setTimeout(resolve, 30));
       expect(screen.getByText('A flood can reach your water')).toBeTruthy();
-      expect(screen.queryByText(/No water assessment lists this field yet/)).toBeNull();
+      expect(screen.queryByText(/No water source is listed for this field yet/)).toBeNull();
     });
 
     it('says when no assessment lists the field', async () => {
@@ -951,7 +940,7 @@ describe('RecordForm: water assessments', () => {
       const { user } = setup({ kind: 'weather_event', role: 'manager' });
       await floodForm(user);
       await user.type(screen.getByLabelText(/^Field/), 'Z9');
-      expect(await screen.findByText(/No water assessment lists this field yet/)).toBeTruthy();
+      expect(await screen.findByText(/No water source is listed for this field yet/)).toBeTruthy();
     });
 
     it('also finds the source the flood names', async () => {
@@ -976,7 +965,103 @@ describe('RecordForm: water assessments', () => {
       await floodForm(user);
       await user.type(screen.getByLabelText(/^Field/), 'A1');
       expect(screen.getByText('A flood can reach your water')).toBeTruthy();
-      expect(screen.queryByText(/No water assessment lists this field yet/)).toBeNull();
+      expect(screen.queryByText(/No water source is listed for this field yet/)).toBeNull();
     });
+  });
+});
+
+describe('RecordForm: choosing a water source from the farm’s list', () => {
+  const src = (name, extra = {}) => ({ id: `id-${name}`, name, source_type: null, fields_served: null, notes: null, is_active: true, ...extra });
+  const withSources = (sources, props = {}) => {
+    const onSaved = vi.fn();
+    const user = userEvent.setup();
+    renderWithLang(
+      <FarmWaterSourcesContext.Provider value={{ status: 'ready', sources, reload: () => {} }}>
+        <RecordForm kind="water_assessment" role="manager" farmId={FARM} today="2026-10-12" onSaved={onSaved} onCancel={() => {}} {...props} />
+      </FarmWaterSourcesContext.Provider>,
+    );
+    return { user, onSaved };
+  };
+  const SOURCE = /^Water source or system/;
+  const FLOOD = { id: 'w1', kind: 'weather_event', status: 'approved', record_date: '2026-06-10', created_at: '2026-06-10T15:00:00Z', payload: { event_type: 'flood', field: 'A1', crop_contact: 'no' } };
+
+  it('lets the person pick the source in an assessment, and saves its name', async () => {
+    const { user } = withSources([src('Well 1'), src('Canal')]);
+    expect(screen.getByLabelText(SOURCE).tagName).toBe('SELECT');
+    await user.selectOptions(screen.getByLabelText(SOURCE), 'Canal');
+    expect(screen.getByLabelText(SOURCE).value).toBe('Canal');
+  });
+
+  it('fills in the kind of source and the fields from the list when they are still blank', async () => {
+    const { user } = withSources([src('Well 1', { source_type: 'enclosed_groundwater', fields_served: 'A1, A2' })]);
+    await user.selectOptions(screen.getByLabelText(SOURCE), 'Well 1');
+    expect(screen.getByLabelText(/^What kind of source it is/).value).toBe('enclosed_groundwater');
+    expect(screen.getByLabelText(/^Fields this water is used on/).value).toBe('A1, A2');
+  });
+
+  it('does not overwrite what the person has already typed, and leaves blank what the list does not know', async () => {
+    const { user } = withSources([src('Well 1', { fields_served: 'A1, A2' }), src('Canal')]);
+    await user.type(screen.getByLabelText(/^Fields this water is used on/), 'B9');
+    await user.selectOptions(screen.getByLabelText(SOURCE), 'Well 1');
+    expect(screen.getByLabelText(/^Fields this water is used on/).value).toBe('B9');
+    await user.selectOptions(screen.getByLabelText(SOURCE), 'Canal');
+    expect(screen.getByLabelText(/^What kind of source it is/).value).toBe('');
+  });
+
+  it('lets a name that is not on the list be typed', async () => {
+    const { user } = withSources([src('Well 1')]);
+    await user.selectOptions(screen.getByLabelText(SOURCE), '__other__');
+    await user.type(screen.getByLabelText('Water source name'), 'Spring');
+    expect(screen.getByLabelText('Water source name').value).toBe('Spring');
+  });
+
+  it('offers only active sources, and keeps a plain box while the list is empty or all archived', () => {
+    withSources([src('Well 1'), src('Old', { is_active: false })]);
+    expect([...screen.getByLabelText(SOURCE).options].map((o) => o.textContent)).toEqual(['Choose a water source', 'Well 1', 'Other (type a name)…']);
+    cleanup();
+    withSources([src('Old', { is_active: false })]);
+    expect(screen.getByLabelText(SOURCE).tagName).toBe('INPUT');
+    cleanup();
+    withSources([]);
+    expect(screen.getByLabelText(SOURCE).tagName).toBe('INPUT');
+  });
+
+  it('is also how a water test names its source', () => {
+    const user = userEvent.setup();
+    renderWithLang(
+      <FarmWaterSourcesContext.Provider value={{ status: 'ready', sources: [src('Well 1')], reload: () => {} }}>
+        <RecordForm kind="water_test" role="manager" farmId={FARM} today="2026-10-12" onSaved={() => {}} onCancel={() => {}} />
+      </FarmWaterSourcesContext.Provider>,
+    );
+    expect(user).toBeTruthy();
+    expect(screen.getByLabelText(/^Water source/).tagName).toBe('SELECT');
+  });
+
+  it('is also how a flood names the water source it may have reached, optionally', async () => {
+    farmHas([]);
+    const user = userEvent.setup();
+    renderWithLang(
+      <FarmWaterSourcesContext.Provider value={{ status: 'ready', sources: [src('Well 1')], reload: () => {} }}>
+        <RecordForm kind="weather_event" role="manager" farmId={FARM} today="2026-10-12" onSaved={() => {}} onCancel={() => {}} />
+      </FarmWaterSourcesContext.Provider>,
+    );
+    const box = screen.getByLabelText(/^Water source it may have reached/);
+    expect(box.tagName).toBe('SELECT');
+    expect(box.getAttribute('aria-required')).toBeNull();
+    await user.selectOptions(box, 'Well 1');
+    expect(box.value).toBe('Well 1');
+  });
+
+  it('names the sources on the list for the flooded field, even one that was never assessed', async () => {
+    farmHas([FLOOD]);
+    const user = userEvent.setup();
+    renderWithLang(
+      <FarmWaterSourcesContext.Provider value={{ status: 'ready', sources: [src('New well', { fields_served: 'B2, A1' })], reload: () => {} }}>
+        <RecordForm kind="weather_event" role="manager" farmId={FARM} today="2026-10-12" onSaved={() => {}} onCancel={() => {}} />
+      </FarmWaterSourcesContext.Provider>,
+    );
+    await user.selectOptions(screen.getByLabelText(/^Event/), 'flood');
+    await user.type(screen.getByLabelText(/^Field/), 'a1');
+    expect(await screen.findByText('Water sources for this field: New well.')).toBeTruthy();
   });
 });

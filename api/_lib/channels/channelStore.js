@@ -127,6 +127,13 @@ export function createChannelStore(env = process.env, { createClientImpl = creat
       return (data ?? []).map((row) => row.name);
     },
 
+    /** The names of the farm's active water sources (told to the model so it spells a source the way the farm does). */
+    async listWaterSourceNames({ farmId }) {
+      const { data, error } = await db().from('water_sources').select('name').eq('farm_id', farmId).eq('is_active', true).order('name', { ascending: true }).limit(MAX_FIELD_NAMES + 1);
+      if (error) throw dbError(error);
+      return (data ?? []).map((row) => row.name);
+    },
+
     insertRecords: (rows) => agentStore.insertRecords(rows),
     uploadAttachments: (args) => agentStore.uploadAttachments(args),
     listSanitizerLabels: (args) => agentStore.listSanitizerLabels(args),

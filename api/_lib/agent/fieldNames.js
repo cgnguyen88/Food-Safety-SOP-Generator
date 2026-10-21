@@ -52,22 +52,36 @@ export function fieldListLine(names) {
  * @param {{ timeoutMs?: number }} [options]
  * @returns {Promise<string[]>}
  */
-export async function readFieldNames(read, logger, { timeoutMs = FIELD_READ_TIMEOUT_MS } = {}) {
+export async function readFieldNames(read, logger, { timeoutMs = FIELD_READ_TIMEOUT_MS, what = 'field' } = {}) {
   if (!read) return [];
   let timer;
   try {
     const names = await Promise.race([
       read(),
       new Promise((_resolve, reject) => {
-        timer = setTimeout(() => reject(new Error('reading the field list timed out')), timeoutMs);
+        timer = setTimeout(() => reject(new Error(`reading the ${what} list timed out`)), timeoutMs);
       }),
     ]);
-    if (Array.isArray(names) && names.length > MAX_FIELD_NAMES) logger.info('[agent] the farm has more fields than the agent is told about');
+    if (Array.isArray(names) && names.length > MAX_FIELD_NAMES) logger.info(`[agent] the farm has more ${what}s than the agent is told about`);
     return cleanFieldNames(names);
   } catch (err) {
-    logger.warn('[agent] could not read the farm field list; going on without it', { reason: redact(err?.message ?? err) });
+    logger.warn(`[agent] could not read the farm ${what} list; going on without it`, { reason: redact(err?.message ?? err) });
     return [];
   } finally {
     clearTimeout(timer);
   }
 }
+
+/**
+ * The line that tells the model which water sources the farm has (its wells, canals, ponds), written like `fieldListLine`:
+ * labelled as data, the names as a JSON list. Empty when the farm has none.
+ *
+ * @param {unknown} names
+ */
+export function waterSourceListLine(names) {
+  const clean = cleanFieldNames(names);
+  return clean.length === 0 ? '' : `Farm water sources (data): ${JSON.stringify(clean)}`;
+}
+
+/** Read the farm's water source names for a model call, as `readFieldNames` reads the fields: a failure never holds up the capture. */
+export const readWaterSourceNames = (read, logger, options) => readFieldNames(read, logger, { ...options, what: 'water source' });

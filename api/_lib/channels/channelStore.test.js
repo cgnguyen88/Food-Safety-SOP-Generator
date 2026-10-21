@@ -183,6 +183,21 @@ describe('capture ports', () => {
     await expect(build({ fields: [{ data: null, error: { code: '42P01', message: 'no such table' } }] }).store.listFieldNames({ farmId: FARM })).rejects.toMatchObject({ code: '42P01' });
   });
 
+  it('lists the active water source names of the linked farm only, by name', async () => {
+    const { store, queries } = build({ water_sources: [{ data: [{ name: 'Canal' }, { name: 'Well 1' }], error: null }] });
+    expect(await store.listWaterSourceNames({ farmId: FARM })).toEqual(['Canal', 'Well 1']);
+    expect(queries[0].table).toBe('water_sources');
+    expect(has(queries[0].calls, 'eq', 'farm_id', FARM)).toBe(true);
+    expect(has(queries[0].calls, 'eq', 'is_active', true)).toBe(true);
+    expect(has(queries[0].calls, 'order', 'name')).toBe(true);
+    expect(has(queries[0].calls, 'limit', 101)).toBe(true);
+  });
+
+  it('gives no water source names for a farm with none, and fails when the database does (the list is then left out)', async () => {
+    expect(await build({ water_sources: [{ data: null, error: null }] }).store.listWaterSourceNames({ farmId: FARM })).toEqual([]);
+    await expect(build({ water_sources: [{ data: null, error: { code: '42P01', message: 'no such table' } }] }).store.listWaterSourceNames({ farmId: FARM })).rejects.toMatchObject({ code: '42P01' });
+  });
+
   it('hands saving and file storage to the agent store', async () => {
     const { store, agentStore } = build();
     await store.insertRecords([{ kind: 'note' }]);

@@ -12,7 +12,7 @@ import { canSeeKind } from '../../domain/records/workflow.js';
 import SavedViewResults from './SavedViewResults.jsx';
 import TracePage from './TracePage.jsx';
 import TrainingDuePage from './TrainingDuePage.jsx';
-import WaterAssessmentsPage from './WaterAssessmentsPage.jsx';
+import WaterSourcesPage from './WaterSourcesPage.jsx';
 
 /**
  * Renders whichever records screen the route names. Without a farm (sign-up
@@ -59,7 +59,7 @@ export default function RecordsPage({ route, farm, role, userId, operation, lotC
       case 'trace':
         return <TracePage farm={farm} role={role} />;
       case 'water':
-        return <WaterAssessmentsPage farm={farm} role={role} onChanged={onChanged} />;
+        return <WaterSourcesPage farm={farm} role={role} onChanged={onChanged} />;
       case 'view': {
         const view = savedViews.find((v) => v.id === route.viewId);
         if (view) return <SavedViewResults key={view.id} view={view} {...shared} />;

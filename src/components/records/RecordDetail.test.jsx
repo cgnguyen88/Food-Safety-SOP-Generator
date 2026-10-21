@@ -11,6 +11,7 @@ vi.mock('../../lib/fields.js', () => ({ addFieldsByName: vi.fn() }));
 const db = await import('../../lib/attachments.js');
 const records = await import('../../lib/records.js');
 const { listRecordsForReport } = await import('../../lib/reportData.js');
+const { FarmWaterSourcesContext } = await import('./farmWaterSources.js');
 const { default: RecordDetail } = await import('./RecordDetail.jsx');
 const { FarmFieldsContext } = await import('./farmFields.js');
 
@@ -366,7 +367,7 @@ describe('RecordDetail: a flood and the water it may have reached', () => {
   it('says so when no assessed water source is tied to the flood', async () => {
     farmHas([assessment('Pond', 'C1', '2026-03-01'), flood]);
     setup(flood);
-    expect(await screen.findByText(/No assessed water source is tied to this flood/)).toBeTruthy();
+    expect(await screen.findByText(/No water source is tied to this flood/)).toBeTruthy();
     await screen.findByText('Created');
   });
 
@@ -381,16 +382,55 @@ describe('RecordDetail: a flood and the water it may have reached', () => {
     listRecordsForReport.mockResolvedValue({ data: { records: [], truncated: true }, error: null });
     setup(flood);
     expect(await screen.findByText('You have so many records that some could not be read, so this may not show everything.')).toBeTruthy();
-    expect(screen.queryByText(/No assessed water source is tied/)).toBeNull();
+    expect(screen.queryByText(/No water source is tied/)).toBeNull();
     await screen.findByText('Created');
   });
 
   it('does not tie a voided flood to anything', async () => {
     farmHas([assessment('Well 1', 'A1', '2026-03-01')]);
     setup({ ...flood, status: 'voided' });
-    expect(await screen.findByText(/No assessed water source is tied to this flood/)).toBeTruthy();
+    expect(await screen.findByText(/No water source is tied to this flood/)).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Assess Well 1 again' })).toBeNull();
     await screen.findByText('Created');
+  });
+
+  describe('with the farm’s list of water sources', () => {
+    const src = (name, extra = {}) => ({ id: `s-${name}`, name, source_type: null, fields_served: null, notes: null, is_active: true, ...extra });
+    const setupWithList = (sources, record = flood) => {
+      const user = userEvent.setup();
+      const handlers = { onClose: vi.fn(), onChanged: vi.fn() };
+      renderWithLang(
+        <FarmWaterSourcesContext.Provider value={{ status: 'ready', sources, reload: () => {} }}>
+          <RecordDetail record={record} role="owner" userId="owner-1" farm={{ id: 'farm-1' }} {...handlers} />
+        </FarmWaterSourcesContext.Provider>,
+      );
+      return { user };
+    };
+
+    it('lists a source on the list that waters the flooded field but was never assessed, as needing a first assessment', async () => {
+      farmHas([flood]);
+      setupWithList([src('New well', { fields_served: 'A1', source_type: 'canal' })]);
+      const items = within(await screen.findByRole('region', { name: 'Water this flood may have reached' })).findByText('New well');
+      expect(await items).toBeTruthy();
+      expect(within(panel()).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['New wellNot assessed yetAssess New well']);
+      await screen.findByText('Created');
+    });
+
+    it('starts the first assessment from what the list says about the source', async () => {
+      farmHas([flood]);
+      const { user } = setupWithList([src('New well', { fields_served: 'A1, A2', source_type: 'canal' })]);
+      await user.click(await screen.findByRole('button', { name: 'Assess New well' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Add water assessment' });
+      expect(within(dialog).getByLabelText(/^Water source or system/).value).toBe('New well');
+      expect(within(dialog).getByLabelText(/^What kind of source it is/).value).toBe('canal');
+      expect(within(dialog).getByLabelText(/^Fields this water is used on/).value).toBe('A1, A2');
+    });
+
+    it('leaves out an archived source', async () => {
+      farmHas([flood]);
+      setupWithList([src('Old well', { fields_served: 'A1', is_active: false })]);
+      expect(await screen.findByText(/No water source is tied to this flood/)).toBeTruthy();
+    });
   });
 
   it('says so when the water assessments could not be read, rather than saying none are tied', async () => {

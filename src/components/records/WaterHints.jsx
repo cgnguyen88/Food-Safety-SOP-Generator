@@ -31,8 +31,6 @@ const list = (items, lang) => new Intl.ListFormat(lang, { style: 'long', type: '
 export function ConcernSummary({ values, onUse }) {
   const { lang, tt } = useText();
   const { suggestion, high, some } = assessConcerns(values);
-  // A source that is not used any more is not rated.
-  if (values.conclusion === 'retired') return null;
   const names = (keys) => list(keys.map((key) => tt.form.factors[key]), lang);
   const usable = suggestion === 'mitigation_needed' || suggestion === 'no_mitigation';
 

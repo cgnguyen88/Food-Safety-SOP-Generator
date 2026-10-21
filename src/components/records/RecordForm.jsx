@@ -12,17 +12,21 @@ import { createRecord, updateRecord } from '../../lib/records.js';
 import { recordsText } from './text.js';
 import * as ui from './ui.js';
 import { useFarmFields } from './farmFields.js';
+import { useFarmWaterSources } from './farmWaterSources.js';
 import FieldPicker from './FieldPicker.jsx';
 import LotCodeTools from './LotCodeTools.jsx';
 import Modal from './Modal.jsx';
 import SanitizerHint from './SanitizerHint.jsx';
 import { ConcernSummary, FloodWaterNote, PublicWaterNote, RecentFloodsNote, UnlistedFieldsNote, WATER_SECTION_STARTS, WaterSectionHeading } from './WaterHints.jsx';
+import WaterSourcePicker from './WaterSourcePicker.jsx';
 import useFarmRecords from './useFarmRecords.js';
 import useFieldHolds from './useFieldHolds.js';
 
 const SANITIZER_LABELS = ['sanitizer_label'];
 /** What the water hints read: floods, and the farm's water assessments. */
 const WATER_KINDS = ['weather_event', 'water_assessment'];
+/** The box in which each kind of record names a water source. */
+const WATER_SOURCE_KEYS = Object.freeze({ water_assessment: 'source', water_test: 'source', weather_event: 'water_source' });
 
 const blank = (value) => value === undefined || value === null || String(value).trim() === '';
 
@@ -74,6 +78,10 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
   // The farm's own list of fields to pick from (a plain box until it has an active field).
   const farmFields = useFarmFields().fields;
   const pickFromFarmFields = farmFields.some((f) => f.is_active);
+  // The farm's list of water sources, for the boxes that name one.
+  const farmWaterSources = useFarmWaterSources().sources;
+  const pickFromWaterSources = farmWaterSources.some((source) => source.is_active);
+  const waterSourceKey = WATER_SOURCE_KEYS[kind];
 
   // Remember what the form started with, to tell whether the person has typed anything.
   const [initial] = useState(() => ({
@@ -124,9 +132,18 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
     [assessing, pickFromFarmFields, values.fields_served, farmFields],
   );
   const sourcesForFlood = useMemo(
-    () => (recordingFlood ? sourcesServing(waterSources(water.records, { today: waterToday }), { field: values.field, waterSource: values.water_source }) : []),
-    [recordingFlood, water.records, values.field, values.water_source, waterToday],
+    () => (recordingFlood ? sourcesServing(waterSources(water.records, { today: waterToday, registry: farmWaterSources }), { field: values.field, waterSource: values.water_source }) : []),
+    [recordingFlood, water.records, farmWaterSources, values.field, values.water_source, waterToday],
   );
+
+  // Choosing a source in an assessment fills in its kind and the fields it waters from the list, where those are still blank.
+  const chooseWaterSource = (key, value) => setValues((current) => {
+    const next = { ...current, [key]: value };
+    const listed = assessing ? findField(value, farmWaterSources) : null;
+    if (listed?.source_type && blank(current.source_type)) next.source_type = listed.source_type;
+    if (listed?.fields_served && blank(current.fields_served)) next.fields_served = listed.fields_served;
+    return next;
+  });
 
   const evaluation = useMemo(() => evaluateRecord(kind, { record_date: date, payload }), [kind, date, payload]);
   const filled = useMemo(() => Object.fromEntries(Object.entries(values).filter(([, v]) => !blank(v))), [values]);
@@ -180,7 +197,19 @@ export default function RecordForm({ kind, role, farmId, record, advanceTo = nul
         {evaluation.errors.record_date && <div id="rec-date-error" style={{ color: '#b91c1c', fontSize: 11, marginTop: 3 }}>{tt.field.invalid}</div>}
       </div>
 
-      {fields.map((field) => field.key === 'field' && pickFromFarmFields ? (
+      {fields.map((field) => field.key === waterSourceKey && pickFromWaterSources ? (
+        <WaterSourcePicker
+          key={field.key}
+          id={`rec-${field.key}`}
+          label={`${field.label[lang]}${required.has(field.key) ? ' *' : ''}`}
+          sources={farmWaterSources}
+          value={values[field.key]}
+          required={required.has(field.key)}
+          invalid={Boolean(evaluation.errors[field.key])}
+          invalidText={tt.field.invalid}
+          onChange={(value) => chooseWaterSource(field.key, value)}
+        />
+      ) : field.key === 'field' && pickFromFarmFields ? (
         <FieldPicker
           key={field.key}
           id={`rec-${field.key}`}

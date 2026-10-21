@@ -12,12 +12,16 @@ const labelStyle = { fontSize: 12, fontWeight: 600, color: '#475569', display: '
  * or "Other" and type a name that is not in the list yet. A record can name an archived field it already has
  * (kept as a choice, marked archived) and a name that is not in the list (shown typed in).
  *
+ * It also serves any other list of named things (the water sources): give it that list's `text` (placeholder, other,
+ * archivedSuffix, otherLabel, notInList).
+ *
  * @param {{ id: string, label: string, fields: Array<{ name: string, is_active: boolean }>, value: string,
- *   onChange: (value: string) => void, required?: boolean, invalid?: boolean, invalidText?: string }} props
+ *   onChange: (value: string) => void, required?: boolean, invalid?: boolean, invalidText?: string,
+ *   text?: { placeholder: string, other: string, archivedSuffix: string, otherLabel: string, notInList: string } }} props
  */
-export default function FieldPicker({ id, label, fields, value, onChange, required = false, invalid = false, invalidText }) {
+export default function FieldPicker({ id, label, fields, value, onChange, required = false, invalid = false, invalidText, text }) {
   const { lang: rawLang } = useLanguage();
-  const tt = recordsText(rawLang === 'es' ? 'es' : 'en').fields.choice;
+  const tt = text ?? recordsText(rawLang === 'es' ? 'es' : 'en').fields.choice;
 
   const registered = findField(value, fields);
   // Whether the person is typing a name of their own. It starts that way for a name the list does not have,

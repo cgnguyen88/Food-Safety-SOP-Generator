@@ -1,6 +1,6 @@
 import { redact } from '../httpUtils.js';
 import { buildCaptureRows, CAPTURE_SOURCE, captureHashOf } from './captureRows.js';
-import { readFieldNames } from './fieldNames.js';
+import { readFieldNames, readWaterSourceNames } from './fieldNames.js';
 import { RESTRICTED_KINDS } from '../../../src/domain/records/kinds.js';
 import { canSeeKind } from '../../../src/domain/records/workflow.js';
 import { checkedByLabelOnly } from '../../../src/domain/records/sanitation.js';
@@ -51,6 +51,7 @@ async function checkSanitation(proposals, ports, logger) {
  *     uploadAttachments: (q: { captureHash: string, attachments: object[] }) => Promise<object[]>,
  *     insertRecords: (rows: object[]) => Promise<object[]>,
  *     listFieldNames?: () => Promise<string[]>,
+ *     listWaterSourceNames?: () => Promise<string[]>,
  *     listSanitizerLabels?: () => Promise<object[]>,
  *   },
  *   extract: Function, anthropic: object, config: object,
@@ -83,9 +84,10 @@ export async function runCapture({ ports, extract, anthropic, config, userId, fa
   // ── Read ──────────────────────────────────────────────────────────────────
   // The farm's field names help the model spell a field the way the farm does; the capture goes on without them.
   const fieldNames = await readFieldNames(ports.listFieldNames, logger);
+  const waterSourceNames = await readWaterSourceNames(ports.listWaterSourceNames, logger);
   let result;
   try {
-    result = await extract({ anthropic, config, input: { text, attachments }, today: day, signal, fieldNames });
+    result = await extract({ anthropic, config, input: { text, attachments }, today: day, signal, fieldNames, waterSourceNames });
   } catch (err) {
     throw new PipelineError('extract', err);
   }

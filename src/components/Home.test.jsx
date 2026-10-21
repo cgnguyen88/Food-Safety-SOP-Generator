@@ -7,9 +7,11 @@ import { renderWithLang } from './records/testUtils.jsx';
 vi.mock('../lib/records.js', () => ({ createRecord: vi.fn(), updateRecord: vi.fn() }));
 vi.mock('../lib/reportData.js', () => ({ listRecordsForReport: vi.fn() }));
 vi.mock('../lib/fields.js', () => ({ listFields: vi.fn() }));
+vi.mock('../lib/waterSources.js', () => ({ listWaterSources: vi.fn() }));
 vi.mock('../lib/channels.js', async (importOriginal) => ({ ...(await importOriginal()), listTelegramLinks: vi.fn(async () => ({ data: [], error: null })), createTelegramLinkCode: vi.fn() }));
 const { listRecordsForReport } = await import('../lib/reportData.js');
 const { listFields } = await import('../lib/fields.js');
+const { listWaterSources } = await import('../lib/waterSources.js');
 const { default: Home } = await import('./Home.jsx');
 
 const FLOOD = { id: 'w1', kind: 'weather_event', status: 'approved', record_date: '2026-10-01', payload: { event_type: 'flood', field: 'B4', crop_contact: 'yes' } };
@@ -30,6 +32,8 @@ beforeEach(() => {
   listRecordsForReport.mockReset();
   listFields.mockReset();
   listFields.mockResolvedValue({ data: [], error: null });
+  listWaterSources.mockReset();
+  listWaterSources.mockResolvedValue({ data: [], error: null });
   farmHas([]);
 });
 afterEach(cleanup);
@@ -99,7 +103,7 @@ describe('Home: what needs attention', () => {
     it('points to a water source that needs a new assessment after a flood', async () => {
       farmHas([well('Well 1', 'A1', '2026-03-01'), floodOn('A1')]);
       const { user, onNavigate } = setup();
-      expect(await screen.findByText('1 water source needs a new assessment')).toBeTruthy();
+      expect(await screen.findByText('1 water source needs an assessment')).toBeTruthy();
       await user.click(screen.getByRole('button', { name: 'Open' }));
       expect(onNavigate).toHaveBeenCalledWith('recordWater');
       expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
@@ -108,7 +112,50 @@ describe('Home: what needs attention', () => {
     it('counts the sources that are overdue as well as the ones a flood reached', async () => {
       farmHas([well('Well 1', 'A1', '2026-03-01'), floodOn('A1'), well('Canal', 'B1', '2020-01-01'), well('Pond', 'C1', '2026-09-01')]);
       setup();
-      expect(await screen.findByText('2 water sources need a new assessment')).toBeTruthy();
+      expect(await screen.findByText('2 water sources need an assessment')).toBeTruthy();
+    });
+
+    it('counts a source on the farm’s list that was never assessed', async () => {
+      listWaterSources.mockResolvedValue({ data: [{ id: 's1', name: 'New well', is_active: true }], error: null });
+      const { user, onNavigate } = setup();
+      expect(await screen.findByText('1 water source needs an assessment')).toBeTruthy();
+      await user.click(screen.getByRole('button', { name: 'Open' }));
+      expect(onNavigate).toHaveBeenCalledWith('recordWater');
+    });
+
+    it('does not count a source that is archived, however overdue or flooded it was', async () => {
+      listWaterSources.mockResolvedValue({ data: [{ id: 's1', name: 'Well 1', fields_served: 'A1', is_active: false }], error: null });
+      farmHas([well('Well 1', 'A1', '2020-01-01'), floodOn('A1')]);
+      setup();
+      expect(await screen.findByText('Nothing needs your attention right now.')).toBeTruthy();
+    });
+
+    it('ties a flood to a source through the fields on the farm’s list', async () => {
+      listWaterSources.mockResolvedValue({ data: [{ id: 's1', name: 'Well 1', fields_served: 'B4', is_active: true }], error: null });
+      farmHas([well('Well 1', 'A1', '2026-03-01'), floodOn('B4')]);
+      setup();
+      expect(await screen.findByText('1 water source needs an assessment')).toBeTruthy();
+    });
+
+    it('still works, from the records alone, when the database has no list of water sources yet', async () => {
+      listWaterSources.mockResolvedValue({ data: null, error: { code: 'not_set_up' } });
+      farmHas([well('Well 1', 'A1', '2026-03-01'), floodOn('A1')]);
+      setup();
+      expect(await screen.findByText('1 water source needs an assessment')).toBeTruthy();
+      expect(screen.queryByText('Water sources could not be checked right now.')).toBeNull();
+    });
+
+    it('says all is well when there is no list yet and nothing needs attention', async () => {
+      listWaterSources.mockResolvedValue({ data: null, error: { code: 'not_set_up' } });
+      setup();
+      expect(await screen.findByText('Nothing needs your attention right now.')).toBeTruthy();
+    });
+
+    it('says so, and does not say all is well, when the list could not be read for another reason', async () => {
+      listWaterSources.mockResolvedValue({ data: null, error: { code: 'unknown' } });
+      setup();
+      expect(await screen.findByText('Water sources could not be checked right now.')).toBeTruthy();
+      expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
     });
 
     it('says nothing about water when every source is up to date, and still says all is well', async () => {
@@ -118,10 +165,10 @@ describe('Home: what needs attention', () => {
       expect(screen.queryByText(/water source/)).toBeNull();
     });
 
-    it('says so, and offers another try, when the water assessments could not be read, and does not say all is well', async () => {
+    it('says so, and offers another try, when the water records could not be read, and does not say all is well', async () => {
       listRecordsForReport.mockImplementation(async ({ kinds }) => (kinds.includes('water_assessment') ? { data: null, error: { code: 'unknown' } } : { data: { records: [], truncated: false }, error: null }));
       setup();
-      expect(await screen.findByText('Water assessments could not be checked right now.')).toBeTruthy();
+      expect(await screen.findByText('Water sources could not be checked right now.')).toBeTruthy();
       expect(screen.queryByText('Nothing needs your attention right now.')).toBeNull();
     });
 
@@ -135,7 +182,7 @@ describe('Home: what needs attention', () => {
     it('speaks Spanish', async () => {
       farmHas([well('Pozo', 'A1', '2026-03-01'), floodOn('A1')]);
       setup({}, 'es');
-      expect(await screen.findByText('1 fuente de agua necesita una nueva evaluación')).toBeTruthy();
+      expect(await screen.findByText('1 fuente de agua necesita una evaluación')).toBeTruthy();
     });
   });
 
